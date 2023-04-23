@@ -86,7 +86,7 @@ func downloadAndSavePhoto(bot *tgbotapi.BotAPI, fileID, savePath string) (string
 	return photoFilename, nil
 }
 
-
+/*
 func downloadAndSaveGif(bot *tgbotapi.BotAPI, fileID, savePath string) (string, error) {
 	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
@@ -119,3 +119,4 @@ func downloadAndSaveGif(bot *tgbotapi.BotAPI, fileID, savePath string) (string, 
 
 	return gifFilename, nil
 }
+*/
