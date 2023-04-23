@@ -70,7 +70,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 	}
 
 	// Send a message to inform the user about the result
-	if chatTriggerRemoved || indexToRemove != -1 {
+	if chatTriggerRemoved {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Response removed!")
 		_, _ = bot.Send(msg)
 	} else {
