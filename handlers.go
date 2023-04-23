@@ -34,6 +34,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	}
 
 	config.MyResponses = append(config.MyResponses, newMyResponse)
+	log.Printf("Updated config: %+v", *config)
 
 	// Save the updated config to the JSON file
 	err := saveConfig("config.json", *config)
