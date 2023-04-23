@@ -19,6 +19,10 @@
     {
       "searchPhrase": "я пас",
       "response": "Говножуй"
+    },
+    {
+      "searchPhrase": "занят",
+      "response": "Ну ты и урод"
     }
   ]
 }
