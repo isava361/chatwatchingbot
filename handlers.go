@@ -12,7 +12,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
 	if message.Text == "test" {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Ты пидор")
 		_, err := bot.Send(msg)
-		bot.Send(msg)
 		if err != nil {
 			return err
 		}
