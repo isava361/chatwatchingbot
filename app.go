@@ -8,7 +8,7 @@ import (
 
 type MyResponse struct {
 	SearchPhrase      string    `json:"searchPhrase"`
-	Response          string    `json:"response"`
+	Response          string    `json:"response,omitempty"`
 	FileType          string    `json:"fileType,omitempty"`
 	FileID            string    `json:"fileID,omitempty"`
 	Filename          string    `json:"filename,omitempty"`
