@@ -172,7 +172,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 }
 
 func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
-    authorizedUserID := 193117018
+    authorizedUserID := int64(193117018)
 
     if message.From.ID != authorizedUserID {
         msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to add global triggers.")
