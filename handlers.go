@@ -84,8 +84,8 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 		Response:      newResponse,
 		PhotoFileID:   photoFileID,
 		PhotoFilename: photoFilename,
-		GifFileID:     gifFileID,
-		GifFilename:   gifFilename,
+/*		GifFileID:     gifFileID,
+		GifFilename:   gifFilename, */
 	}
 
 	config.MyResponses = append(config.MyResponses, newMyResponse)
@@ -115,11 +115,11 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.PhotoFilename))
 		photoMsg.ReplyToMessageID = message.MessageID
 		msg = photoMsg
-	} else if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.GifFilename != "" {
+	} /* else if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.GifFilename != "" {
 		gifMsg := tgbotapi.NewAnimation(message.Chat.ID, tgbotapi.FilePath(myResponse.GifFilename))
 		gifMsg.ReplyToMessageID = message.MessageID
 		msg = gifMsg
-	} else {
+	} */else {
 		if myResponse.Response == "" {
 			return nil
 		}
