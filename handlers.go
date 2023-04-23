@@ -102,9 +102,11 @@ func updateGlobalConfig(config *Config, newMyResponse MyResponse) {
 
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
 	var myResponse MyResponse
-	myResponse.Response = message.ReplyToMessage.Text
 
-	if len(message.ReplyToMessage.Photo) > 0 {
+	if message.ReplyToMessage != nil {
+		myResponse.Response = message.ReplyToMessage.Text
+
+		if len(message.ReplyToMessage.Photo) > 0 {
 			photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
 			photoFilename, err := downloadAndSaveFile(bot, photoFileID, "/home/longspear/chatwatchingbot/photos", ".jpg")
 			if err != nil {
@@ -122,9 +124,12 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 			myResponse.Response = ""
 			myResponse.GifFilename = gifFilename
 			myResponse.GifFileID = gifFileID
-	} else {
-			log.Println("Unsupported message type: ", message)
-	}
+		} else {
+				log.Println("Unsupported message type: ", message)
+		}
+		} else {
+			log.Println("Message doesn't have a ReplyToMessage: ", message)
+		}
 
 	return myResponse, nil
 }
