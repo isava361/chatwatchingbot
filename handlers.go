@@ -13,34 +13,30 @@ func messageContains(messageText, targetString string) bool {
 
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
     log.Println("Handling /remove command")
+
     removeSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/remove"))
 
-    // Check for chat-specific triggers
     chatTriggerRemoved := false
     chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
     if exists {
-        indexToRemove := -1
-        for i, myResponse := range chatTriggers {
-            if myResponse.SearchPhrase == removeSearchPhrase {
-                indexToRemove = i
-                break
+        newChatTriggers := []MyResponse{}
+        for _, myResponse := range chatTriggers {
+            if myResponse.SearchPhrase != removeSearchPhrase {
+                newChatTriggers = append(newChatTriggers, myResponse)
+            } else {
+                chatTriggerRemoved = true
             }
         }
-        if indexToRemove != -1 {
-            n := len(chatTriggers)
-            chatTriggers[indexToRemove] = chatTriggers[n-1]
-            chatTriggers = chatTriggers[:n-1]
-            config.ChatTriggers[message.Chat.ID] = chatTriggers
-            chatTriggerRemoved = true
-        }
+        config.ChatTriggers[message.Chat.ID] = newChatTriggers
     }
 
-    // If chat-specific trigger not found, search for global triggers
     if !chatTriggerRemoved {
-        indexToRemove := -1
-        for i, myResponse := range config.MyResponses {
-            if myResponse.SearchPhrase == removeSearchPhrase {
-                indexToRemove = i
+        newMyResponses := []MyResponse{}
+        for _, myResponse := range config.MyResponses {
+            if myResponse.SearchPhrase != removeSearchPhrase {
+                newMyResponses = append(newMyResponses, myResponse)
+            } else {
+                chatTriggerRemoved = true
                 if myResponse.PhotoFilename != "" {
                     err := os.Remove(myResponse.PhotoFilename)
                     if err != nil {
@@ -53,30 +49,16 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
                         log.Printf("Error deleting gif: %v", err)
                     }
                 }
-                break
             }
         }
+        config.MyResponses = newMyResponses
+    }
 
-        if indexToRemove != -1 {
-            n := len(config.MyResponses)
-            config.MyResponses[indexToRemove] = config.MyResponses[n-1]
-            config.MyResponses = config.MyResponses[:n-1]
-        }
-    }
-    if chatTriggerRemoved {
-        log.Println("Chat trigger removed")
-    } else if indexToRemove != -1 {
-        log.Println("Global trigger removed")
-    } else {
-        log.Println("No trigger found to remove")
-    }
-    // Save the updated config to the JSON file
     err := saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
     if err != nil {
         log.Printf("Error saving config: %v", err)
     }
 
-    // Send a message to inform the user about the result
     if chatTriggerRemoved {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Response removed!")
         _, _ = bot.Send(msg)
@@ -87,9 +69,6 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 
     return nil
 }
-
-
-
 
 
 
