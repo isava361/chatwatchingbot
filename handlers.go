@@ -13,8 +13,8 @@ func messageContains(messageText, targetString string) bool {
 }
 
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
-	message := message.Text
-		if messageContains (message, "тест") {
+	receivedmessage := message.Text
+		if messageContains (receivedmessage, "тест") {
 			msg := tgbotapi.NewMessage(message.Chat.ID, "Ты пидор")
 			_, err := bot.Send(msg)
 			if err != nil {
