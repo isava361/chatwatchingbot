@@ -27,16 +27,10 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 				chatTriggerRemoved = true
 
 				// Add file deletion for ChatTriggers
-				if myResponse.PhotoFilename != "" {
-					err := os.Remove(myResponse.PhotoFilename)
+				if myResponse.Filetype != "" {
+					err := os.Remove(myResponse.Filename)
 					if err != nil {
-						log.Printf("Error deleting photo: %v", err)
-					}
-				}
-				if myResponse.GifFilename != "" {
-					err := os.Remove(myResponse.GifFilename)
-					if err != nil {
-						log.Printf("Error deleting gif: %v", err)
+						log.Printf("Error deleting media: %v", err)
 					}
 				}
 			}
@@ -51,16 +45,10 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 							newMyResponses = append(newMyResponses, myResponse)
 					} else {
 							chatTriggerRemoved = true
-							if myResponse.PhotoFilename != "" {
-									err := os.Remove(myResponse.PhotoFilename)
+							if myResponse.Filetype != "" {
+									err := os.Remove(myResponse.Filename)
 									if err != nil {
-											log.Printf("Error deleting photo: %v", err)
-									}
-							}
-							if myResponse.GifFilename != "" {
-									err := os.Remove(myResponse.GifFilename)
-									if err != nil {
-											log.Printf("Error deleting gif: %v", err)
+											log.Printf("Error deleting media: %v", err)
 									}
 							}
 					}
@@ -143,24 +131,24 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
 	if len(message.ReplyToMessage.Photo) > 0 {
 		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
-		photoFilename, err := downloadAndSaveFile(bot, photoFileID, "/home/longspear/chatwatchingbot/photos", ".jpg")
+		Filename, err := downloadAndSaveFile(bot, photoFileID, "/home/longspear/chatwatchingbot/photos", ".jpg")
 		if err != nil {
 			return myResponse, err
 		}
 		myResponse.Response = ""
 		myResponse.FileType = "photo"
 		myResponse.FileID = photoFileID
-		myResponse.Filename = photoFilename
+		myResponse.Filename = Filename
 	} else if message.ReplyToMessage.Animation != nil {
 		gifFileID := message.ReplyToMessage.Animation.FileID
-		gifFilename, err := downloadAndSaveFile(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs", ".gif")
+		Filename, err := downloadAndSaveFile(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs", ".gif")
 		if err != nil {
 			return myResponse, err
 		}
 		myResponse.Response = ""
 		myResponse.FileType = "gif"
 		myResponse.FileID = gifFileID
-		myResponse.Filename = gifFilename
+		myResponse.Filename = Filename
 	} else {
 		log.Println("Unsupported message type: ", message)
 	}
@@ -183,7 +171,7 @@ func updateConfig(config *Config, message *tgbotapi.Message, myResponse MyRespon
 
 
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
-	if myResponse.Response == "" && myResponse.PhotoFilename == "" && myResponse.GifFilename == "" {
+	if myResponse.Response == "" && myResponse.FileType == "gif" && myResponse.FileType == "photo" {
 			return nil
 	}
 
