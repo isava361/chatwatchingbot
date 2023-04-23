@@ -187,8 +187,10 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
         "remove": handleRemoveCommand,
     }
 
-    if handler, ok := commandHandlers[message.Command()]; ok && message.ReplyToMessage != nil {
-        return handler(bot, message, config)
+    if handler, ok := commandHandlers[message.Command()]; ok {
+        if message.Command() == "remove" || message.ReplyToMessage != nil {
+            return handler(bot, message, config)
+        }
     }
 
     chatSpecificTriggerFound := false
