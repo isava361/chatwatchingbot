@@ -19,15 +19,29 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 	chatTriggerRemoved := false
 	chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
 	if exists {
-			newChatTriggers := []MyResponse{}
-			for _, myResponse := range chatTriggers {
-					if myResponse.SearchPhrase != removeSearchPhrase {
-							newChatTriggers = append(newChatTriggers, myResponse)
-					} else {
-							chatTriggerRemoved = true
+		newChatTriggers := []MyResponse{}
+		for _, myResponse := range chatTriggers {
+			if myResponse.SearchPhrase != removeSearchPhrase {
+				newChatTriggers = append(newChatTriggers, myResponse)
+			} else {
+				chatTriggerRemoved = true
+
+				// Add file deletion for ChatTriggers
+				if myResponse.PhotoFilename != "" {
+					err := os.Remove(myResponse.PhotoFilename)
+					if err != nil {
+						log.Printf("Error deleting photo: %v", err)
 					}
+				}
+				if myResponse.GifFilename != "" {
+					err := os.Remove(myResponse.GifFilename)
+					if err != nil {
+						log.Printf("Error deleting gif: %v", err)
+					}
+				}
 			}
-			config.ChatTriggers[message.Chat.ID] = newChatTriggers
+		}
+		config.ChatTriggers[message.Chat.ID] = newChatTriggers
 	}
 
 	if !chatTriggerRemoved {
