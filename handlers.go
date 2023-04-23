@@ -138,33 +138,36 @@ func updateGlobalConfig(config *Config, message *tgbotapi.Message, myResponse My
 
 
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
-    var myResponse MyResponse
-    myResponse.Response = message.ReplyToMessage.Text
+	var myResponse MyResponse
+	myResponse.Response = message.ReplyToMessage.Text
 
-    if len(message.ReplyToMessage.Photo) > 0 {
-        photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
-        photoFilename, err := downloadAndSaveFile(bot, photoFileID, "/home/longspear/chatwatchingbot/photos",".jpg")
-        if err != nil {
-            return myResponse, err
-        }
-        myResponse.Response = ""
-        myResponse.PhotoFilename = photoFilename
-        myResponse.PhotoFileID = photoFileID
-    } else if message.ReplyToMessage.Animation != nil {
-        gifFileID := message.ReplyToMessage.Animation.FileID
-        gifFilename, err := downloadAndSaveFile(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs",".gif")
-        if err != nil {
-            return myResponse, err
-        }
-        myResponse.Response = ""
-        myResponse.GifFilename = gifFilename
-        myResponse.GifFileID = gifFileID
-    } else {
-        log.Println("Unsupported message type: ", message)
-    }
+	if len(message.ReplyToMessage.Photo) > 0 {
+		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
+		photoFilename, err := downloadAndSaveFile(bot, photoFileID, "/home/longspear/chatwatchingbot/photos", ".jpg")
+		if err != nil {
+			return myResponse, err
+		}
+		myResponse.Response = ""
+		myResponse.FileType = "photo"
+		myResponse.FileID = photoFileID
+		myResponse.Filename = photoFilename
+	} else if message.ReplyToMessage.Animation != nil {
+		gifFileID := message.ReplyToMessage.Animation.FileID
+		gifFilename, err := downloadAndSaveFile(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs", ".gif")
+		if err != nil {
+			return myResponse, err
+		}
+		myResponse.Response = ""
+		myResponse.FileType = "gif"
+		myResponse.FileID = gifFileID
+		myResponse.Filename = gifFilename
+	} else {
+		log.Println("Unsupported message type: ", message)
+	}
 
-    return myResponse, nil
+	return myResponse, nil
 }
+
 
 
 func updateConfig(config *Config, message *tgbotapi.Message, myResponse MyResponse) {
@@ -198,20 +201,21 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 }
 
 func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
-	if myResponse.PhotoFilename != "" {
-			photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.PhotoFilename))
-			photoMsg.ReplyToMessageID = message.MessageID
-			return photoMsg, nil
-	} else if myResponse.GifFilename != "" {
-			gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.GifFilename))
-			gifMsg.ReplyToMessageID = message.MessageID
-			return gifMsg, nil
+	if myResponse.FileType == "photo" {
+		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+		photoMsg.ReplyToMessageID = message.MessageID
+		return photoMsg, nil
+	} else if myResponse.FileType == "gif" {
+		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+		gifMsg.ReplyToMessageID = message.MessageID
+		return gifMsg, nil
 	} else {
-			textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
-			textMsg.ReplyToMessageID = message.MessageID
-			return textMsg, nil
+		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
+		textMsg.ReplyToMessageID = message.MessageID
+		return textMsg, nil
 	}
 }
+
 
 
 
