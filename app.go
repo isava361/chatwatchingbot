@@ -56,7 +56,7 @@ func main() {
 				}
 
 				if m.SenderChat != nil {
-					_, err := handleMessage(bot, m)
+					err := handleMessage(bot, m)
 					if err != nil {
 						log.Printf("[%s] %s,   err: %s", update.Message.From.UserName, update.Message.Text, err.Error())
 						continue
