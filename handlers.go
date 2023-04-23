@@ -135,7 +135,6 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		if err != nil {
 			return myResponse, err
 		}
-		myResponse.Response = ""
 		myResponse.FileType = "photo"
 		myResponse.FileID = photoFileID
 		myResponse.Filename = Filename
@@ -145,7 +144,6 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		if err != nil {
 			return myResponse, err
 		}
-		myResponse.Response = ""
 		myResponse.FileType = "gif"
 		myResponse.FileID = gifFileID
 		myResponse.Filename = Filename
@@ -155,11 +153,19 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		if err != nil {
 			return myResponse, err
 		}
-		myResponse.Response = ""
 		myResponse.FileType = "voice"
 		myResponse.FileID = voiceFileID
 		myResponse.Filename = Filename
-	} else {
+	} else if message.ReplyToMessage.Sticker != nil { // Add this block
+        stickerFileID := message.ReplyToMessage.Sticker.FileID
+        Filename, err := downloadAndSaveFile(bot, stickerFileID, "/home/longspear/chatwatchingbot/stickers", ".webp")
+        if err != nil {
+            return myResponse, err
+        }
+        myResponse.FileType = "sticker"
+        myResponse.FileID = stickerFileID
+        myResponse.Filename = Filename
+    } else {
 		log.Println("Unsupported message type: ", message)
 	}
 
@@ -211,7 +217,11 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
 		voiceMsg.ReplyToMessageID = message.MessageID
 		return voiceMsg, nil
-	} else {
+	} else if myResponse.FileType == "sticker" {
+    stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+    stickerMsg.ReplyToMessageID = message.MessageID
+    return stickerMsg, nil
+    } else {
 		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
 		textMsg.ReplyToMessageID = message.MessageID
 		return textMsg, nil
