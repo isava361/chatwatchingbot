@@ -16,7 +16,15 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 	receivedMessage := message.Text
 
 	for _, myResponse := range config.MyResponses {
-		if messageContains(receivedMessage, myResponse.SearchPhrase) {
+		if messageContains(receivedMessage, myResponse.SearchPhrase) &&  message.ChatType == "supergroup" {
+			msg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
+			msg.ReplyToMessageID = message.MessageID // Set the ReplyToMessageID field
+			_, err := bot.Send(msg)
+			if err != nil {
+				return err
+			}
+			break
+		} else if messageContains(receivedMessage, myResponse.SearchPhrase){
 			msg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
 			_, err := bot.Send(msg)
 			if err != nil {
@@ -28,6 +36,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 
 	return nil
 }
+
 
 /*
 
