@@ -13,11 +13,11 @@ type MyResponse struct {
 	PhotoFilename string `json:"photoFilename,omitempty"`
 	GifFileID     string `json:"gifFileID,omitempty"`
 	GifFilename   string `json:"gifFilename,omitempty"`
-	ChatTriggers  map[int64][]MyResponse  `json:"chat_triggers,omitempty"`
 }
 
 type Config struct {
 	MyResponses    []MyResponse      `json:"myResponses"`
+	ChatTriggers map[int64][]MyResponse  `json:"chat_triggers,omitempty"`
 }
 
 func main() {
