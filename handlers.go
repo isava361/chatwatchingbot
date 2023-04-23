@@ -27,7 +27,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 				chatTriggerRemoved = true
 
 				// Add file deletion for ChatTriggers
-				if myResponse.Filetype != "" {
+				if myResponse.FileType != "" {
 					err := os.Remove(myResponse.Filename)
 					if err != nil {
 						log.Printf("Error deleting media: %v", err)
@@ -45,7 +45,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 							newMyResponses = append(newMyResponses, myResponse)
 					} else {
 							chatTriggerRemoved = true
-							if myResponse.Filetype != "" {
+							if myResponse.FileType != "" {
 									err := os.Remove(myResponse.Filename)
 									if err != nil {
 											log.Printf("Error deleting media: %v", err)
