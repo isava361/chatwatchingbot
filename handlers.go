@@ -149,6 +149,16 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.FileType = "gif"
 		myResponse.FileID = gifFileID
 		myResponse.Filename = Filename
+	} else if message.ReplyToMessage.Voice != nil { // Add this block
+		voiceFileID := message.ReplyToMessage.Voice.FileID
+		Filename, err := downloadAndSaveFile(bot, voiceFileID, "/home/longspear/chatwatchingbot/voices", ".ogg")
+		if err != nil {
+			return myResponse, err
+		}
+		myResponse.Response = ""
+		myResponse.FileType = "voice"
+		myResponse.FileID = voiceFileID
+		myResponse.Filename = Filename
 	} else {
 		log.Println("Unsupported message type: ", message)
 	}
@@ -197,6 +207,10 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
 		gifMsg.ReplyToMessageID = message.MessageID
 		return gifMsg, nil
+	} else if myResponse.FileType = "voice" {
+		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+		voiceMsg.ReplyToMessageID = message.MessageID
+		return voiceMsg, nil
 	} else {
 		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
 		textMsg.ReplyToMessageID = message.MessageID
