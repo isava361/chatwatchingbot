@@ -29,18 +29,22 @@ func readBotToken(filename string) (string, error) {
 }
 
 func saveConfig(filename string, config Config) error {
-	data, err := json.MarshalIndent(config, "", "  ")
+	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
-	err = ioutil.WriteFile(filename, data, 0644)
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	err = encoder.Encode(config)
 	if err != nil {
 		return err
 	}
 
 	return nil
 }
+
 
 func downloadAndSavePhoto(bot *tgbotapi.BotAPI, fileID, savePath string) (string, error) {
 	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
