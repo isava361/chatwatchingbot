@@ -112,9 +112,10 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 		photoMsg.ReplyToMessageID = message.MessageID
 		msg = photoMsg
 	} else if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.GifFilename != "" {
-		gifMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.GifFilename))
+		gifMsg := tgbotapi.NewAnimation(message.Chat.ID, tgbotapi.FilePath(myResponse.GifFilename))
 		gifMsg.ReplyToMessageID = message.MessageID
 		msg = gifMsg
+		bot.SendAnimation(msg)
 	} else {
 		if myResponse.Response == "" {
 			return nil
