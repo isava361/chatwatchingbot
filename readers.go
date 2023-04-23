@@ -42,7 +42,6 @@ func saveConfig(filename string, config Config) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("JSON output: %s", buf.String())
 
 	_, err = file.Write(buf.Bytes())
 	if err != nil {
