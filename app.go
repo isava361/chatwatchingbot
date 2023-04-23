@@ -55,14 +55,13 @@ func main() {
 					continue
 				}
 
-				if m.SenderChat != nil {
 					log.Printf("Message received")
 					err := handleMessage(bot, m)
 					if err != nil {
 						log.Printf("[%s] %s,   err: %s", update.Message.From.UserName, update.Message.Text, err.Error())
 						continue
 					}
-				}
+
 				log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 			}
 		}
