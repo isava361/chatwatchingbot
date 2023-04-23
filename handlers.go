@@ -2,18 +2,24 @@
 
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-/*	"log"
 	"strings"
+/*	"log"
 	"time"
 	"fmt"  */
 )
 
+func messageContains(messageText, targetString string) bool {
+	return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
+}
+
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
-	if message.Text == "test" {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Ты пидор")
-		_, err := bot.Send(msg)
-		if err != nil {
+	message := message.Text
+		if messageContains (message, "тест") {
+			msg := tgbotapi.NewMessage(message.Chat.ID, "Ты пидор")
+			_, err := bot.Send(msg)
+			if err != nil {
 			return err
+		}
 		}
 	}
 	return nil
