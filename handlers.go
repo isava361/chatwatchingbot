@@ -101,34 +101,32 @@ func updateGlobalConfig(config *Config, newMyResponse MyResponse) {
 
 
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
-	var myResponse MyResponse
+    var myResponse MyResponse
+    myResponse.Response = message.ReplyToMessage.Text
 
-	if message.ReplyToMessage != nil {
-		myResponse.Response = message.ReplyToMessage.Text
+    if len(message.ReplyToMessage.Photo) > 0 {
+        photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
+        photoFilename, err := downloadAndSaveFile(bot, photoFileID, "/home/longspear/chatwatchingbot/photos",".jpg")
+        if err != nil {
+            return myResponse, err
+        }
+        myResponse.Response = ""
+        myResponse.PhotoFilename = photoFilename
+        myResponse.PhotoFileID = photoFileID
+    } else if message.ReplyToMessage.Animation != nil {
+        gifFileID := message.ReplyToMessage.Animation.FileID
+        gifFilename, err := downloadAndSaveGif(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs",".gif")
+        if err != nil {
+            return myResponse, err
+        }
+        myResponse.Response = ""
+        myResponse.GifFilename = gifFilename
+        myResponse.GifFileID = gifFileID
+    } else {
+        log.Println("Unsupported message type: ", message)
+    }
 
-		if len(message.ReplyToMessage.Photo) > 0 {
-			photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
-			photoFilename, err := downloadAndSaveFile(bot, photoFileID, "/home/longspear/chatwatchingbot/photos", ".jpg")
-			if err != nil {
-					return myResponse, err
-			}
-			myResponse.Response = ""
-			myResponse.PhotoFilename = photoFilename
-			myResponse.PhotoFileID = photoFileID
-			} else if message.ReplyToMessage.Animation != nil {
-				fileID := message.ReplyToMessage.Animation.FileID
-				savePath := "gifs" // Adjust this to the correct path where you want to save the GIFs
-				extension := ".gif"
-
-				localFilePath, err := downloadAndSaveFile(bot, fileID, savePath, extension)
-				if err != nil {
-					return myResponse, err
-				}
-	myResponse.FilePath = localFilePath
-	}
-}
-
-return myResponse, nil
+    return myResponse, nil
 }
 
 
