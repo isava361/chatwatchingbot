@@ -64,6 +64,8 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	newResponse := message.ReplyToMessage.Text
 	photoFileID := ""
 	photoFilename := ""
+	gifFileID := ""
+	gifFilename :=""
 
 	if len(message.ReplyToMessage.Photo) > 0 {
 		photoFileID = message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
