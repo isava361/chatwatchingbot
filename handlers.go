@@ -84,6 +84,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 
 
 
+
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
     newSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/add"))
     newResponse := message.ReplyToMessage.Text
