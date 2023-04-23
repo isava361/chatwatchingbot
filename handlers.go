@@ -218,23 +218,23 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config) error
 
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
-	receivedMessage := message.Text
+    receivedMessage := message.Text
 
-	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
-			return nil
-	}
+    if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
+        return nil
+    }
 
-	commandHandlers := map[string]commandHandlerFunc{
-			"add":    handleAddCommand,
-			"remove": handleRemoveCommand,
-			"addglobal": handleAddGlobalCommand,
-	}
+    commandHandlers := map[string]commandHandlerFunc{
+        "add":       handleAddCommand,
+        "remove":    handleRemoveCommand,
+        "addglobal": handleAddGlobalCommand,
+    }
 
-	if handler, ok := commandHandlers[message.Command()]; ok {
-			if message.Command() == "remove" || message.ReplyToMessage != nil {
-					return handler(bot, message, config)
-			}
-	}
+    if handler, ok := commandHandlers[message.Command()]; ok {
+        if message.Command() == "remove" || message.ReplyToMessage != nil {
+            return handler(bot, message, config)
+        }
+    }
 
 	chatSpecificTriggerFound := false
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
