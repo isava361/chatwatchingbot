@@ -83,7 +83,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 		PhotoFileID:   photoFileID,
 		PhotoFilename: photoFilename,
 		GifFileID:     gifFileID,
-		GifFilename:   gifFilename
+		GifFilename:   gifFilename,
 	}
 
 	config.MyResponses = append(config.MyResponses, newMyResponse)
