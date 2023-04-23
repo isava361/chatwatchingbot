@@ -23,7 +23,7 @@ func readBotToken(filename string) (string, error) {
 
 	return "", fmt.Errorf("no token found in %s", filename)
 }
-/*
+
 func writeConfig(filename string, config Config) error {
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
@@ -37,4 +37,36 @@ func writeConfig(filename string, config Config) error {
 
 	return nil
 }
-*/
+
+func downloadAndSavePhoto(bot *tgbotapi.BotAPI, fileID, savePath string) (string, error) {
+	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
+	if err != nil {
+		return "", err
+	}
+
+	// Create the savePath directory if it doesn't exist
+	err = os.MkdirAll(savePath, 0755)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := bot.Client.Get(file.Link(bot.Token))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	photoFilename := filepath.Join(savePath, fileID+".jpg")
+	outputFile, err := os.Create(photoFilename)
+	if err != nil {
+		return "", err
+	}
+	defer outputFile.Close()
+
+	_, err = io.Copy(outputFile, resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return photoFilename, nil
+}
