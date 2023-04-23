@@ -115,7 +115,7 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 		gifMsg := tgbotapi.NewAnimation(message.Chat.ID, tgbotapi.FilePath(myResponse.GifFilename))
 		gifMsg.ReplyToMessageID = message.MessageID
 		msg = gifMsg
-		bot.SendAnimation(msg)
+		bot.SendVideo(msg)
 	} else {
 		if myResponse.Response == "" {
 			return nil
