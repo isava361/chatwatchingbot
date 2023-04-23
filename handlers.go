@@ -51,15 +51,18 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 	var msg tgbotapi.Chattable
 
 	if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.PhotoFilename != "" {
-		msg = tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.PhotoFilename))
+		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.PhotoFilename))
+		photoMsg.ReplyToMessageID = message.MessageID
+		msg = photoMsg
 	} else {
 		if myResponse.Response == "" {
 			return nil
 		}
-		msg = tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
+		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
+		textMsg.ReplyToMessageID = message.MessageID
+		msg = textMsg
 	}
 
-	msg.ReplyToMessageID = message.MessageID
 	_, err := bot.Send(msg)
 	if err != nil {
 		return err
