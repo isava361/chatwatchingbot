@@ -95,6 +95,11 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	return nil
 }
 
+func updateGlobalConfig(config *Config, newMyResponse MyResponse) {
+    config.MyResponses = append(config.MyResponses, newMyResponse)
+}
+
+
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
 	var myResponse MyResponse
 	myResponse.Response = message.ReplyToMessage.Text
@@ -173,9 +178,8 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 
 func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
     authorizedUserID := int64(193117018)
-
     if message.From.ID != authorizedUserID {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to add global triggers.")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to use this command.")
         _, _ = bot.Send(msg)
         return nil
     }
@@ -189,7 +193,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
     }
     newMyResponse.SearchPhrase = newSearchPhrase
 
-    config.MyResponses = append(config.MyResponses, newMyResponse)
+    updateGlobalConfig(config, newMyResponse)
 
     err = saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
     if err != nil {
@@ -201,6 +205,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
     return nil
 }
+
 
 
 type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config) error
