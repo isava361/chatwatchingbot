@@ -8,11 +8,15 @@ import (
 	"fmt"  */
 )
 
-func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message){
-	if message.Text == "test"{
+func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
+	if message.Text == "test" {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Ты пидор")
-		bot.Send(msg)
+		_, err := bot.Send(msg)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 /*
 
