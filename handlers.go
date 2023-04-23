@@ -10,7 +10,7 @@ import (
 
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message){
 	if message.Text == "test"{
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Ты пидор")
+		msg := tgbotapi.NewMessage(message.Chat.ID, "РўС‹ РїРёРґРѕСЂ")
 		bot.Send(msg)
 	}
 }
