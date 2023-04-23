@@ -11,8 +11,8 @@ type MyResponse struct {
 	Response          string    `json:"response"`
 	PhotoFileID  string `json:"photoFileID,omitempty"`
 	PhotoFilename string `json:"photoFilename,omitempty"`
-/*	GifFileID     string `json:"gifFileID,omitempty"`
-	GifFilename   string `json:"gifFilename,omitempty"`*/
+	GifFileID     string `json:"gifFileID,omitempty"`
+	GifFilename   string `json:"gifFilename,omitempty"`
 }
 
 type Config struct {
