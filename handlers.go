@@ -92,6 +92,11 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 }
 
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
+
+	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
+		return nil
+	}
+
 	var msg tgbotapi.Chattable
 
 	if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.PhotoFilename != "" {
