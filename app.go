@@ -9,10 +9,9 @@ import (
 type MyResponse struct {
 	SearchPhrase      string    `json:"searchPhrase"`
 	Response          string    `json:"response"`
-	PhotoFileID  string `json:"photoFileID,omitempty"`
-	PhotoFilename string `json:"photoFilename,omitempty"`
-	GifFileID     string `json:"gifFileID,omitempty"`
-	GifFilename   string `json:"gifFilename,omitempty"`
+	FileType          string    `json:"fileType,omitempty"`
+	FileID            string    `json:"fileID,omitempty"`
+	Filename          string    `json:"filename,omitempty"`
 }
 
 type Config struct {
