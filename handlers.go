@@ -12,17 +12,23 @@ func messageContains(messageText, targetString string) bool {
 	return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
 }
 
-func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
-	receivedmessage := message.Text
-		if messageContains (receivedmessage, "тест") {
-			msg := tgbotapi.NewMessage(message.Chat.ID, "Ты пидор")
+func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+	receivedMessage := message.Text
+
+	for _, myResponse := range config.MyResponses {
+		if messageContains(receivedMessage, myResponse.SearchPhrase) {
+			msg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
 			_, err := bot.Send(msg)
 			if err != nil {
-			return err
+				return err
+			}
+			break
 		}
-		}
+	}
+
 	return nil
 }
+
 /*
 
 func handleListCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) {
