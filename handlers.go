@@ -3,7 +3,6 @@
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"strings"
-	"io/ioutil"
 //	"path/filepath"
 	"log"
 //	"encoding/json"
@@ -55,7 +54,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 	for _, myResponse := range config.MyResponses {
 		if messageContains(receivedMessage, myResponse.SearchPhrase) {
 			if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.PhotoFilename != "" {
-				msg := tgbotapi.NewPhotoUpload(message.Chat.ID, tgbotapi.FilePath(myResponse.PhotoFilename))
+				msg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.PhotoFilename))
 				msg.ReplyToMessageID = message.MessageID
 				_, err := bot.Send(msg)
 				if err != nil {
