@@ -2,11 +2,10 @@
 
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"log"
-	"strconv"
+/*	"log"
 	"strings"
 	"time"
-	"fmt"
+	"fmt"  */
 )
 
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message){
@@ -15,6 +14,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message){
 		bot.Send(msg)
 	}
 }
+/*
 
 func handleListCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) {
 	allowedUsers := config.AllowedUsers
@@ -170,3 +170,4 @@ func handleDisableBotCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, co
 		}
 	}
 }
+*/
