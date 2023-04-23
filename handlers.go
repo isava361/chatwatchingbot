@@ -101,10 +101,6 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
 
-	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
-		return nil
-	}
-
 	var msg tgbotapi.Chattable
 
 	if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.PhotoFilename != "" {
@@ -135,6 +131,10 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
 	receivedMessage := message.Text
+
+	if (message.Chat.Type != "supergroup" && message.Chat.Type != "group") || (message.Chat.Type != "private" && message.SenderChat.ID != "193117018") {
+		return nil
+	}
 
 	if message.Command() == "add" && message.ReplyToMessage != nil {
 		return handleAddCommand(bot, message, config)
