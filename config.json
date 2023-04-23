@@ -1,12 +1,24 @@
 {
   "myResponses": [
     {
-      "searchPhrase": "тест",
+      "searchPhrase": "не могу",
       "response": "Ты пидор"
     },
     {
-      "searchPhrase": "привет",
-      "response": "пошел нахуй"
-    }
+      "searchPhrase": "не хочу",
+      "response": "Пошел нахуй"
+    },
+    {
+      "searchPhrase": "не сегодня",
+      "response": "Уебок"
+    },
+    {
+      "searchPhrase": "не смогу",
+      "response": "Ты пидор"
+    },
+    {
+      "searchPhrase": "я пас",
+      "response": "Говножуй"
+    },
   ]
 }
