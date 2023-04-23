@@ -65,6 +65,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	photoFileID := ""
 	photoFilename := ""
 	gifFileID := ""
+	gifFilename := ""
 
 	if len(message.ReplyToMessage.Photo) > 0 {
 		photoFileID = message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
@@ -100,6 +101,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 
 	return nil
 }
+
 
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
 
