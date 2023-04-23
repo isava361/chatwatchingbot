@@ -53,7 +53,7 @@ func saveConfig(filename string, config Config) error {
 
 
 
-func downloadAndSavePhoto(bot *tgbotapi.BotAPI, fileID, savePath string) (string, error) {
+func downloadAndSaveFile(bot *tgbotapi.BotAPI, fileID, savePath, extension string) (string, error) {
 	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
 		return "", err
@@ -71,8 +71,8 @@ func downloadAndSavePhoto(bot *tgbotapi.BotAPI, fileID, savePath string) (string
 	}
 	defer resp.Body.Close()
 
-	photoFilename := filepath.Join(savePath, fileID+".jpg")
-	outputFile, err := os.Create(photoFilename)
+	filename := filepath.Join(savePath, fileID + extension)
+	outputFile, err := os.Create(filename)
 	if err != nil {
 		return "", err
 	}
@@ -83,39 +83,5 @@ func downloadAndSavePhoto(bot *tgbotapi.BotAPI, fileID, savePath string) (string
 		return "", err
 	}
 
-	return photoFilename, nil
-}
-
-
-func downloadAndSaveGif(bot *tgbotapi.BotAPI, fileID, savePath string) (string, error) {
-	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
-	if err != nil {
-		return "", err
-	}
-
-	// Create the savePath directory if it doesn't exist
-	err = os.MkdirAll(savePath, 0755)
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := http.Get(file.Link(bot.Token))
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	gifFilename := filepath.Join(savePath, fileID+".gif")
-	outputFile, err := os.Create(gifFilename)
-	if err != nil {
-		return "", err
-	}
-	defer outputFile.Close()
-
-	_, err = io.Copy(outputFile, resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	return gifFilename, nil
+	return filename, nil
 }
