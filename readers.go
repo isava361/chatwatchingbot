@@ -8,6 +8,14 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"encoding/json"
+	"io"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 func readBotToken(filename string) (string, error) {
@@ -51,7 +59,7 @@ func downloadAndSavePhoto(bot *tgbotapi.BotAPI, fileID, savePath string) (string
 		return "", err
 	}
 
-	resp, err := bot.Client.Get(file.Link(bot.Token))
+	resp, err := http.Get(file.Link(bot.Token))
 	if err != nil {
 		return "", err
 	}
