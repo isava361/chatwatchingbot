@@ -62,10 +62,6 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
 	newSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/add"))
 	newResponse := message.ReplyToMessage.Text
-	photoFileID := ""
-	photoFilename := ""
-	gifFileID := ""
-	gifFilename := ""
 
 	if len(message.ReplyToMessage.Photo) > 0 {
 		photoFileID = message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
@@ -115,7 +111,7 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 		photoMsg.ReplyToMessageID = message.MessageID
 		msg = photoMsg
 	} else if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.GifFilename != "" {
-		gifMsg := tgbotapi.NewAnimation(message.Chat.ID, tgbotapi.FilePath(myResponse.GifFilename))
+		gifMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.GifFilename))
 		gifMsg.ReplyToMessageID = message.MessageID
 		msg = gifMsg
 	} else {
