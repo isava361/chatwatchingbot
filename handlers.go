@@ -82,7 +82,6 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 		newMyResponse.GifFileID = gifFileID
 	} else {
 		log.Println ("pizdets.. che za govno?", message)
-		return error
 	}
 
 
