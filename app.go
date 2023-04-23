@@ -6,25 +6,20 @@ import (
 //	"time"
 )
 
-//type TempChat struct {
-//	ChatName      string    `json:"chatName"`
-//	TimeAdded     int       `json:"timeAdded"` // or you can use time.Duration if you want to store it as a duration instead of a string
-//	DateTimeAdded time.Time `json:"dateTimeAdded"`
-//}
-//
-//type Config struct {
-//	AllowedUser  int64           `json:"allowedUser"`
-//	AllowedUsers map[int64]bool  `json:"allowedUsers"`
-//	Whitelist    map[string]bool `json:"whitelist"`
-//	AllowedChats map[int64]bool  `json:"allowedChats"`
-//	TempChats    []TempChat      `json:"tempChats"`
-//}
+type MyResponse struct {
+	SearchPhrase      string    `json:"searchPhrase"`
+	Response          string    `json:"response"`
+}
+
+type Config struct {
+	MyResponses    []MyResponse      `json:"myResponses"`
+}
 
 func main() {
-//	config, err := readConfig("/home/longspear/tokens/test-config.json")
-//	if err != nil {
-//		log.Panicf("Config error: %v", err)
-//	}
+	config, err := readConfig("config.json")
+	if err != nil {
+		log.Panicf("Config error: %v", err)
+	}
 
 //	allowedChats := config.AllowedChats
 //	whitelist := config.Whitelist
@@ -56,7 +51,7 @@ func main() {
 				}
 
 					log.Printf("Message received")
-					err := handleMessage(bot, m)
+					err := handleMessage(bot, m, &config)
 					if err != nil {
 						log.Printf("[%s] %s,   err: %s", update.Message.From.UserName, update.Message.Text, err.Error())
 						continue
