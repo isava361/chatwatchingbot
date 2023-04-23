@@ -21,7 +21,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
 			return err
 		}
 		}
-	}
 	return nil
 }
 /*
