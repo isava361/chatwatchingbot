@@ -115,7 +115,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
         myResponse.PhotoFileID = photoFileID
     } else if message.ReplyToMessage.Animation != nil {
         gifFileID := message.ReplyToMessage.Animation.FileID
-        gifFilename, err := downloadAndSaveGif(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs",".gif")
+        gifFilename, err := downloadAndSaveFile(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs",".gif")
         if err != nil {
             return myResponse, err
         }
