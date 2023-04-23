@@ -46,7 +46,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 	}
 
 	// Save the updated config to the JSON file
-	err := saveConfig("config.json", *config)
+	err := saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
