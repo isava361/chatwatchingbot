@@ -53,7 +53,7 @@ func main() {
 				}
 
 					log.Printf("Message received")
-					err := handleMessage(bot, m, &config)
+					err := handleMessage(bot, m, config)
 					if err != nil {
 						log.Printf("[%s] %s,   err: %s", update.Message.From.UserName, update.Message.Text, err.Error())
 						continue
