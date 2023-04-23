@@ -186,7 +186,13 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
     newSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/addglobal"))
 
-    newMyResponse, err := createMyResponse(bot, message)
+    if message.ReplyToMessage == nil {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message containing text, photo, or gif to use this command.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
+
+    newMyResponse, err := createMyResponse(bot, message.ReplyToMessage)
     if err != nil {
         log.Printf("Error creating MyResponse: %v", err)
         return err
@@ -205,6 +211,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
     return nil
 }
+
 
 
 
