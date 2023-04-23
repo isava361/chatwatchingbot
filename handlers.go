@@ -12,6 +12,7 @@ func messageContains(messageText, targetString string) bool {
 }
 
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+    log.Println("Handling /remove command")
     removeSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/remove"))
 
     // Check for chat-specific triggers
@@ -62,7 +63,13 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
             config.MyResponses = config.MyResponses[:n-1]
         }
     }
-
+    if chatTriggerRemoved {
+        log.Println("Chat trigger removed")
+    } else if indexToRemove != -1 {
+        log.Println("Global trigger removed")
+    } else {
+        log.Println("No trigger found to remove")
+    }
     // Save the updated config to the JSON file
     err := saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
     if err != nil {
