@@ -56,10 +56,7 @@ func main() {
 				}
 
 				if m.SenderChat != nil {
-					_, err := bot.Send(tgbotapi.DeleteMessageConfig{
-						ChatID:    update.Message.Chat.ID,
-						MessageID: update.Message.MessageID,
-					})
+					_, err := handleMessage(bot, m)
 					if err != nil {
 						log.Printf("[%s] %s,   err: %s", update.Message.From.UserName, update.Message.Text, err.Error())
 						continue
