@@ -75,7 +75,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	if message.ReplyToMessage.Animation != nil {
 		gifFileID := message.ReplyToMessage.Animation.FileID
 		newResponse = ""
-		gifFilename, _ := downloadAndSaveGif(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs") // Replace this with your desired path
+		gifFilename, _ = downloadAndSaveGif(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs") // Replace this with your desired path
 	}
 
 
@@ -84,8 +84,8 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 		Response:      newResponse,
 		PhotoFileID:   photoFileID,
 		PhotoFilename: photoFilename,
-/*		GifFileID:     gifFileID,
-		GifFilename:   gifFilename, */
+		GifFileID:     gifFileID,
+		GifFilename:   gifFilename,
 	}
 
 	config.MyResponses = append(config.MyResponses, newMyResponse)
@@ -102,7 +102,6 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	return nil
 }
 
-
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
 
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
@@ -115,11 +114,11 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.PhotoFilename))
 		photoMsg.ReplyToMessageID = message.MessageID
 		msg = photoMsg
-	} /* else if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.GifFilename != "" {
+	} else if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.GifFilename != "" {
 		gifMsg := tgbotapi.NewAnimation(message.Chat.ID, tgbotapi.FilePath(myResponse.GifFilename))
 		gifMsg.ReplyToMessageID = message.MessageID
 		msg = gifMsg
-	} */else {
+	} else {
 		if myResponse.Response == "" {
 			return nil
 		}
