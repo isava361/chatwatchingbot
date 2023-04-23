@@ -1,10 +1,11 @@
 package main
 
 import (
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"bufio"
-//	"encoding/json"
+	"encoding/json"
 	"fmt"
-//	"io/ioutil"
+	"io/ioutil"
 	"os"
 	"strings"
 )
@@ -24,7 +25,7 @@ func readBotToken(filename string) (string, error) {
 	return "", fmt.Errorf("no token found in %s", filename)
 }
 
-func writeConfig(filename string, config Config) error {
+func saveConfig(filename string, config Config) error {
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
