@@ -88,28 +88,34 @@ func downloadAndSavePhoto(bot *tgbotapi.BotAPI, fileID, savePath string) (string
 
 
 func downloadAndSaveGif(bot *tgbotapi.BotAPI, fileID, savePath string) (string, error) {
-	fileURL, err := bot.GetFileDirectURL(fileID)
+	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
 		return "", err
 	}
 
-	response, err := http.Get(fileURL)
-	if err != nil {
-		return "", err
-	}
-	defer response.Body.Close()
-
-	filename := filepath.Join(savePath, fileID+".gif")
-	output, err := os.Create(filename)
-	if err != nil {
-		return "", err
-	}
-	defer output.Close()
-
-	_, err = io.Copy(output, response.Body)
+	// Create the savePath directory if it doesn't exist
+	err = os.MkdirAll(savePath, 0755)
 	if err != nil {
 		return "", err
 	}
 
-	return filename, nil
+	resp, err := http.Get(file.Link(bot.Token))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	gifFilename := filepath.Join(savePath, fileID+".gif")
+	outputFile, err := os.Create(gifFilename)
+	if err != nil {
+		return "", err
+	}
+	defer outputFile.Close()
+
+	_, err = io.Copy(outputFile, resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return gifFilename, nil
 }
