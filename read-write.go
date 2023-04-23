@@ -10,7 +10,7 @@ import (
 //	"fmt"
 //	"sort"
 )
-/*
+
 func readConfig(filename string) (Config, error) {
 	var config Config
 
@@ -26,7 +26,7 @@ func readConfig(filename string) (Config, error) {
 
 	return config, nil
 }
-
+/*
 func addChatToAllowedChats(config *Config, chatID int64) error {
 	config.AllowedChats[chatID] = true
 	return writeConfig("test-config.json", *config)
