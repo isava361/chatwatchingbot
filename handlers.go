@@ -95,8 +95,31 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	return nil
 }
 
-func updateGlobalConfig(config *Config, newMyResponse MyResponse) {
-    config.MyResponses = append(config.MyResponses, newMyResponse)
+func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+	newSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/addglobal"))
+
+	newMyResponse, err := createMyResponse(bot, message)
+	if err != nil {
+			log.Printf("Error creating MyResponse: %v", err)
+			return err
+	}
+	newMyResponse.SearchPhrase = newSearchPhrase
+
+	updateGlobalConfig(config, message, newMyResponse)
+
+	err = saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
+	if err != nil {
+			log.Printf("Error saving config: %v", err)
+	}
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, "New response added!")
+	_, _ = bot.Send(msg)
+
+	return nil
+}
+
+func updateGlobalConfig(config *Config, message *tgbotapi.Message, myResponse MyResponse) {
+			config.MyResponses = append(config.MyResponses, myResponse)
 }
 
 
@@ -176,7 +199,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 	}
 }
 
-func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+/*func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
     authorizedUserID := int64(193117018)
     if message.From.ID != authorizedUserID {
         msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to use this command.")
@@ -211,7 +234,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
     return nil
 }
-
+*/
 
 
 
