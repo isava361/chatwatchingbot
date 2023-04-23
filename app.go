@@ -62,6 +62,7 @@ func main() {
 						continue
 					}
 				}
+				log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 			}
 		}
 	}
