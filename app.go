@@ -29,7 +29,7 @@ func main() {
 //	allowedChats := config.AllowedChats
 //	whitelist := config.Whitelist
 
-	token, err := readBotToken("/home/longspear/tokens/test-token.txt")
+	token, err := readBotToken("/home/longspear/tokens/chatwatchingbot-token.txt")
 	if err != nil {
 		log.Panicf("Token error: ", err)
 	}
