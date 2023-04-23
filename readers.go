@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"bytes"
 )
 
 func readBotToken(filename string) (string, error) {
@@ -34,15 +35,23 @@ func saveConfig(filename string, config Config) error {
 	}
 	defer file.Close()
 
-	encoder := json.NewEncoder(file)
+	buf := new(bytes.Buffer)
+	encoder := json.NewEncoder(buf)
 	encoder.SetIndent("", "  ")
 	err = encoder.Encode(config)
+	if err != nil {
+		return err
+	}
+	log.Printf("JSON output: %s", buf.String())
+
+	_, err = file.Write(buf.Bytes())
 	if err != nil {
 		return err
 	}
 
 	return nil
 }
+
 
 
 func downloadAndSavePhoto(bot *tgbotapi.BotAPI, fileID, savePath string) (string, error) {
