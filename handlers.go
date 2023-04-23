@@ -1,113 +1,49 @@
-	package main
+package main
 
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"strings"
+	"bufio"
+	"encoding/json"
+	"fmt"
 	"os"
-//	"path/filepath"
-	"log"
-//	"encoding/json"
-/*	"time"
-	"fmt"  */
+	"strings"
+	"io"
+	"net/http"
+	"path/filepath"
+	"bytes"
 )
 
-func messageContains(messageText, targetString string) bool {
-	return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
-}
-
-func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
-	removeSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/remove"))
-
-	// Find the index of the response to be removed
-	removeIndex := -1
-	for i, myResponse := range config.MyResponses {
-		if myResponse.SearchPhrase == removeSearchPhrase {
-			removeIndex = i
-			break
-		}
-	}
-
-	if removeIndex == -1 {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "No response found with the specified search phrase.")
-		_, _ = bot.Send(msg)
-		return nil
-	}
-
-	// Remove the response from the config
-	removedResponse := config.MyResponses[removeIndex]
-	config.MyResponses = append(config.MyResponses[:removeIndex], config.MyResponses[removeIndex+1:]...)
-
-	// Delete the photo file if it exists
-	if removedResponse.PhotoFilename != "" {
-		err := os.Remove(removedResponse.PhotoFilename)
-		if err != nil {
-			log.Printf("Error deleting photo file: %v", err)
-		}
-	}
-
-	// Save the updated config to the JSON file
-	err := saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
+func readBotToken(filename string) (string, error) {
+	file, err := os.Open(filename)
 	if err != nil {
-		log.Printf("Error saving config: %v", err)
+		return "", err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	if scanner.Scan() {
+		return strings.TrimSpace(scanner.Text()), nil
 	}
 
-	msg := tgbotapi.NewMessage(message.Chat.ID, "Response removed!")
-	_, _ = bot.Send(msg)
-
-	return nil
+	return "", fmt.Errorf("no token found in %s", filename)
 }
 
-
-func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
-	newSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/add"))
-	newResponse := message.ReplyToMessage.Text
-	photoFileID := ""
-	photoFilename := ""
-
-	if len(message.ReplyToMessage.Photo) > 0 {
-		photoFileID = message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
-		newResponse = ""
-		photoFilename, _ = downloadAndSavePhoto(bot, photoFileID, "/home/longspear/chatwatchingbot/photos")
-	}
-
-	newMyResponse := MyResponse{
-		SearchPhrase:  newSearchPhrase,
-		Response:      newResponse,
-		PhotoFileID:   photoFileID,
-		PhotoFilename: photoFilename,
-	}
-
-	config.MyResponses = append(config.MyResponses, newMyResponse)
-
-	// Save the updated config to the JSON file
-	err := saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
+func saveConfig(filename string, config Config) error {
+	file, err := os.Create(filename)
 	if err != nil {
-		log.Printf("Error saving config: %v", err)
+		return err
+	}
+	defer file.Close()
+
+	buf := new(bytes.Buffer)
+	encoder := json.NewEncoder(buf)
+	encoder.SetIndent("", "  ")
+	err = encoder.Encode(config)
+	if err != nil {
+		return err
 	}
 
-	msg := tgbotapi.NewMessage(message.Chat.ID, "New response added!")
-	_, _ = bot.Send(msg)
-
-	return nil
-}
-
-func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
-	var msg tgbotapi.Chattable
-
-	if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.PhotoFilename != "" {
-		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.PhotoFilename))
-		photoMsg.ReplyToMessageID = message.MessageID
-		msg = photoMsg
-	} else {
-		if myResponse.Response == "" {
-			return nil
-		}
-		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
-		textMsg.ReplyToMessageID = message.MessageID
-		msg = textMsg
-	}
-
-	_, err := bot.Send(msg)
+	_, err = file.Write(buf.Bytes())
 	if err != nil {
 		return err
 	}
@@ -116,26 +52,36 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 }
 
 
-func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
-	receivedMessage := message.Text
 
-	if message.ReplyToMessage != nil {
-		if message.Command() == "add" {
-			return handleAddCommand(bot, message, config)
-		} else if message.Command() == "remove" {
-			return handleRemoveCommand(bot, message, config)
-		}
+func downloadAndSavePhoto(bot *tgbotapi.BotAPI, fileID, savePath string) (string, error) {
+	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
+	if err != nil {
+		return "", err
 	}
 
-	for _, myResponse := range config.MyResponses {
-		if messageContains(receivedMessage, myResponse.SearchPhrase) {
-			err := processResponse(bot, message, myResponse)
-			if err != nil {
-				return err
-			}
-			break
-		}
+	// Create the savePath directory if it doesn't exist
+	err = os.MkdirAll(savePath, 0755)
+	if err != nil {
+		return "", err
 	}
 
-	return nil
+	resp, err := http.Get(file.Link(bot.Token))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	photoFilename := filepath.Join(savePath, fileID+".jpg")
+	outputFile, err := os.Create(photoFilename)
+	if err != nil {
+		return "", err
+	}
+	defer outputFile.Close()
+
+	_, err = io.Copy(outputFile, resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return photoFilename, nil
 }
