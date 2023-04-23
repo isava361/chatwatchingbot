@@ -14,6 +14,49 @@ func messageContains(messageText, targetString string) bool {
 	return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
 }
 
+func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+	removeSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/remove"))
+
+	// Find the index of the response to be removed
+	removeIndex := -1
+	for i, myResponse := range config.MyResponses {
+		if myResponse.SearchPhrase == removeSearchPhrase {
+			removeIndex = i
+			break
+		}
+	}
+
+	if removeIndex == -1 {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "No response found with the specified search phrase.")
+		_, _ = bot.Send(msg)
+		return nil
+	}
+
+	// Remove the response from the config
+	removedResponse := config.MyResponses[removeIndex]
+	config.MyResponses = append(config.MyResponses[:removeIndex], config.MyResponses[removeIndex+1:]...)
+
+	// Delete the photo file if it exists
+	if removedResponse.PhotoFilename != "" {
+		err := os.Remove(removedResponse.PhotoFilename)
+		if err != nil {
+			log.Printf("Error deleting photo file: %v", err)
+		}
+	}
+
+	// Save the updated config to the JSON file
+	err := saveConfig("config.json", *config)
+	if err != nil {
+		log.Printf("Error saving config: %v", err)
+	}
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, "Response removed!")
+	_, _ = bot.Send(msg)
+
+	return nil
+}
+
+
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
 	newSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/add"))
 	newResponse := message.ReplyToMessage.Text
@@ -75,8 +118,12 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
 	receivedMessage := message.Text
 
-	if message.ReplyToMessage != nil && message.Command() == "add" {
-		return handleAddCommand(bot, message, config)
+	if message.ReplyToMessage != nil {
+		if message.Command() == "add" {
+			return handleAddCommand(bot, message, config)
+		} else if message.Command() == "remove" {
+			return handleRemoveCommand(bot, message, config)
+		}
 	}
 
 	for _, myResponse := range config.MyResponses {
