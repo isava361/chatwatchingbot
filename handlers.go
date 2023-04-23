@@ -63,30 +63,25 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	newSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/add"))
 	newResponse := message.ReplyToMessage.Text
 
-	if len(message.ReplyToMessage.Photo) > 0 {
-		photoFileID := ""
-		photoFileID = message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
-		newResponse = ""
-		photoFilename = ""
-		photoFilename, _ = downloadAndSavePhoto(bot, photoFileID, "/home/longspear/chatwatchingbot/photos")
-	}
-	if message.ReplyToMessage.Animation != nil {
-		gifFileID := ""
-		gifFileID = message.ReplyToMessage.Animation.FileID
-		newResponse = ""
-		gifFilename := ""
-		gifFilename, _ = downloadAndSaveGif(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs") // Replace this with your desired path
-	}
-
-
 	newMyResponse := MyResponse{
 		SearchPhrase:  newSearchPhrase,
 		Response:      newResponse,
-		PhotoFileID:   photoFileID,
-		PhotoFilename: photoFilename,
-		GifFileID:     gifFileID,
-		GifFilename:   gifFilename,
 	}
+
+	if len(message.ReplyToMessage.Photo) > 0 {
+		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
+		photoFilename, _ := downloadAndSavePhoto(bot, photoFileID, "/home/longspear/chatwatchingbot/photos")
+		newMyResponse.Response = ""
+		newMyResponse.PhotoFilename = photoFilename
+  	newMyResponse.PhotoFileId = photoFileId
+	} else if message.ReplyToMessage.Animation != nil {
+		gifFileID := message.ReplyToMessage.Animation.FileID
+		gifFilename, _ := downloadAndSaveGif(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs") // Replace this with your desired path
+		newMyResponse.Response = ""
+		newMyResponse.GifFilename = gifFilename
+		newMyResponse.GifFileId = gifFileId
+	}
+
 
 	config.MyResponses = append(config.MyResponses, newMyResponse)
 
