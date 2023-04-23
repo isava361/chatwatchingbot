@@ -8,14 +8,9 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
-	"encoding/json"
 	"io"
-	"io/ioutil"
-	"log"
 	"net/http"
-	"os"
 	"path/filepath"
-	"strings"
 )
 
 func readBotToken(filename string) (string, error) {
