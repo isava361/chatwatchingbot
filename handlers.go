@@ -132,7 +132,7 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
 	receivedMessage := message.Text
 
-	if (message.Chat.Type != "supergroup" && message.Chat.Type != "group") || (message.Chat.Type != "private" && message.SenderChat.ID != 193117018) {
+	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
 		return nil
 	}
 
