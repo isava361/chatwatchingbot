@@ -9,6 +9,8 @@ import (
 type MyResponse struct {
 	SearchPhrase      string    `json:"searchPhrase"`
 	Response          string    `json:"response"`
+	PhotoFileID  string `json:"photoFileID,omitempty"`
+	PhotoFilename string `json:"photoFilename,omitempty"`
 }
 
 type Config struct {
@@ -16,7 +18,7 @@ type Config struct {
 }
 
 func main() {
-	config, err := readConfig("config.json")
+	config, err := readConfig("/home/longspear/chatwatchingbotconfig/config.json")
 	if err != nil {
 		log.Panicf("Config error: %v", err)
 	}
