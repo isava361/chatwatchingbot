@@ -55,13 +55,9 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 	for _, myResponse := range config.MyResponses {
 		if messageContains(receivedMessage, myResponse.SearchPhrase) {
 			if (message.Chat.Type == "supergroup" || message.Chat.Type == "group") && myResponse.PhotoFilename != "" {
-				photoBytes, err := ioutil.ReadFile(myResponse.PhotoFilename)
-				if err != nil {
-					return err
-				}
-				msg := tgbotapi.NewPhotoShare(message.Chat.ID, tgbotapi.FileBytes{Name: "photo.jpg", Bytes: photoBytes})
+				msg := tgbotapi.NewPhotoUpload(message.Chat.ID, tgbotapi.FilePath(myResponse.PhotoFilename))
 				msg.ReplyToMessageID = message.MessageID
-				_, err = bot.Send(msg)
+				_, err := bot.Send(msg)
 				if err != nil {
 					return err
 				}
