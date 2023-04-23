@@ -82,11 +82,11 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 		newMyResponse.GifFileID = gifFileID
 	} else {
 		log.Println ("pizdets.. che za govno?", message)
-		return
+		return error
 	}
 
 
-	config.MyResponses = append(config.MyRÍesponses, newMyResponse)
+	config.MyResponses = append(config.MyResponses, newMyResponse)
 
 	// Save the updated config to the JSON file
 	err := saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
