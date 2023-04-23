@@ -116,22 +116,20 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 			myResponse.PhotoFilename = photoFilename
 			myResponse.PhotoFileID = photoFileID
 			} else if message.ReplyToMessage.Animation != nil {
-					fileID := message.ReplyToMessage.Animation.FileID
-					fileURL, err := bot.GetFileDirectURL(fileID)
-					if err != nil {
-						log.Println("Failed to get file URL: ", err)
-					} else {
-						myResponse.Response = fileURL
-					}
-				} else {
-					log.Println("Unsupported message type: ", message)
-				}
-			} else {
-				log.Println("Message doesn't have a ReplyToMessage: ", message)
-			}
+				fileID := message.ReplyToMessage.Animation.FileID
+				savePath := "gifs" // Adjust this to the correct path where you want to save the GIFs
+				extension := ".gif"
 
-			return myResponse, nil
-		}
+				localFilePath, err := downloadAndSaveFile(bot, fileID, savePath, extension)
+				if err != nil {
+					return myResponse, err
+				}
+	myResponse.FilePath = localFilePath
+	}
+}
+
+return myResponse, nil
+}
 
 
 func updateConfig(config *Config, message *tgbotapi.Message, myResponse MyResponse) {
