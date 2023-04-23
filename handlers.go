@@ -80,10 +80,10 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 		newMyResponse.Response = ""
 		newMyResponse.GifFilename = gifFilename
 		newMyResponse.GifFileID = gifFileID
-	}
+	} else
 
 
-	config.MyResponses = append(config.MyResponses, newMyResponse)
+	config.MyResponses = append(config.MyRÍesponses, newMyResponse)
 
 	// Save the updated config to the JSON file
 	err := saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
