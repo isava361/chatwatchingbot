@@ -150,7 +150,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
         myResponse.Response = ""
         myResponse.PhotoFilename = photoFilename
         myResponse.PhotoFileID = photoFileID
-    } else if message.ReplyToMessage.Animation != nil || message.ReplyToMessage.Video != nil {
+    } else if message.ReplyToMessage.Animation != nil {
         gifFileID := message.ReplyToMessage.Animation.FileID
         gifFilename, err := downloadAndSaveFile(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs",".gif")
         if err != nil {
@@ -213,43 +213,6 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 	}
 }
 
-/*func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
-    authorizedUserID := int64(193117018)
-    if message.From.ID != authorizedUserID {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to use this command.")
-        _, _ = bot.Send(msg)
-        return nil
-    }
-
-    newSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/addglobal"))
-
-    if message.ReplyToMessage == nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message containing text, photo, or gif to use this command.")
-        _, _ = bot.Send(msg)
-        return nil
-    }
-
-    newMyResponse, err := createMyResponse(bot, message.ReplyToMessage)
-    if err != nil {
-        log.Printf("Error creating MyResponse: %v", err)
-        return err
-    }
-    newMyResponse.SearchPhrase = newSearchPhrase
-
-    updateGlobalConfig(config, newMyResponse)
-
-    err = saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
-    if err != nil {
-        log.Printf("Error saving config: %v", err)
-    }
-
-    msg := tgbotapi.NewMessage(message.Chat.ID, "New global response added!")
-    _, _ = bot.Send(msg)
-
-    return nil
-}
-*/
-
 
 
 type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config) error
@@ -265,10 +228,11 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
         "add":       handleAddCommand,
         "remove":    handleRemoveCommand,
         "addglobal": handleAddGlobalCommand,
+				"triggers":  handleTriggersCommand,
     }
 
     if handler, ok := commandHandlers[message.Command()]; ok {
-        if message.Command() == "remove" || message.ReplyToMessage != nil {
+        if message.Command() == "triggers" || message.Command() == "remove" || message.ReplyToMessage != nil {
             return handler(bot, message, config)
         }
     }
@@ -301,6 +265,33 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 					}
 			}
 	}
+
+	return nil
+}
+
+func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+	log.Println("Handling /triggers command")
+
+	chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
+	var localTriggers, globalTriggers []string
+
+	if exists {
+		for _, myResponse := range chatTriggers {
+			localTriggers = append(localTriggers, myResponse.SearchPhrase)
+		}
+	}
+
+	for _, myResponse := range config.MyResponses {
+		globalTriggers = append(globalTriggers, myResponse.SearchPhrase)
+	}
+
+	localTriggersStr := strings.Join(localTriggers, ", ")
+	globalTriggersStr := strings.Join(globalTriggers, ", ")
+
+	response := "Local Triggers:\n" + localTriggersStr + "\n\nGlobal Triggers:\n" + globalTriggersStr
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, response)
+	_, _ = bot.Send(msg)
 
 	return nil
 }
