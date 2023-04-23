@@ -73,13 +73,13 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 		photoFilename, _ := downloadAndSavePhoto(bot, photoFileID, "/home/longspear/chatwatchingbot/photos")
 		newMyResponse.Response = ""
 		newMyResponse.PhotoFilename = photoFilename
-  	newMyResponse.PhotoFileId = photoFileId
+  	newMyResponse.PhotoFileID = photoFileID
 	} else if message.ReplyToMessage.Animation != nil {
 		gifFileID := message.ReplyToMessage.Animation.FileID
 		gifFilename, _ := downloadAndSaveGif(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs") // Replace this with your desired path
 		newMyResponse.Response = ""
 		newMyResponse.GifFilename = gifFilename
-		newMyResponse.GifFileId = gifFileId
+		newMyResponse.GifFileID = gifFileID
 	}
 
 
