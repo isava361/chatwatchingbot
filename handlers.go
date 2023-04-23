@@ -64,14 +64,14 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	newResponse := message.ReplyToMessage.Text
 
 	if len(message.ReplyToMessage.Photo) > 0 {
-		photoFileID = message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
+		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
 		newResponse = ""
-		photoFilename, _ = downloadAndSavePhoto(bot, photoFileID, "/home/longspear/chatwatchingbot/photos")
+		photoFilename, _ := downloadAndSavePhoto(bot, photoFileID, "/home/longspear/chatwatchingbot/photos")
 	}
 	if message.ReplyToMessage.Animation != nil {
 		gifFileID := message.ReplyToMessage.Animation.FileID
 		newResponse = ""
-		gifFilename, _ = downloadAndSaveGif(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs") // Replace this with your desired path
+		gifFilename, _ := downloadAndSaveGif(bot, gifFileID, "/home/longspear/chatwatchingbot/gifs") // Replace this with your desired path
 	}
 
 
