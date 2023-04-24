@@ -252,6 +252,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 	} else if myResponse.FileType == "voice" {
 		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
 		voiceMsg.ReplyToMessageID = message.MessageID
+		voiceMsg.ReplyToMessageID = message.MessageID
 		return voiceMsg, nil
 	} else if myResponse.FileType == "sticker" {
     stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
