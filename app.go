@@ -25,8 +25,7 @@ type Config struct {
 	ChatTriggers map[int64][]MyResponse  `json:"chat_triggers,omitempty"`
 }
 
-string configlocation
-configlocation = "./config/config.json"
+const configlocation = "./config/config.json"
 
 func main() {
 	config, err := readConfig(configlocation)
