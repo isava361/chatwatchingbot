@@ -177,31 +177,31 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
 	if len(message.ReplyToMessage.Photo) > 0 { // photo proccess
 		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
-		Filename, err := downloadAndSaveFile(bot, photoFileID, "./photos", ".jpg")
+		fileName, err := downloadAndSaveFile(bot, photoFileID, "./photos", ".jpg")
 		if err != nil {
 			return myResponse, err
 		}
 		myResponse.FileType = "photo"
 		myResponse.FileID = photoFileID
-		myResponse.Filename = Filename
+		myResponse.Filename = fileName
 	} else if message.ReplyToMessage.Animation != nil { // gif proccess
 		gifFileID := message.ReplyToMessage.Animation.FileID
-		Filename, err := downloadAndSaveFile(bot, gifFileID, "./gifs", ".gif")
+		fileName, err := downloadAndSaveFile(bot, gifFileID, "./gifs", ".gif")
 		if err != nil {
 			return myResponse, err
 		}
 		myResponse.FileType = "gif"
 		myResponse.FileID = gifFileID
-		myResponse.Filename = Filename
+		myResponse.Filename = fileName
 	} else if message.ReplyToMessage.Voice != nil { // voice proccess
 		voiceFileID := message.ReplyToMessage.Voice.FileID
-		Filename, err := downloadAndSaveFile(bot, voiceFileID, "./voices", ".ogg")
+		fileName, err := downloadAndSaveFile(bot, voiceFileID, "./voices", ".ogg")
 		if err != nil {
 			return myResponse, err
 		}
 		myResponse.FileType = "voice"
 		myResponse.FileID = voiceFileID
-		myResponse.Filename = Filename
+		myResponse.Filename = fileName
 	} else if message.ReplyToMessage.Sticker != nil { // Sticker proccess
     	stickerFileID := message.ReplyToMessage.Sticker.FileID
     	Filename, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
@@ -210,7 +210,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     	}
     	myResponse.FileType = "sticker"
     	myResponse.FileID = stickerFileID
-    	myResponse.Filename = Filename
+    	myResponse.Filename = fileName
   	} else {
 		return myResponse, fmt.Errorf("Unsupported message type: %v", message)
 	}
