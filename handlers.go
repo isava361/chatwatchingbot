@@ -156,7 +156,7 @@ func updateGlobalConfig(config *Config, message *tgbotapi.Message, myResponse My
 
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
 	var myResponse MyResponse
-	
+
 	if message.ReplyToMessage.Caption != "" {
 		myResponse.Response = message.ReplyToMessage.Caption
 	} else {
@@ -240,19 +240,19 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 
 func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
 	if myResponse.FileType == "photo" {
-		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename), myResponse.Response)
 		photoMsg.ReplyToMessageID = message.MessageID
 		return photoMsg, nil
 	} else if myResponse.FileType == "gif" {
-		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename), myResponse.Response)
 		gifMsg.ReplyToMessageID = message.MessageID
 		return gifMsg, nil
 	} else if myResponse.FileType == "voice" {
-		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename), myResponse.Response)
 		voiceMsg.ReplyToMessageID = message.MessageID
 		return voiceMsg, nil
 	} else if myResponse.FileType == "sticker" {
-    stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+    stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename), myResponse.Response)
     stickerMsg.ReplyToMessageID = message.MessageID
     return stickerMsg, nil
     } else {
