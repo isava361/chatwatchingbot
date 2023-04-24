@@ -54,7 +54,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
     return nil
 }
 
-func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, allowedID int64) error {
+func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
 	log.Println("Handling /removeglobal command")
 
 	// Check if the message comes from the allowed user
