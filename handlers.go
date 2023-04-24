@@ -183,7 +183,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		}
 		myResponse.FileType = "photo"
 		myResponse.FileID = photoFileID
-		myResponse.Filename = fileName
+		myResponse.FileName = fileName
 	} else if message.ReplyToMessage.Animation != nil { // gif proccess
 		gifFileID := message.ReplyToMessage.Animation.FileID
 		fileName, err := downloadAndSaveFile(bot, gifFileID, "./gifs", ".gif")
@@ -192,7 +192,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		}
 		myResponse.FileType = "gif"
 		myResponse.FileID = gifFileID
-		myResponse.Filename = fileName
+		myResponse.FileName = fileName
 	} else if message.ReplyToMessage.Voice != nil { // voice proccess
 		voiceFileID := message.ReplyToMessage.Voice.FileID
 		fileName, err := downloadAndSaveFile(bot, voiceFileID, "./voices", ".ogg")
@@ -201,7 +201,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		}
 		myResponse.FileType = "voice"
 		myResponse.FileID = voiceFileID
-		myResponse.Filename = fileName
+		myResponse.FileName = fileName
 	} else if message.ReplyToMessage.Sticker != nil { // Sticker proccess
     	stickerFileID := message.ReplyToMessage.Sticker.FileID
     	Filename, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
@@ -210,7 +210,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     	}
     	myResponse.FileType = "sticker"
     	myResponse.FileID = stickerFileID
-    	myResponse.Filename = fileName
+    	myResponse.FileName = fileName
   	} else {
 		return myResponse, fmt.Errorf("Unsupported message type: %v", message)
 	}

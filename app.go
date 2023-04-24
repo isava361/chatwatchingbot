@@ -11,7 +11,7 @@ type MyResponse struct {
 	Response          string    `json:"response,omitempty"`
 	FileType          string    `json:"fileType,omitempty"`
 	FileID            string    `json:"fileID,omitempty"`
-	Filename          string    `json:"filename,omitempty"`
+	FileName          string    `json:"filename,omitempty"`
 }
 
 type Config struct {
