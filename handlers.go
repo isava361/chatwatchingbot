@@ -206,7 +206,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     	stickerFileID := message.ReplyToMessage.Sticker.FileID
     	Filename, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
     	if err != nil {
-     	 return myResponse, err
+     		return myResponse, err
     	}
     	myResponse.FileType = "sticker"
     	myResponse.FileID = stickerFileID
