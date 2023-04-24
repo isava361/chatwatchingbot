@@ -43,18 +43,19 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
-	// Add the following lines to create a file watcher
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-			log.Panicf("Error creating file watcher: %v", err)
-	}
-	defer watcher.Close()
+	
 
 	// Add the configuration file to the watcher
 	err = watcher.Add("./config/config.json")
 	if err != nil {
 			log.Panicf("Error adding file to watcher: %v", err)
 	}
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+			log.Panicf("Error creating file watcher: %v", err)
+	}
+	defer watcher.Close()
 
 	// Goroutine to handle configuration file changes
 	go func() {
