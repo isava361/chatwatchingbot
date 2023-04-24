@@ -38,7 +38,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
         config.ChatTriggers[message.Chat.ID] = newChatTriggers
     }
 
-    err := saveConfig("/config/config.json", *config)
+    err := saveConfig("./config/config.json", *config)
     if err != nil {
         log.Printf("Error saving config: %v", err)
     }
@@ -85,7 +85,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 	}
 	config.MyResponses = newMyResponses
 
-	err := saveConfig("/config/config.json", *config)
+	err := saveConfig("./config/config.json", *config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -115,7 +115,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 
 	updateConfig(config, message, newMyResponse)
 
-	err = saveConfig("/config/config.json", *config)
+	err = saveConfig("./config/config.json", *config)
 	if err != nil {
 			log.Printf("Error saving config: %v", err)
 	}
@@ -138,7 +138,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
 	updateGlobalConfig(config, message, newMyResponse)
 
-	err = saveConfig("/config/config.json", *config)
+	err = saveConfig("./config/config.json", *config)
 	if err != nil {
 			log.Printf("Error saving config: %v", err)
 	}
@@ -165,7 +165,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
 	if len(message.ReplyToMessage.Photo) > 0 {
 		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
-		Filename, err := downloadAndSaveFile(bot, photoFileID, "/photos", ".jpg")
+		Filename, err := downloadAndSaveFile(bot, photoFileID, "./photos", ".jpg")
 		if err != nil {
 			return myResponse, err
 		}
@@ -174,7 +174,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.Filename = Filename
 	} else if message.ReplyToMessage.Animation != nil {
 		gifFileID := message.ReplyToMessage.Animation.FileID
-		Filename, err := downloadAndSaveFile(bot, gifFileID, "/gifs", ".gif")
+		Filename, err := downloadAndSaveFile(bot, gifFileID, "./gifs", ".gif")
 		if err != nil {
 			return myResponse, err
 		}
@@ -183,7 +183,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.Filename = Filename
 	} else if message.ReplyToMessage.Voice != nil { // Add this block
 		voiceFileID := message.ReplyToMessage.Voice.FileID
-		Filename, err := downloadAndSaveFile(bot, voiceFileID, "/voices", ".ogg")
+		Filename, err := downloadAndSaveFile(bot, voiceFileID, "./voices", ".ogg")
 		if err != nil {
 			return myResponse, err
 		}
@@ -192,7 +192,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.Filename = Filename
 	} else if message.ReplyToMessage.Sticker != nil { // Add this block
         stickerFileID := message.ReplyToMessage.Sticker.FileID
-        Filename, err := downloadAndSaveFile(bot, stickerFileID, "/stickers", ".webp")
+        Filename, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
         if err != nil {
             return myResponse, err
         }
