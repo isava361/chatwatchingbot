@@ -156,7 +156,12 @@ func updateGlobalConfig(config *Config, message *tgbotapi.Message, myResponse My
 
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
 	var myResponse MyResponse
-	myResponse.Response = message.ReplyToMessage.Text
+	
+	if message.ReplyToMessage.Caption != "" {
+		myResponse.Response = message.ReplyToMessage.Caption
+	} else {
+		myResponse.Response = message.ReplyToMessage.Text
+	}
 
 	if len(message.ReplyToMessage.Photo) > 0 {
 		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
