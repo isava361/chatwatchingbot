@@ -199,16 +199,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     myResponse.FileType = "sticker"
     myResponse.FileID = stickerFileID
     myResponse.Filename = Filename
-  } else if message.ReplyToMessage.Video != nil { // Video proccess
-	    videoFileID := message.ReplyToMessage.Video.FileID
-	    Filename, err := downloadAndSaveFile(bot, videoFileID, "./videos", ".mp4")
-	    if err != nil {
-	      return myResponse, err
-	    }
-	    myResponse.FileType = "video"
-	    myResponse.FileID = videoFileID
-	    myResponse.Filename = Filename
-	    } else {
+  } else {
 		log.Println("Unsupported message type: ", message)
 	}
 
@@ -253,11 +244,6 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 		photoMsg.ReplyToMessageID = message.MessageID
 		photoMsg.Caption = myResponse.Response
 		return photoMsg, nil
-	}else if myResponse.FileType == "video" {
-		videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
-		videoMsg.ReplyToMessageID = message.MessageID
-		videoMsg.Caption = myResponse.Response
-		return videoMsg, nil
 	} else if myResponse.FileType == "gif" {
 		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
 		gifMsg.ReplyToMessageID = message.MessageID
