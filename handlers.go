@@ -263,57 +263,65 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config) error
 
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
-    receivedMessage := message.Text
+	receivedMessage := message.Text
 
-    if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
-        return nil
-    }
+	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
+		return nil
+	}
 
-    commandHandlers := map[string]commandHandlerFunc{
-        "add":       handleAddCommand,
-        "remove":    handleRemoveCommand,
-        "addglobal": handleAddGlobalCommand,
-				"triggers":  handleTriggersCommand,
-				"removeglobal": handleRemoveGlobalCommand,
-    }
+	commandHandlers := map[string]commandHandlerFunc{
+		"add":         handleAddCommand,
+		"remove":      handleRemoveCommand,
+		"addglobal":   handleAddGlobalCommand,
+		"triggers":    handleTriggersCommand,
+		"removeglobal": handleRemoveGlobalCommand,
+	}
 
-    if handler, ok := commandHandlers[message.Command()]; ok {
-        if message.Command() == "removeglobal" ||message.Command() == "triggers" || message.Command() == "remove" || message.ReplyToMessage != nil {
-            return handler(bot, message, config)
-        }
-    }
+	command := message.Command()
+	if handler, ok := commandHandlers[command]; ok {
+		allowedCommands := map[string]bool{
+			"removeglobal": true,
+			"triggers":     true,
+			"remove":       true,
+		}
+
+		if allowed, _ := allowedCommands[command]; allowed || message.ReplyToMessage != nil {
+			return handler(bot, message, config)
+		}
+	}
 
 	chatSpecificTriggerFound := false
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
-			chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
-			if exists {
-					for _, myResponse := range chatTriggers {
-							if messageContains(receivedMessage, myResponse.SearchPhrase) {
-									err := processResponse(bot, message, myResponse)
-									if err != nil {
-											return err
-									}
-									chatSpecificTriggerFound = true
-									break
-							}
+		chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
+		if exists {
+			for _, myResponse := range chatTriggers {
+				if messageContains(receivedMessage, myResponse.SearchPhrase) {
+					err := processResponse(bot, message, myResponse)
+					if err != nil {
+						return err
 					}
+					chatSpecificTriggerFound = true
+					break
+				}
 			}
+		}
 	}
 
 	if !chatSpecificTriggerFound {
-			for _, myResponse := range config.MyResponses {
-					if messageContains(receivedMessage, myResponse.SearchPhrase) {
-							err := processResponse(bot, message, myResponse)
-							if err != nil {
-									return err
-							}
-							break
-					}
+		for _, myResponse := range config.MyResponses {
+			if messageContains(receivedMessage, myResponse.SearchPhrase) {
+				err := processResponse(bot, message, myResponse)
+				if err != nil {
+					return err
+				}
+				break
 			}
+		}
 	}
 
 	return nil
 }
+
 
 func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
 	log.Println("Handling /triggers command")
