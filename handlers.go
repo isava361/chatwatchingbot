@@ -247,7 +247,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 	} else if myResponse.FileType == "gif" {
 		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
 		gifMsg.ReplyToMessageID = message.MessageID
-		photoMsg.Caption = myResponse.Response
+		gifMsg.Caption = myResponse.Response
 		return gifMsg, nil
 	} else if myResponse.FileType == "voice" {
 		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
