@@ -20,6 +20,11 @@ type Config struct {
 }
 
 func main() {
+	config, err := readConfig("/home/longspear/chatwatchingbotconfig/config.json")
+	if err != nil {
+		log.Panicf("Config error: %v", err)
+	}
+
 
 	token, err := readBotToken("/home/longspear/tokens/chatwatchingbot-token.txt")
 	if err != nil {
@@ -45,11 +50,7 @@ func main() {
 				if m.From == nil {
 					continue
 				}
-					config, err := readConfig("/home/longspear/chatwatchingbotconfig/config.json")
-					if err != nil {
-						log.Panicf("Config error: %v", err)
-					}
-					
+
 					log.Printf("Message received")
 					err := handleMessage(bot, m, config)
 					if err != nil {
