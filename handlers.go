@@ -200,7 +200,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     myResponse.FileID = stickerFileID
     myResponse.Filename = Filename
   } else if message.ReplyToMessage.Video != nil { // Video proccess
-	    stickerFileID := message.ReplyToMessage.Video.FileID
+	    videoFileID := message.ReplyToMessage.Video.FileID
 	    Filename, err := downloadAndSaveFile(bot, videoFileID, "./videos", ".mp4")
 	    if err != nil {
 	      return myResponse, err
