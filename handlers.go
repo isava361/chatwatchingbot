@@ -111,7 +111,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	if err != nil {
 			log.Printf("Error creating MyResponse: %v", err)
 			msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this trigger")
-			bost.Send(msg)
+			bot.Send(msg)
 			return err
 	}
 	newMyResponse.SearchPhrase = newSearchPhrase
@@ -136,7 +136,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 	if err != nil {
 			log.Printf("Error creating MyResponse: %v", err)
 			msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this trigger")
-			bost.Send(msg)
+			bot.Send(msg)
 			return err
 	}
 	newMyResponse.SearchPhrase = newSearchPhrase
