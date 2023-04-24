@@ -3,7 +3,7 @@ package main
 import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"log"
-//	"time"
+	"github.com/fsnotify/fsnotify"
 )
 
 type MyResponse struct {
@@ -42,6 +42,37 @@ func main() {
 
 
 	updates := bot.GetUpdatesChan(u)
+
+	// Add the following lines to create a file watcher
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+			log.Panicf("Error creating file watcher: %v", err)
+	}
+	defer watcher.Close()
+
+	// Add the configuration file to the watcher
+	err = watcher.Add("/home/longspear/chatwatchingbotconfig/config.json")
+	if err != nil {
+			log.Panicf("Error adding file to watcher: %v", err)
+	}
+
+	// Goroutine to handle configuration file changes
+	go func() {
+			for {
+					select {
+					case event := <-watcher.Events:
+							if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Remove == fsnotify.Remove {
+									log.Println("Config file changed, reloading...")
+									config, err = readConfig("/home/longspear/chatwatchingbotconfig/config.json")
+									if err != nil {
+											log.Printf("Error reading config: %v", err)
+									}
+							}
+					case err := <-watcher.Errors:
+							log.Println("Error in file watcher:", err)
+					}
+			}
+	}()
 
 	for update := range updates {
 
