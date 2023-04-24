@@ -163,7 +163,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.Response = message.ReplyToMessage.Text
 	}
 
-	if len(message.ReplyToMessage.Photo) > 0 {
+	if len(message.ReplyToMessage.Photo) > 0 { // photo proccess
 		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
 		Filename, err := downloadAndSaveFile(bot, photoFileID, "./photos", ".jpg")
 		if err != nil {
@@ -172,7 +172,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.FileType = "photo"
 		myResponse.FileID = photoFileID
 		myResponse.Filename = Filename
-	} else if message.ReplyToMessage.Animation != nil {
+	} else if message.ReplyToMessage.Animation != nil { // gif proccess
 		gifFileID := message.ReplyToMessage.Animation.FileID
 		Filename, err := downloadAndSaveFile(bot, gifFileID, "./gifs", ".gif")
 		if err != nil {
@@ -181,7 +181,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.FileType = "gif"
 		myResponse.FileID = gifFileID
 		myResponse.Filename = Filename
-	} else if message.ReplyToMessage.Voice != nil { // Add this block
+	} else if message.ReplyToMessage.Voice != nil { // voice proccess
 		voiceFileID := message.ReplyToMessage.Voice.FileID
 		Filename, err := downloadAndSaveFile(bot, voiceFileID, "./voices", ".ogg")
 		if err != nil {
@@ -190,16 +190,25 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.FileType = "voice"
 		myResponse.FileID = voiceFileID
 		myResponse.Filename = Filename
-	} else if message.ReplyToMessage.Sticker != nil { // Add this block
-        stickerFileID := message.ReplyToMessage.Sticker.FileID
-        Filename, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
-        if err != nil {
-            return myResponse, err
-        }
-        myResponse.FileType = "sticker"
-        myResponse.FileID = stickerFileID
-        myResponse.Filename = Filename
-    } else {
+	} else if message.ReplyToMessage.Sticker != nil { // Sticker proccess
+    stickerFileID := message.ReplyToMessage.Sticker.FileID
+    Filename, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
+    if err != nil {
+      return myResponse, err
+    }
+    myResponse.FileType = "sticker"
+    myResponse.FileID = stickerFileID
+    myResponse.Filename = Filename
+  } else if message.ReplyToMessage.Video != nil { // Video proccess
+	    stickerFileID := message.ReplyToMessage.Video.FileID
+	    Filename, err := downloadAndSaveFile(bot, videoFileID, "./videos", ".mp4")
+	    if err != nil {
+	      return myResponse, err
+	    }
+	    myResponse.FileType = "video"
+	    myResponse.FileID = videoFileID
+	    myResponse.Filename = Filename
+	    } else {
 		log.Println("Unsupported message type: ", message)
 	}
 
@@ -244,6 +253,11 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 		photoMsg.ReplyToMessageID = message.MessageID
 		photoMsg.Caption = myResponse.Response
 		return photoMsg, nil
+	}else if myResponse.FileType == "video" {
+		videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+		videoMsg.ReplyToMessageID = message.MessageID
+		videoMsg.Caption = myResponse.Response
+		return gifMsg, nil
 	} else if myResponse.FileType == "gif" {
 		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
 		gifMsg.ReplyToMessageID = message.MessageID
