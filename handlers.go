@@ -116,10 +116,10 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 
 	newMyResponse, err := createMyResponse(bot, message)
 	if err != nil {
-			log.Printf("Error creating MyResponse: %v", err)
-			msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this trigger")
-			bot.Send(msg)
-			return err
+		log.Printf("Error creating MyResponse: %v", err)
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this trigger")
+		bot.Send(msg)
+		return err
 	}
 	newMyResponse.SearchPhrase = newSearchPhrase
 
@@ -127,7 +127,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 
 	err = saveConfig(configlocation, *config)
 	if err != nil {
-			log.Printf("Error saving config: %v", err)
+		log.Printf("Error saving config: %v", err)
 	}
 
 	msg := tgbotapi.NewMessage(message.Chat.ID, "New response added!")
@@ -141,10 +141,10 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
 	newMyResponse, err := createMyResponse(bot, message)
 	if err != nil {
-			log.Printf("Error creating MyResponse: %v", err)
-			msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this trigger")
-			bot.Send(msg)
-			return err
+		log.Printf("Error creating MyResponse: %v", err)
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this trigger")
+		bot.Send(msg)
+		return err
 	}
 	newMyResponse.SearchPhrase = newSearchPhrase
 
@@ -152,7 +152,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
 	err = saveConfig(configlocation, *config)
 	if err != nil {
-			log.Printf("Error saving config: %v", err)
+		log.Printf("Error saving config: %v", err)
 	}
 
 	msg := tgbotapi.NewMessage(message.Chat.ID, "New response added!")
@@ -162,7 +162,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 }
 
 func updateGlobalConfig(config *Config, message *tgbotapi.Message, myResponse MyResponse) {
-			config.MyResponses = append(config.MyResponses, myResponse)
+	config.MyResponses = append(config.MyResponses, myResponse)
 }
 
 
@@ -203,14 +203,14 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.FileID = voiceFileID
 		myResponse.Filename = Filename
 	} else if message.ReplyToMessage.Sticker != nil { // Sticker proccess
-    stickerFileID := message.ReplyToMessage.Sticker.FileID
-    Filename, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
-    if err != nil {
-      return myResponse, err
-    }
-    myResponse.FileType = "sticker"
-    myResponse.FileID = stickerFileID
-    myResponse.Filename = Filename
+    	stickerFileID := message.ReplyToMessage.Sticker.FileID
+    	Filename, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
+    	if err != nil {
+     	 return myResponse, err
+    	}
+    	myResponse.FileType = "sticker"
+    	myResponse.FileID = stickerFileID
+    	myResponse.Filename = Filename
   } else {
 		return myResponse, fmt.Errorf("Unsupported message type: %v", message)
 	}
@@ -222,29 +222,29 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
 func updateConfig(config *Config, message *tgbotapi.Message, myResponse MyResponse) {
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
-			if config.ChatTriggers == nil {
-					config.ChatTriggers = make(map[int64][]MyResponse)
-			}
-			config.ChatTriggers[message.Chat.ID] = append(config.ChatTriggers[message.Chat.ID], myResponse)
+		if config.ChatTriggers == nil {
+			config.ChatTriggers = make(map[int64][]MyResponse)
+		}
+		config.ChatTriggers[message.Chat.ID] = append(config.ChatTriggers[message.Chat.ID], myResponse)
 	} else {
-			config.MyResponses = append(config.MyResponses, myResponse)
+		config.MyResponses = append(config.MyResponses, myResponse)
 	}
 }
 
 
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
 	if myResponse.Response == "" && myResponse.FileType == "gif" && myResponse.FileType == "photo" {
-			return nil
+		return nil
 	}
 
 	chattableResponse, err := buildChattableResponse(message, myResponse)
 	if err != nil {
-			return err
+		return err
 	}
 
 	_, err = bot.Send(chattableResponse)
 	if err != nil {
-			return err
+		return err
 	}
 
 	return nil
@@ -266,9 +266,9 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 		voiceMsg.ReplyToMessageID = message.MessageID
 		return voiceMsg, nil
 	} else if myResponse.FileType == "sticker" {
-    stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
-    stickerMsg.ReplyToMessageID = message.MessageID
-    return stickerMsg, nil
+    	stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+    	stickerMsg.ReplyToMessageID = message.MessageID
+    	return stickerMsg, nil
     } else {
 		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
 		textMsg.ReplyToMessageID = message.MessageID
