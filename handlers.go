@@ -12,61 +12,90 @@ return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetStri
 }
 
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
-	log.Println("Handling /remove command")
+    log.Println("Handling /remove command")
 
-	removeSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/remove"))
+    removeSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/remove"))
 
-	chatTriggerRemoved := false
-	chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
-	if exists {
-		newChatTriggers := []MyResponse{}
-		for _, myResponse := range chatTriggers {
-			if myResponse.SearchPhrase != removeSearchPhrase {
-				newChatTriggers = append(newChatTriggers, myResponse)
-			} else {
-				chatTriggerRemoved = true
+    chatTriggerRemoved := false
+    chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
+    if exists {
+        newChatTriggers := []MyResponse{}
+        for _, myResponse := range chatTriggers {
+            if myResponse.SearchPhrase != removeSearchPhrase {
+                newChatTriggers = append(newChatTriggers, myResponse)
+            } else {
+                chatTriggerRemoved = true
 
-				// Add file deletion for ChatTriggers
-				if myResponse.FileType != "" {
-					err := os.Remove(myResponse.Filename)
-					if err != nil {
-						log.Printf("Error deleting media: %v", err)
-					}
+                // Add file deletion for ChatTriggers
+                if myResponse.FileType != "" {
+                    err := os.Remove(myResponse.Filename)
+                    if err != nil {
+                        log.Printf("Error deleting media: %v", err)
+                    }
+                }
+            }
+        }
+        config.ChatTriggers[message.Chat.ID] = newChatTriggers
+    }
+
+    err := saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
+    if err != nil {
+        log.Printf("Error saving config: %v", err)
+    }
+
+    if chatTriggerRemoved {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Local response removed!")
+        _, _ = bot.Send(msg)
+    } else {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "No local response found with that search phrase.")
+        _, _ = bot.Send(msg)
+    }
+
+    return nil
+}
+
+func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, allowedID int64) error {
+	log.Println("Handling /removeglobal command")
+
+	// Check if the message comes from the allowed user
+	if message.From.ID != int64(193117018) {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to use this command.")
+		_, _ = bot.Send(msg)
+		return nil
+	}
+
+	removeSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/removeglobal"))
+
+	globalTriggerRemoved := false
+	newMyResponses := []MyResponse{}
+	for _, myResponse := range config.MyResponses {
+		if myResponse.SearchPhrase != removeSearchPhrase {
+			newMyResponses = append(newMyResponses, myResponse)
+		} else {
+			globalTriggerRemoved = true
+
+			// Add file deletion for GlobalTriggers
+			if myResponse.FileType != "" {
+				err := os.Remove(myResponse.Filename)
+				if err != nil {
+					log.Printf("Error deleting media: %v", err)
 				}
 			}
 		}
-		config.ChatTriggers[message.Chat.ID] = newChatTriggers
 	}
-
-	if !chatTriggerRemoved {
-			newMyResponses := []MyResponse{}
-			for _, myResponse := range config.MyResponses {
-					if myResponse.SearchPhrase != removeSearchPhrase {
-							newMyResponses = append(newMyResponses, myResponse)
-					} else {
-							chatTriggerRemoved = true
-							if myResponse.FileType != "" {
-									err := os.Remove(myResponse.Filename)
-									if err != nil {
-											log.Printf("Error deleting media: %v", err)
-									}
-							}
-					}
-			}
-			config.MyResponses = newMyResponses
-	}
+	config.MyResponses = newMyResponses
 
 	err := saveConfig("/home/longspear/chatwatchingbotconfig/config.json", *config)
 	if err != nil {
-			log.Printf("Error saving config: %v", err)
+		log.Printf("Error saving config: %v", err)
 	}
 
-	if chatTriggerRemoved {
-			msg := tgbotapi.NewMessage(message.Chat.ID, "Response removed!")
-			_, _ = bot.Send(msg)
+	if globalTriggerRemoved {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Global response removed!")
+		_, _ = bot.Send(msg)
 	} else {
-			msg := tgbotapi.NewMessage(message.Chat.ID, "No response found with that search phrase.")
-			_, _ = bot.Send(msg)
+		msg := tgbotapi.NewMessage(message.Chat.ID, "No global response found with that search phrase.")
+		_, _ = bot.Send(msg)
 	}
 
 	return nil
@@ -245,10 +274,11 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
         "remove":    handleRemoveCommand,
         "addglobal": handleAddGlobalCommand,
 				"triggers":  handleTriggersCommand,
+				"removeglobal": handleRemoveGlobalCommand,
     }
 
     if handler, ok := commandHandlers[message.Command()]; ok {
-        if message.Command() == "triggers" || message.Command() == "remove" || message.ReplyToMessage != nil {
+        if message.Command() == "removeglobal" ||message.Command() == "triggers" || message.Command() == "remove" || message.ReplyToMessage != nil {
             return handler(bot, message, config)
         }
     }
