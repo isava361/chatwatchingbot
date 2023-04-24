@@ -211,7 +211,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     	myResponse.FileType = "sticker"
     	myResponse.FileID = stickerFileID
     	myResponse.Filename = Filename
-  } else {
+  	} else {
 		return myResponse, fmt.Errorf("Unsupported message type: %v", message)
 	}
 
