@@ -20,13 +20,13 @@ type Config struct {
 }
 
 func main() {
-	config, err := readConfig("/home/longspear/chatwatchingbotconfig/config.json")
+	config, err := readConfig("/config/config.json")
 	if err != nil {
 		log.Panicf("Config error: %v", err)
 	}
 
 
-	token, err := readBotToken("/home/longspear/tokens/chatwatchingbot-token.txt")
+	token, err := readBotToken("/config/token.txt")
 	if err != nil {
 		log.Panicf("Token error: ", err)
 	}
@@ -51,7 +51,7 @@ func main() {
 	defer watcher.Close()
 
 	// Add the configuration file to the watcher
-	err = watcher.Add("/home/longspear/chatwatchingbotconfig/config.json")
+	err = watcher.Add("/config/config.json")
 	if err != nil {
 			log.Panicf("Error adding file to watcher: %v", err)
 	}
@@ -63,7 +63,7 @@ func main() {
 					case event := <-watcher.Events:
 							if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Remove == fsnotify.Remove {
 									log.Println("Config file changed, reloading...")
-									config, err = readConfig("/home/longspear/chatwatchingbotconfig/config.json")
+									config, err = readConfig("/config/config.json")
 									if err != nil {
 											log.Printf("Error reading config: %v", err)
 									}
