@@ -181,7 +181,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		if err != nil {
 			return myResponse, err
 		}
-		myResponse.FileType = "photo"
+		myResponse.FileType = FilePhoto
 		myResponse.FileID = photoFileID
 		myResponse.FileName = fileName
 	} else if message.ReplyToMessage.Animation != nil { // gif proccess
@@ -190,7 +190,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		if err != nil {
 			return myResponse, err
 		}
-		myResponse.FileType = "gif"
+		myResponse.FileType = FileGIF
 		myResponse.FileID = gifFileID
 		myResponse.FileName = fileName
 	} else if message.ReplyToMessage.Voice != nil { // voice proccess
@@ -199,7 +199,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		if err != nil {
 			return myResponse, err
 		}
-		myResponse.FileType = "voice"
+		myResponse.FileType = FileVoice
 		myResponse.FileID = voiceFileID
 		myResponse.FileName = fileName
 	} else if message.ReplyToMessage.Sticker != nil { // Sticker proccess
@@ -208,7 +208,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     	if err != nil {
      		return myResponse, err
     	}
-    	myResponse.FileType = "sticker"
+    	myResponse.FileType = FileSticker
     	myResponse.FileID = stickerFileID
     	myResponse.FileName = fileName
   	} else {
@@ -251,21 +251,21 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 }
 
 func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
-	if myResponse.FileType == "photo" {
+	if myResponse.FileType == FilePhoto {
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
 		photoMsg.ReplyToMessageID = message.MessageID
 		photoMsg.Caption = myResponse.Response
 		return photoMsg, nil
-	} else if myResponse.FileType == "gif" {
+	} else if myResponse.FileType == FileGIF {
 		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
 		gifMsg.ReplyToMessageID = message.MessageID
 		gifMsg.Caption = myResponse.Response
 		return gifMsg, nil
-	} else if myResponse.FileType == "voice" {
+	} else if myResponse.FileType == FileVoice {
 		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
 		voiceMsg.ReplyToMessageID = message.MessageID
 		return voiceMsg, nil
-	} else if myResponse.FileType == "sticker" {
+	} else if myResponse.FileType == FileSticker {
     	stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
     	stickerMsg.ReplyToMessageID = message.MessageID
     	return stickerMsg, nil
