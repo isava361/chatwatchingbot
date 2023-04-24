@@ -201,8 +201,6 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     myResponse.Filename = Filename
   } else {
 		log.Println("Unsupported message type: ", message)
-		majorerr := "Unsupported message type"
-		return myResponse, majorerr
 	}
 
 	return myResponse, nil
