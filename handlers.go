@@ -200,7 +200,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     myResponse.FileID = stickerFileID
     myResponse.Filename = Filename
   } else {
-		log.Println("Unsupported message type: ", message)
+		return myResponse, fmt.Errorf("Unsupported message type: %v", message)
 	}
 
 	return myResponse, nil
