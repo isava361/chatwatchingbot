@@ -6,10 +6,16 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+type FileType string
+const FilePhoto FileType = "photo"
+const FileGIF FileType = "gif"
+const FileSticker FileType = "sticker"
+const FileVoice FileType = "voice"
+
 type MyResponse struct {
 	SearchPhrase      string    `json:"searchPhrase"`
 	Response          string    `json:"response,omitempty"`
-	FileType          string    `json:"fileType,omitempty"`
+	FileType          FileType    `json:"fileType,omitempty"`
 	FileID            string    `json:"fileID,omitempty"`
 	FileName          string    `json:"filename,omitempty"`
 }
