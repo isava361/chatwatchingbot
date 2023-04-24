@@ -8,14 +8,21 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "fmt"
 )
 
+configlocation := "./config/config.json"
+
 func messageContains(messageText, targetString string) bool {
 return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
 }
 
+func CommandArguments(command string, message *tgbotapi.Message) string {
+	return strings.TrimSpace(strings.TrimPrefix(message.Text, command))
+}
+
+
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
     log.Println("Handling /remove command")
 
-    removeSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/remove"))
+    removeSearchPhrase := CommandArguments("/remove", message)
 
     chatTriggerRemoved := false
     chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
@@ -39,7 +46,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
         config.ChatTriggers[message.Chat.ID] = newChatTriggers
     }
 
-    err := saveConfig("./config/config.json", *config)
+    err := saveConfig(configlocation, *config)
     if err != nil {
         log.Printf("Error saving config: %v", err)
     }
@@ -65,7 +72,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 		return nil
 	}
 
-	removeSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/removeglobal"))
+	removeSearchPhrase := CommandArguments("/removeglobal", message)
 
 	globalTriggerRemoved := false
 	newMyResponses := []MyResponse{}
@@ -86,7 +93,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 	}
 	config.MyResponses = newMyResponses
 
-	err := saveConfig("./config/config.json", *config)
+	err := saveConfig(configlocation, *config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -105,7 +112,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 
 
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
-	newSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/add"))
+	newSearchPhrase := CommandArguments("/add", message)
 
 	newMyResponse, err := createMyResponse(bot, message)
 	if err != nil {
@@ -118,7 +125,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 
 	updateConfig(config, message, newMyResponse)
 
-	err = saveConfig("./config/config.json", *config)
+	err = saveConfig(configlocation, *config)
 	if err != nil {
 			log.Printf("Error saving config: %v", err)
 	}
@@ -130,7 +137,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 }
 
 func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
-	newSearchPhrase := strings.TrimSpace(strings.TrimPrefix(message.Text, "/addglobal"))
+	newSearchPhrase := CommandArguments("/addglobal", message)
 
 	newMyResponse, err := createMyResponse(bot, message)
 	if err != nil {
@@ -143,7 +150,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
 	updateGlobalConfig(config, message, newMyResponse)
 
-	err = saveConfig("./config/config.json", *config)
+	err = saveConfig(configlocation, *config)
 	if err != nil {
 			log.Printf("Error saving config: %v", err)
 	}
