@@ -24,6 +24,13 @@ func (fw *FileWriter) Put(key, value string) error { ... }
   
 */
 
+func allowedMessageType(message *tgbotapi.Message){
+	if (message.ReplyToMessage.Document != nil || message.ReplyToMessage.Game != nil || message.ReplyToMessage.Video_Note != nil){
+		return false
+	}
+	return tru
+}
+
 func messageContains(messageText, targetString string) bool {
 return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
 }
@@ -222,8 +229,10 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     	myResponse.FileType = FileSticker
     	myResponse.FileID = stickerFileID
     	myResponse.FileName = fileName
-  	} else {
+  	} else if !allowedMessageType(message) {
 		return myResponse, fmt.Errorf("Unsupported message type: %v", message)
+	} else {
+		return myResponse, nil
 	}
 
 	return myResponse, nil
