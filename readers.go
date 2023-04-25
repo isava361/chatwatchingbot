@@ -54,7 +54,7 @@ func (fw FileWriter) Put(config *Config) error {
 	return nil
 }
 
-func (fw FileWriter) Del(config *Config, command string, removeSearchPhrase string, chatID int64, configwriter ConfigWriter) (error) { 
+func (fw FileWriter) Del(config *Config, command string, removeSearchPhrase string, chatID int64) (error) { 
 	newChatTriggers := []MyResponse{}
 	if command == "remove"{
 		config, exists := config.ChatTriggers[chatID]
@@ -91,7 +91,7 @@ func (fw FileWriter) Del(config *Config, command string, removeSearchPhrase stri
         }
 	}
 
-	err := configwriter.Put(config)
+	err := fw.Put(config)
     if err != nil {
         log.Printf("Error saving config: %v", err)
     }
