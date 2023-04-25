@@ -5,7 +5,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "strings"
 "log"
 "fmt"
-//"github.com/fsnotify/fsnotify"
+"github.com/fsnotify/fsnotify"
 )
 
 
@@ -33,14 +33,34 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 
     removeSearchPhrase := CommandArguments("/remove", message)
 
-	ChatID := message.Chat.ID
-	err := configwriter.Del(config, "/remove", removeSearchPhrase, ChatID)
-	
-	if err == nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Local response removed!")
+	chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
+if exists {
+    newChatTriggers := []MyResponse{}
+    for _, myResponse := range chatTriggers {
+        if myResponse.SearchPhrase != removeSearchPhrase {
+            newChatTriggers = append(newChatTriggers, myResponse)
+        } else {
+            chatTriggerRemoved = true
+
+            // Add file deletion for ChatTriggers
+            if myResponse.FileType != "" {
+                err := os.Remove(myResponse.FileName)
+                if err != nil {
+                    log.Printf("Error deleting media: %v", err)
+                }
+            }
+        }
+    }
+    config.ChatTriggers[message.Chat.ID] = newChatTriggers
+}
+
+	err := configwriter.Put(config)
+
+	if err == nil && chatTriggerRemoved = true  {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Global response removed!")
         _, _ = bot.Send(msg)
     } else {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "No local response found with that search phrase.")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "No global response found with that search phrase.")
         _, _ = bot.Send(msg)
     }
 
@@ -57,10 +77,27 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 		return nil
 	}
 
-	removeSearchPhrase := CommandArguments("/removeglobal", message)
-	ChatID := message.Chat.ID
-	err := configwriter.Del(config, "/removeglobal", removeSearchPhrase, ChatID)
-	if err == nil {
+	newMyResponses := []MyResponse{}
+	for _, myResponse := range config.MyResponses {
+	  if myResponse.SearchPhrase != removeSearchPhrase {
+		    newMyResponses = append(newMyResponses, myResponse)
+ 	 } else {
+ 	   globalTriggerRemoved = true
+
+    // Add file deletion for GlobalTriggers
+    if myResponse.FileType != "" {
+      err := os.Remove(myResponse.FileName)
+      if err != nil {
+        log.Printf("Error deleting media: %v", err)
+      }
+    }
+  }
+}
+config.MyResponses = newMyResponses
+
+	err := configwriter.Put(config)
+
+	if err == nil && globalTriggerRemoved = true  {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Global response removed!")
         _, _ = bot.Send(msg)
     } else {
@@ -330,7 +367,7 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, conf
 }
 
 func NewFileWriter(config *Config, configLocation string) *FileWriter {
-/*	watcher, err := fsnotify.NewWatcher()
+	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Panicf("Error creating file watcher: %v", err)
 	}
@@ -339,9 +376,9 @@ func NewFileWriter(config *Config, configLocation string) *FileWriter {
 	err = watcher.Add(configlocation)
 	if err != nil {
 		log.Panicf("Error adding file to watcher: %v", err)
-	}*/
+	}
 	var FileWriter = &FileWriter{FileName: configlocation}
-		/*
+		
 	// Create a config update channel
 	configUpdate := make(chan *Config)
 
@@ -352,9 +389,7 @@ func NewFileWriter(config *Config, configLocation string) *FileWriter {
 			case event := <-watcher.Events:
 				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Remove == fsnotify.Remove {
 					log.Println("Config file changed, reloading...")
-					FileWriter.rwMutex.Lock()
 					newConfig, err := readConfig(configlocation)
-					FileWriter.rwMutex.Unlock()
 					if err != nil {
 						log.Printf("Error reading config: %v", err)
 					} else {
@@ -366,6 +401,6 @@ func NewFileWriter(config *Config, configLocation string) *FileWriter {
 			}
 		}
 	}()
-*/
-	return FileWriter //, configUpdate
+
+	return FileWriter , configUpdate
 }

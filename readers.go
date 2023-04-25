@@ -58,48 +58,8 @@ func (fw FileWriter) Put(config *Config) error {
 	return nil
 }
 
-func (fw FileWriter) Del(config *Config, command string, removeSearchPhrase string, chatID int64) (error) { 
-	newChatTriggers := []MyResponse{}
-	if command == "remove"{
-		config, exists := config.ChatTriggers[chatID]
-		if exists{
-        	for _, config := range config {
-            	if config.SearchPhrase != removeSearchPhrase {
-       	    	    newChatTriggers = append(newChatTriggers, config)
-       	    	} else {
-       	    	    // Add file deletion for ChatTriggers
-						if config.FileType != "" {
-							err := os.Remove(config.FileName)
-							if err != nil {
-								log.Printf("Error deleting media: %v", err)
-								return err
-						}
-					}
-    	        }
-			}
-		} 
-	} else if command == "removeglobal"{
-		for _, config := range config.MyResponses {
-            if config.SearchPhrase != removeSearchPhrase {
-                newChatTriggers = append(newChatTriggers, config)
-            } else {
-               // Add file deletion for ChatTriggers
-				if config.FileType != "" {
-					err := os.Remove(config.FileName)
-					if err != nil {
-						log.Printf("Error deleting media: %v", err)
-						return err
-					}
-				}
-            }
-        }
-	}
-
-	err := fw.Put(config)
-    if err != nil {
-        log.Printf("Error saving config: %v", err)
-    }
-	return err
+func (fw FileWriter) Del( key string) (string) { 
+	return "Dima Pidor"
 }
 
 

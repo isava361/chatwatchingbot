@@ -34,7 +34,6 @@ type ConfigWriter interface {
 type FileWriter struct {
 	FileName string
 	mutex sync.Mutex
-	rwMutex  sync.RWMutex
 }
 
 const configlocation = "./config/config.json"
@@ -62,15 +61,15 @@ func main() {
 	updates := bot.GetUpdatesChan(u)
 	
 	var cf ConfigWriter
-//	configUpdate := make(chan *Config)
-	cf = NewFileWriter(config, configlocation)
-/*
+	configUpdate := make(chan *Config)
+	cf, configUpdate = NewFileWriter(config, configlocation)
+
 	go func() {
 		for newConfig := range configUpdate {
 			config = newConfig
 		}
 	}()
-*/
+
 	for update := range updates {
 
 		if update.Message != nil {
