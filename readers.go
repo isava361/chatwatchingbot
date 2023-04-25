@@ -55,7 +55,7 @@ func (fw FileWriter) Put(config *Config) error {
 	return nil
 }
 
-func (fw FileWriter) Del( key string) (string) { 
+func (fw FileWriter) Del(key string) (string) { 
 	return "Dima Pidor"
 }
 
