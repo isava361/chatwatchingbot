@@ -35,7 +35,7 @@ type FileWriter struct {
 	FileName string
 }
 
-var File := &FileWriter{Filename: configlocation}
+var File = &FileWriter{Filename: configlocation}
 
 const configlocation = "./config/config.json"
 
