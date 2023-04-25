@@ -39,8 +39,6 @@ type FileWriter struct {
 
 const configlocation = "./config/config.json"
 
-var cf ConfigWriter = NewFileWriter(config, configlocation)
-
 func main() {
 	config, err := readConfig(configlocation)
 	if err != nil {
@@ -62,6 +60,7 @@ func main() {
 	u.Timeout = 60
 
 	updates := bot.GetUpdatesChan(u)
+
 
 	for update := range updates {
 
