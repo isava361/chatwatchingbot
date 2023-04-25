@@ -56,7 +56,7 @@ if exists {
 
 	err := configwriter.Put(config)
 
-	if err == nil && chatTriggerRemoved = true  {
+	if err == nil && chatTriggerRemoved == true  {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Global response removed!")
         _, _ = bot.Send(msg)
     } else {
@@ -97,7 +97,7 @@ config.MyResponses = newMyResponses
 
 	err := configwriter.Put(config)
 
-	if err == nil && globalTriggerRemoved = true  {
+	if err == nil && globalTriggerRemoved == true  {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Global response removed!")
         _, _ = bot.Send(msg)
     } else {
