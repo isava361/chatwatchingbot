@@ -27,7 +27,7 @@ func CommandArguments(command string, message *tgbotapi.Message) string {
 }
 
 
-func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter *ConfigWriter) error {
     log.Println("Handling /remove command")
 
     removeSearchPhrase := CommandArguments("/remove", message)
@@ -54,7 +54,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
         config.ChatTriggers[message.Chat.ID] = newChatTriggers
     }
 
-    err := cf.Put(config)
+    err := configwriter.Put(config)
     if err != nil {
         log.Printf("Error saving config: %v", err)
     }
@@ -70,7 +70,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
     return nil
 }
 
-func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
 	log.Println("Handling /removeglobal command")
 
 	// Check if the message comes from the allowed user
@@ -101,7 +101,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 	}
 	config.MyResponses = newMyResponses
 	
-	err := cf.Put(config)
+	err := configwriter.Put(config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -119,7 +119,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 
 
 
-func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter *ConfigWriter) error {
 	newSearchPhrase := CommandArguments("/add", message)
 
 	newMyResponse, err := createMyResponse(bot, message)
@@ -133,7 +133,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 
 	updateConfig(config, message, newMyResponse)
 
-	err = cf.Put(config)
+	err = configwriter.Put(config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -144,7 +144,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	return nil
 }
 
-func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter *ConfigWriter) error {
 	newSearchPhrase := CommandArguments("/addglobal", message)
 
 	newMyResponse, err := createMyResponse(bot, message)
@@ -158,7 +158,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
 	updateConfig(config, message, newMyResponse)
 
-	err = cf.Put(config)
+	err = configwriter.Put(config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -285,9 +285,9 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 
 
 
-type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config) error
+type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config, configwriter *ConfigWriter) error
 
-func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter *ConfigWriter) error {
 	receivedMessage := message.Text
 
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
