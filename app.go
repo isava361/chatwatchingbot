@@ -60,6 +60,7 @@ func main() {
 	u.Timeout = 60
 
 	updates := bot.GetUpdatesChan(u)
+	
 	var cf ConfigWriter = NewFileWriter(config, configlocation)
 
 	for update := range updates {
