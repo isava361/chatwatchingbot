@@ -161,7 +161,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 	}
 	newMyResponse.SearchPhrase = newSearchPhrase
 
-	updateGlobalConfig(config, message, newMyResponse)
+	updateConfig(config, message, newMyResponse)
 
 	err = saveConfig(configlocation, *config)
 	if err != nil {
