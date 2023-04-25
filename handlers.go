@@ -353,7 +353,7 @@ func NewFileWriter(config *Config, configLocation string) (*FileWriter, chan *Co
 				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Remove == fsnotify.Remove {
 					log.Println("Config file changed, reloading...")
 					FileWriter.rwMutex.Lock()
-					newconfig, err := readConfig(configlocation)
+					newConfig, err := readConfig(configlocation)
 					FileWriter.rwMutex.Unlock()
 					if err != nil {
 						log.Printf("Error reading config: %v", err)
