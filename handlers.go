@@ -6,6 +6,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "log"
 "fmt"
 "github.com/fsnotify/fsnotify"
+"os"
 )
 
 
@@ -30,7 +31,7 @@ func CommandArguments(command string, message *tgbotapi.Message) string {
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
     
 	log.Println("Handling /remove command")
-
+	chatTriggerRemoved := false
     removeSearchPhrase := CommandArguments("/remove", message)
 
 	chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
@@ -77,6 +78,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 		return nil
 	}
 
+	globalTriggerRemoved := false
 	newMyResponses := []MyResponse{}
 	for _, myResponse := range config.MyResponses {
 	  if myResponse.SearchPhrase != removeSearchPhrase {
@@ -366,7 +368,7 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, conf
 	return nil
 }
 
-func NewFileWriter(config *Config, configLocation string) *FileWriter {
+func NewFileWriter(config *Config, configLocation string) *FileWriter, chan *Config {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Panicf("Error creating file watcher: %v", err)
