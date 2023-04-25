@@ -61,7 +61,7 @@ func main() {
 	updates := bot.GetUpdatesChan(u)
 	
 	var cf ConfigWriter
-	chan configUpdate Config
+	configUpdate := make(chan *Config)
 	cf, configUpdate = NewFileWriter(config, configlocation)
 
 	go func() {
