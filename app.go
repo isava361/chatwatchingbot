@@ -37,8 +37,6 @@ type FileWriter struct {
 	mutex sync.Mutex
 }
 
-var cf ConfigWriter = &FileWriter{FileName: configlocation}
-
 const configlocation = "./config/config.json"
 
 func main() {
@@ -63,36 +61,7 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Panicf("Error creating file watcher: %v", err)
-	}
-	defer watcher.Close()
-
-	// Add the configuration file to the watcher
-	err = watcher.Add(configlocation)
-	if err != nil {
-		log.Panicf("Error adding file to watcher: %v", err)
-	}
-
-
-	// Goroutine to handle configuration file changes
-	go func() {
-		for {
-			select {
-			case event := <-watcher.Events:
-				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Remove == fsnotify.Remove {
-					log.Println("Config file changed, reloading...")
-					config, err = readConfig(configlocation)
-					if err != nil {
-						log.Printf("Error reading config: %v", err)
-					}
-				}
-			case err := <-watcher.Errors:
-				log.Println("Error in file watcher:", err)
-			}
-		}
-	}()
+	var cf ConfigWriter = NewFileWriter(configlocation)
 
 	for update := range updates {
 

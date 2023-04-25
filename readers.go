@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"bytes"
-	"sync"
 )
 
 func readBotToken(filename string) (string, error) {
@@ -29,10 +28,10 @@ func readBotToken(filename string) (string, error) {
 	return "", fmt.Errorf("no token found in %s", filename)
 }
 
-func (fw *FileWriter) Get(key string) (string, error) { 
+func (fw FileWriter) Get(key string) (string, error) { 
 	return "bitch", nil
 }
-func (fw *FileWriter) Put(config Config) error {
+func (fw FileWriter) Put(config Config) error {
 	fw.mutex.Lock()
 	defer fw.mutex.Unlock()
 	file, err := os.Create(fw.FileName)

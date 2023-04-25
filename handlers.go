@@ -55,7 +55,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
         config.ChatTriggers[message.Chat.ID] = newChatTriggers
     }
 
-    err := ConfigWriter.Put(*config)
+    err := ConfigWriter.Put(config)
     if err != nil {
         log.Printf("Error saving config: %v", err)
     }
@@ -102,7 +102,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 	}
 	config.MyResponses = newMyResponses
 	
-	err := ConfigWriter.Put(*config)
+	err := ConfigWriter.Put(config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -134,7 +134,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 
 	updateConfig(config, message, newMyResponse)
 
-	err = ConfigWriter.Put(*config)
+	err = ConfigWriter.Put(config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -159,7 +159,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
 	updateConfig(config, message, newMyResponse)
 
-	err = ConfigWriter.Put(*config)
+	err = ConfigWriter.Put(config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -374,4 +374,38 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, conf
 	_, _ = bot.Send(msg)
 
 	return nil
+}
+
+func NewFileWriter(configLocation string) *FileWriter { 
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Panicf("Error creating file watcher: %v", err)
+	}
+
+	// Add the configuration file to the watcher
+	err = watcher.Add(configlocation)
+	if err != nil {
+		log.Panicf("Error adding file to watcher: %v", err)
+	}
+	FileWriter = &FileWriter{FileName: configlocation}
+
+	// Goroutine to handle configuration file changes
+	go func() {
+		for {
+			select {
+			case event := <-watcher.Events:
+				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Remove == fsnotify.Remove {
+					log.Println("Config file changed, reloading...")
+					config, err = readConfig(configlocation)
+					if err != nil {
+						log.Printf("Error reading config: %v", err)
+					}
+				}
+			case err := <-watcher.Errors:
+				log.Println("Error in file watcher:", err)
+			}
+		}
+	}()
+
+	return FileWriter
 }
