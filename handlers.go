@@ -6,6 +6,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "os"
 "log"
 "fmt"
+"github.com/fsnotify/fsnotify"
 )
 
 
@@ -311,7 +312,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		}
 
 		if allowed, _ := allowedCommands[command]; allowed || message.ReplyToMessage != nil {
-			return handler(bot, message, config)
+			return handler(bot, message, config, configwriter)
 		}
 	}
 
@@ -375,7 +376,7 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, conf
 	return nil
 }
 
-func NewFileWriter(config Config, configLocation string) *FileWriter { 
+func NewFileWriter(config Config, configLocation string) FileWriter { 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Panicf("Error creating file watcher: %v", err)
