@@ -27,7 +27,7 @@ type Config struct {
 }
 
 type ConfigWriter interface {
-	Del(config *Config, command string, removeSerchPhrase string, chatID int64, ConfigWriter) (error)
+	Del(config *Config, command string, removeSerchPhrase string, chatID int64) (error)
 	Put(config *Config) error
 }
   
