@@ -60,7 +60,8 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 	
-	var cf ConfigWriter, config = NewFileWriter(config, configlocation)
+	var cf ConfigWriter
+	cf, config = NewFileWriter(config, configlocation)
 
 	for update := range updates {
 
