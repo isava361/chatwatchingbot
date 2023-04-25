@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"bytes"
+	"log"
 )
 
 func readBotToken(filename string) (string, error) {
@@ -54,9 +55,9 @@ func (fw FileWriter) Put(config *Config) error {
 }
 
 func (fw FileWriter) Del(config *Config, command string, removeSearchPhrase string, chatID int64) (error) { 
-	newChatTriggers := []config{}
+	newChatTriggers := []*Config{}
 	if command == "remove"{
-		config, exists := config.ChatTriggers[Chat.ID]
+		config, exists := config.ChatTriggers[ChatID]
 		if exists{
         	for _, config := range config {
             	if config.SearchPhrase != removeSearchPhrase {
@@ -64,7 +65,7 @@ func (fw FileWriter) Del(config *Config, command string, removeSearchPhrase stri
        	    	} else {
        	    	    // Add file deletion for ChatTriggers
 						if config.FileType != "" {
-							err := os.Remove(myResponse.FileName)
+							err := os.Remove(config.FileName)
 							if err != nil {
 								log.Printf("Error deleting media: %v", err)
 								return err
@@ -80,7 +81,7 @@ func (fw FileWriter) Del(config *Config, command string, removeSearchPhrase stri
             } else {
                // Add file deletion for ChatTriggers
 				if config.FileType != "" {
-					err := os.Remove(myResponse.FileName)
+					err := os.Remove(config.FileName)
 					if err != nil {
 						log.Printf("Error deleting media: %v", err)
 						return err
