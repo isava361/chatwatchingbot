@@ -34,7 +34,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
     removeSearchPhrase := CommandArguments("/remove", message)
 
 	ChatID := message.Chat.ID
-	err := configwriter.Del(config, "/remove", removeSearchPhrase, ChatID, configwriter)
+	err := configwriter.Del(config, "/remove", removeSearchPhrase, ChatID)
 	
 	if err == nil {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Local response removed!")
