@@ -174,10 +174,6 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 	return nil
 }
 
-func updateGlobalConfig(config *Config, message *tgbotapi.Message, myResponse MyResponse) {
-	config.MyResponses = append(config.MyResponses, myResponse)
-}
-
 
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
 	var myResponse MyResponse
@@ -234,12 +230,12 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
 
 func updateConfig(config *Config, message *tgbotapi.Message, myResponse MyResponse) {
-	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
+	if message.Command() == "add" {
 		if config.ChatTriggers == nil {
 			config.ChatTriggers = make(map[int64][]MyResponse)
 		}
 		config.ChatTriggers[message.Chat.ID] = append(config.ChatTriggers[message.Chat.ID], myResponse)
-	} else {
+	} else if message.Command == "addglobal" {
 		config.MyResponses = append(config.MyResponses, myResponse)
 	}
 }
