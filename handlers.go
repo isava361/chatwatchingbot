@@ -9,20 +9,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 
-/*
-type ConfigWriter interface {
-	Get(key string) (string, error)
-	Put(key, value string) error
-}
-  
-type FileWriter struct {
-	FileName string
-}
-  
-func (fw *FileWriter) Get(key string) (string, error) { ... }
-func (fw *FileWriter) Put(key, value string) error { ... }
-  
-*/
+
 
 func allowedMessageType(message *tgbotapi.Message) bool {
 	if (message.ReplyToMessage.Document != nil || message.ReplyToMessage.Game != nil || message.ReplyToMessage.VideoNote != nil){
@@ -68,7 +55,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
         config.ChatTriggers[message.Chat.ID] = newChatTriggers
     }
 
-    err := saveConfig(configlocation, *config)
+    err := File.Put(*config)
     if err != nil {
         log.Printf("Error saving config: %v", err)
     }
@@ -115,7 +102,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 	}
 	config.MyResponses = newMyResponses
 
-	err := saveConfig(configlocation, *config)
+	err := File.Put(*config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -147,7 +134,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 
 	updateConfig(config, message, newMyResponse)
 
-	err = saveConfig(configlocation, *config)
+	err = File.Put(*config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -172,7 +159,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
 	updateConfig(config, message, newMyResponse)
 
-	err = saveConfig(configlocation, *config)
+	err = File.Put(*config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}

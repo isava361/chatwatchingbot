@@ -26,6 +26,17 @@ type Config struct {
 	ChatTriggers map[int64][]MyResponse `json:"chat_triggers,omitempty"`
 }
 
+type ConfigWriter interface {
+	Get(key string) (string, error)
+	Put(key, value string) error
+}
+  
+type FileWriter struct {
+	FileName string
+}
+
+var File := &FileWriter{Filename: configlocation}
+
 const configlocation = "./config/config.json"
 
 func main() {
