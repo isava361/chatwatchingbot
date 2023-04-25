@@ -50,7 +50,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
 
                 // Add file deletion for ChatTriggers
                 if myResponse.FileType != "" {
-                    err := os.Remove(myResponse.Filename)
+                    err := os.Remove(myResponse.FileName)
                     if err != nil {
                         log.Printf("Error deleting media: %v", err)
                     }
@@ -98,7 +98,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 
 			// Add file deletion for GlobalTriggers
 			if myResponse.FileType != "" {
-				err := os.Remove(myResponse.Filename)
+				err := os.Remove(myResponse.FileName)
 				if err != nil {
 					log.Printf("Error deleting media: %v", err)
 				}
@@ -262,21 +262,21 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 
 func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
 	if myResponse.FileType == FilePhoto {
-		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FilePath(myResponse.FileName))
 		photoMsg.ReplyToMessageID = message.MessageID
 		photoMsg.Caption = myResponse.Response
 		return photoMsg, nil
 	} else if myResponse.FileType == FileGIF {
-		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(myResponse.FileName))
 		gifMsg.ReplyToMessageID = message.MessageID
 		gifMsg.Caption = myResponse.Response
 		return gifMsg, nil
 	} else if myResponse.FileType == FileVoice {
-		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FilePath(myResponse.FileName))
 		voiceMsg.ReplyToMessageID = message.MessageID
 		return voiceMsg, nil
 	} else if myResponse.FileType == FileSticker {
-    	stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+    	stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FilePath(myResponse.FileName))
     	stickerMsg.ReplyToMessageID = message.MessageID
     	return stickerMsg, nil
     } else {
