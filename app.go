@@ -4,6 +4,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"log"
+	"sync"
 )
 
 type FileType string
@@ -33,6 +34,7 @@ type ConfigWriter interface {
   
 type FileWriter struct {
 	FileName string
+	mutex sync.Mutex
 }
 
 var File = &FileWriter{FileName: configlocation}
