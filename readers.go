@@ -91,7 +91,7 @@ func (fw FileWriter) Del(config *Config, command string, removeSearchPhrase stri
         }
 	}
 
-	err := FileWriter.Put(FileWriter, config)
+	err := FileWriter.Put(fw, config)
     if err != nil {
         log.Printf("Error saving config: %v", err)
     }
