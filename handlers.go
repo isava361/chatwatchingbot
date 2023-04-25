@@ -349,7 +349,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 }
 
 
-func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
+func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
 	log.Println("Handling /triggers command")
 
 	chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
@@ -387,7 +387,7 @@ func NewFileWriter(config *Config, configLocation string) FileWriter {
 	if err != nil {
 		log.Panicf("Error adding file to watcher: %v", err)
 	}
-	FileWriter = &FileWriter{FileName: configlocation}
+	var FileWriter = &FileWriter{FileName: configlocation}
 
 	// Goroutine to handle configuration file changes
 	go func() {
