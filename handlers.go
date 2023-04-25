@@ -9,8 +9,6 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 
-var cf ConfigWriter = NewFileWriter(config, configlocation)
-
 
 func allowedMessageType(message *tgbotapi.Message) bool {
 	if (message.ReplyToMessage.Document != nil || message.ReplyToMessage.Game != nil || message.ReplyToMessage.VideoNote != nil){
