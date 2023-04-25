@@ -58,12 +58,6 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 	}
 
 	removeSearchPhrase := CommandArguments("/removeglobal", message)
-
-	globalTriggerRemoved := false
-	newMyResponses := []MyResponse{}
-	
-    removeSearchPhrase := CommandArguments("/removeglobal", message)
-
 	ChatID := message.Chat.ID
 	err := configwriter.Del(config, "/removeglobal", removeSearchPhrase, ChatID)
 	if err == nil {
