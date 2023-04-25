@@ -215,7 +215,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.FileName = fileName
 	} else if message.ReplyToMessage.Sticker != nil { // Sticker proccess
     	stickerFileID := message.ReplyToMessage.Sticker.FileID
-    	Filename, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
+    	fileName, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
     	if err != nil {
      		return myResponse, err
     	}
@@ -237,7 +237,7 @@ func updateConfig(config *Config, message *tgbotapi.Message, myResponse MyRespon
 			config.ChatTriggers = make(map[int64][]MyResponse)
 		}
 		config.ChatTriggers[message.Chat.ID] = append(config.ChatTriggers[message.Chat.ID], myResponse)
-	} else if message.Command == "addglobal" {
+	} else if message.Command() == "addglobal" {
 		config.MyResponses = append(config.MyResponses, myResponse)
 	}
 }
