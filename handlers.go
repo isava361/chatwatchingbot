@@ -22,11 +22,12 @@ type FileWriter struct {
 func (fw *FileWriter) Get(key string) (string, error) { ... }
 func (fw *FileWriter) Put(key, value string) error { ... }
   
+*/
 
 func messageContains(messageText, targetString string) bool {
 return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
 }
-*/
+
 
 func CommandArguments(command string, message *tgbotapi.Message) string {
 	return strings.TrimSpace(strings.TrimPrefix(message.Text, command))
