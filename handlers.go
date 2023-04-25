@@ -55,7 +55,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
         config.ChatTriggers[message.Chat.ID] = newChatTriggers
     }
 
-    err := ConfigWriter.Put((*config)
+    err := ConfigWriter.Put(*config)
     if err != nil {
         log.Printf("Error saving config: %v", err)
     }
@@ -102,7 +102,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 	}
 	config.MyResponses = newMyResponses
 	
-	err := ConfigWriter.Put((*config)
+	err := ConfigWriter.Put(*config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -134,7 +134,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 
 	updateConfig(config, message, newMyResponse)
 
-	err = ConfigWriter.Put((*config)
+	err = ConfigWriter.Put(*config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
@@ -159,7 +159,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, con
 
 	updateConfig(config, message, newMyResponse)
 
-	err = ConfigWriter.Put((*config)
+	err = ConfigWriter.Put(*config)
 	if err != nil {
 		log.Printf("Error saving config: %v", err)
 	}
