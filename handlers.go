@@ -24,11 +24,11 @@ func (fw *FileWriter) Put(key, value string) error { ... }
   
 */
 
-func allowedMessageType(message *tgbotapi.Message){
-	if (message.ReplyToMessage.Document != nil || message.ReplyToMessage.Game != nil || message.ReplyToMessage.Video_Note != nil){
+func allowedMessageType(message *tgbotapi.Message) bool {
+	if (message.ReplyToMessage.Document != nil || message.ReplyToMessage.Game != nil || message.ReplyToMessage.VideoNote != nil){
 		return false
 	}
-	return tru
+	return true
 }
 
 func messageContains(messageText, targetString string) bool {
