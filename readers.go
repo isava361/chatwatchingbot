@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"bytes"
-	"log"
 )
 
 func readBotToken(filename string) (string, error) {
@@ -29,11 +28,13 @@ func readBotToken(filename string) (string, error) {
 	return "", fmt.Errorf("no token found in %s", filename)
 }
 
+func (fw FileWriter) Get(key string) (string, error) { 
+	return "bitch", nil
+}
 func (fw FileWriter) Put(config *Config) error {
 	fw.mutex.Lock()
 	defer fw.mutex.Unlock()
-	
-	file, err :=	 os.Create(fw.FileName)
+	file, err := os.Create(fw.FileName)
 	if err != nil {
 		return err
 	}
@@ -54,11 +55,7 @@ func (fw FileWriter) Put(config *Config) error {
 
 	return nil
 }
-
-func (fw FileWriter) Del(key string) (string) { 
-	return "Dima Pidor"
-}
-
+  
 
 func downloadAndSaveFile(bot *tgbotapi.BotAPI, fileID, savePath, extension string) (string, error) {
 	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})

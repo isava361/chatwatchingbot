@@ -27,7 +27,7 @@ type Config struct {
 }
 
 type ConfigWriter interface {
-	Del(key string) (string)
+	Get(key string) (string, error)
 	Put(config *Config) error
 }
   
