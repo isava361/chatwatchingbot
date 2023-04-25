@@ -28,7 +28,7 @@ func CommandArguments(command string, message *tgbotapi.Message) string {
 }
 
 
-func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter *ConfigWriter) error {
+func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
     log.Println("Handling /remove command")
 
     removeSearchPhrase := CommandArguments("/remove", message)
@@ -120,7 +120,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 
 
 
-func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter *ConfigWriter) error {
+func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
 	newSearchPhrase := CommandArguments("/add", message)
 
 	newMyResponse, err := createMyResponse(bot, message)
@@ -145,7 +145,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 	return nil
 }
 
-func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter *ConfigWriter) error {
+func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
 	newSearchPhrase := CommandArguments("/addglobal", message)
 
 	newMyResponse, err := createMyResponse(bot, message)
@@ -286,9 +286,9 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 
 
 
-type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config, *ConfigWriter) error
+type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config, ConfigWriter) error
 
-func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter *ConfigWriter) error {
+func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
 	receivedMessage := message.Text
 
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
