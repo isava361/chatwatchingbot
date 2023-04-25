@@ -53,7 +53,7 @@ func (fw FileWriter) Put(config *Config) error {
 	return nil
 }
 
-func (fw FileWriter) Del(config *Config, command string, removeSerchPhrase string, chatID int64) (error) { 
+func (fw FileWriter) Del(config *Config, command string, removeSearchPhrase string, chatID int64) (error) { 
 	newChatTriggers := []config{}
 	if command == "remove"{
 		config, exists := config.ChatTriggers[Chat.ID]
