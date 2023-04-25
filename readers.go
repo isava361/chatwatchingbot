@@ -28,8 +28,9 @@ func readBotToken(filename string) (string, error) {
 	return "", fmt.Errorf("no token found in %s", filename)
 }
 
-func saveConfig(filename string, config Config) error {
-	file, err := os.Create(filename)
+func (fw *FileWriter) Get(key string) (string, error) { ... }
+func (fw *FileWriter) Put(config Config) error {
+	file, err := os.Create(fw.FileName)
 	if err != nil {
 		return err
 	}
@@ -50,8 +51,7 @@ func saveConfig(filename string, config Config) error {
 
 	return nil
 }
-
-
+  
 
 func downloadAndSaveFile(bot *tgbotapi.BotAPI, fileID, savePath, extension string) (string, error) {
 	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
