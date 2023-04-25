@@ -63,6 +63,12 @@ func main() {
 	var cf ConfigWriter
 	cf, config = NewFileWriter(config, configlocation)
 
+	go func() {
+		for newConfig := range configUpdate {
+			config = newConfig
+		}
+	}()
+
 	for update := range updates {
 
 		if update.Message != nil {

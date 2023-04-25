@@ -376,7 +376,7 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, conf
 	return nil
 }
 
-func NewFileWriter(config *Config, configLocation string) (*FileWriter, *Config) { 
+func NewFileWriter(config *Config, configLocation string) (*FileWriter, *Config) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Panicf("Error creating file watcher: %v", err)
@@ -389,6 +389,9 @@ func NewFileWriter(config *Config, configLocation string) (*FileWriter, *Config)
 	}
 	var FileWriter = &FileWriter{FileName: configlocation}
 
+	// Create a config update channel
+	configUpdate := make(chan *Config)
+
 	// Goroutine to handle configuration file changes
 	go func() {
 		for {
@@ -396,9 +399,11 @@ func NewFileWriter(config *Config, configLocation string) (*FileWriter, *Config)
 			case event := <-watcher.Events:
 				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Remove == fsnotify.Remove {
 					log.Println("Config file changed, reloading...")
-					config, err = readConfig(configlocation)
+					newConfig, err := readConfig(configlocation)
 					if err != nil {
 						log.Printf("Error reading config: %v", err)
+					} else {
+						configUpdate <- newConfig
 					}
 				}
 			case err := <-watcher.Errors:
@@ -407,5 +412,5 @@ func NewFileWriter(config *Config, configLocation string) (*FileWriter, *Config)
 		}
 	}()
 
-	return FileWriter, config
+	return FileWriter, configUpdate
 }
