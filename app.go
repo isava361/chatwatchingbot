@@ -37,7 +37,7 @@ type FileWriter struct {
 	mutex sync.Mutex
 }
 
-var File = &FileWriter{FileName: configlocation}
+var cf ConfigWriter = &FileWriter{FileName: configlocation}
 
 const configlocation = "./config/config.json"
 
