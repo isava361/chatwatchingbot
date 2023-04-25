@@ -1,65 +1,64 @@
 package main
 
 import (
-tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-"strings"
-"os"
-"log"
-"fmt"
+	"fmt"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"log"
+	"os"
+	"strings"
 )
 
 const configlocation = "./config/config.json"
 
 func messageContains(messageText, targetString string) bool {
-return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
+	return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
 }
 
 func CommandArguments(command string, message *tgbotapi.Message) string {
 	return strings.TrimSpace(strings.TrimPrefix(message.Text, command))
 }
 
-
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
-    log.Println("Handling /remove command")
+	log.Println("Handling /remove command")
 
-    removeSearchPhrase := CommandArguments("/remove", message)
+	removeSearchPhrase := CommandArguments("/remove", message)
 
-    chatTriggerRemoved := false
-    chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
-    if exists {
-        newChatTriggers := []MyResponse{}
-        for _, myResponse := range chatTriggers {
-            if myResponse.SearchPhrase != removeSearchPhrase {
-                newChatTriggers = append(newChatTriggers, myResponse)
-            } else {
-                chatTriggerRemoved = true
+	chatTriggerRemoved := false
+	chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
+	if exists {
+		newChatTriggers := []MyResponse{}
+		for _, myResponse := range chatTriggers {
+			if myResponse.SearchPhrase != removeSearchPhrase {
+				newChatTriggers = append(newChatTriggers, myResponse)
+			} else {
+				chatTriggerRemoved = true
 
-                // Add file deletion for ChatTriggers
-                if myResponse.FileType != "" {
-                    err := os.Remove(myResponse.Filename)
-                    if err != nil {
-                        log.Printf("Error deleting media: %v", err)
-                    }
-                }
-            }
-        }
-        config.ChatTriggers[message.Chat.ID] = newChatTriggers
-    }
+				// Add file deletion for ChatTriggers
+				if myResponse.FileType != "" {
+					err := os.Remove(myResponse.Filename)
+					if err != nil {
+						log.Printf("Error deleting media: %v", err)
+					}
+				}
+			}
+		}
+		config.ChatTriggers[message.Chat.ID] = newChatTriggers
+	}
 
-    err := saveConfig(configlocation, *config)
-    if err != nil {
-        log.Printf("Error saving config: %v", err)
-    }
+	err := saveConfig(configlocation, *config)
+	if err != nil {
+		log.Printf("Error saving config: %v", err)
+	}
 
-    if chatTriggerRemoved {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Local response removed!")
-        _, _ = bot.Send(msg)
-    } else {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "No local response found with that search phrase.")
-        _, _ = bot.Send(msg)
-    }
+	if chatTriggerRemoved {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Local response removed!")
+		_, _ = bot.Send(msg)
+	} else {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "No local response found with that search phrase.")
+		_, _ = bot.Send(msg)
+	}
 
-    return nil
+	return nil
 }
 
 func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
@@ -108,8 +107,6 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 
 	return nil
 }
-
-
 
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
 	newSearchPhrase := CommandArguments("/add", message)
@@ -165,7 +162,6 @@ func updateGlobalConfig(config *Config, message *tgbotapi.Message, myResponse My
 	config.MyResponses = append(config.MyResponses, myResponse)
 }
 
-
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
 	var myResponse MyResponse
 
@@ -203,22 +199,20 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.FileID = voiceFileID
 		myResponse.FileName = fileName
 	} else if message.ReplyToMessage.Sticker != nil { // Sticker proccess
-    	stickerFileID := message.ReplyToMessage.Sticker.FileID
-    	Filename, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
-    	if err != nil {
-     		return myResponse, err
-    	}
-    	myResponse.FileType = FileSticker
-    	myResponse.FileID = stickerFileID
-    	myResponse.FileName = fileName
-  	} else {
+		stickerFileID := message.ReplyToMessage.Sticker.FileID
+		Filename, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
+		if err != nil {
+			return myResponse, err
+		}
+		myResponse.FileType = FileSticker
+		myResponse.FileID = stickerFileID
+		myResponse.FileName = fileName
+	} else {
 		return myResponse, fmt.Errorf("Unsupported message type: %v", message)
 	}
 
 	return myResponse, nil
 }
-
-
 
 func updateConfig(config *Config, message *tgbotapi.Message, myResponse MyResponse) {
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
@@ -230,7 +224,6 @@ func updateConfig(config *Config, message *tgbotapi.Message, myResponse MyRespon
 		config.MyResponses = append(config.MyResponses, myResponse)
 	}
 }
-
 
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
 	if myResponse.Response == "" && myResponse.FileType == "gif" && myResponse.FileType == "photo" {
@@ -266,18 +259,15 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 		voiceMsg.ReplyToMessageID = message.MessageID
 		return voiceMsg, nil
 	} else if myResponse.FileType == FileSticker {
-    	stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
-    	stickerMsg.ReplyToMessageID = message.MessageID
-    	return stickerMsg, nil
-    } else {
+		stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FilePath(myResponse.Filename))
+		stickerMsg.ReplyToMessageID = message.MessageID
+		return stickerMsg, nil
+	} else {
 		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
 		textMsg.ReplyToMessageID = message.MessageID
 		return textMsg, nil
 	}
 }
-
-
-
 
 type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config) error
 
@@ -289,10 +279,10 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 	}
 
 	commandHandlers := map[string]commandHandlerFunc{
-		"add":         handleAddCommand,
-		"remove":      handleRemoveCommand,
-		"addglobal":   handleAddGlobalCommand,
-		"triggers":    handleTriggersCommand,
+		"add":          handleAddCommand,
+		"remove":       handleRemoveCommand,
+		"addglobal":    handleAddGlobalCommand,
+		"triggers":     handleTriggersCommand,
 		"removeglobal": handleRemoveGlobalCommand,
 	}
 
@@ -340,7 +330,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 
 	return nil
 }
-
 
 func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
 	log.Println("Handling /triggers command")
