@@ -8,7 +8,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "fmt"
 )
 
-const configlocation = "./config/config.json"
+
 /*
 type ConfigWriter interface {
 	Get(key string) (string, error)
@@ -26,11 +26,12 @@ func (fw *FileWriter) Put(key, value string) error { ... }
 func messageContains(messageText, targetString string) bool {
 return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
 }
+*/
 
 func CommandArguments(command string, message *tgbotapi.Message) string {
 	return strings.TrimSpace(strings.TrimPrefix(message.Text, command))
 }
-*/
+
 
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config) error {
     log.Println("Handling /remove command")
