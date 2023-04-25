@@ -34,6 +34,7 @@ type ConfigWriter interface {
 type FileWriter struct {
 	FileName string
 	mutex sync.Mutex
+	rwMutex  sync.RWMutex
 }
 
 const configlocation = "./config/config.json"

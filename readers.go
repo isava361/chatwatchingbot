@@ -32,6 +32,10 @@ func readBotToken(filename string) (string, error) {
 func (fw FileWriter) Put(config *Config) error {
 	fw.mutex.Lock()
 	defer fw.mutex.Unlock()
+
+	fw.rwMutex.Lock()
+	defer fw.rwMutex.Unlock()
+	
 	file, err :=	 os.Create(fw.FileName)
 	if err != nil {
 		return err
