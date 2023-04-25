@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"bytes"
+	"sync"
 )
 
 func readBotToken(filename string) (string, error) {
@@ -32,8 +33,10 @@ func (fw *FileWriter) Get(key string) (string, error) {
 	return "bitch", nil
 }
 func (fw *FileWriter) Put(config Config) error {
+	sync.Mutex.Lock()
 	file, err := os.Create(fw.FileName)
 	if err != nil {
+		sync.Mutex.Unlock()
 		return err
 	}
 	defer file.Close()
@@ -43,14 +46,17 @@ func (fw *FileWriter) Put(config Config) error {
 	encoder.SetIndent("", "  ")
 	err = encoder.Encode(config)
 	if err != nil {
+		sync.Mutex.Unlock()
 		return err
 	}
 
 	_, err = file.Write(buf.Bytes())
 	if err != nil {
+		sync.Mutex.Unlock()
 		return err
 	}
 
+	sync.Mutex.Unlock()
 	return nil
 }
   

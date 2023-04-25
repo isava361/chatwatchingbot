@@ -28,7 +28,7 @@ type Config struct {
 
 type ConfigWriter interface {
 	Get(key string) (string, error)
-	Put(key, value string) error
+	Put(config *Config) error
 }
   
 type FileWriter struct {
