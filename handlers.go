@@ -285,7 +285,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 
 
 
-type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config, configwriter *ConfigWriter) error
+type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config, *ConfigWriter) error
 
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter *ConfigWriter) error {
 	receivedMessage := message.Text
