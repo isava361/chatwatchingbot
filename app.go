@@ -61,7 +61,7 @@ func main() {
 	updates := bot.GetUpdatesChan(u)
 	
 	var cf ConfigWriter
-	cf, config = NewFileWriter(config, configlocation)
+	cf, configupdate = NewFileWriter(config, configlocation)
 
 	go func() {
 		for newConfig := range configUpdate {
