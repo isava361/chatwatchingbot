@@ -57,7 +57,7 @@ func (fw FileWriter) Put(config *Config) error {
 func (fw FileWriter) Del(config *Config, command string, removeSearchPhrase string, chatID int64) (error) { 
 	newChatTriggers := []*Config{}
 	if command == "remove"{
-		config, exists := config.ChatTriggers[ChatID]
+		config, exists := config.ChatTriggers[chatID]
 		if exists{
         	for _, config := range config {
             	if config.SearchPhrase != removeSearchPhrase {
@@ -91,7 +91,7 @@ func (fw FileWriter) Del(config *Config, command string, removeSearchPhrase stri
         }
 	}
 
-	err := FileWriter.Put(config)
+	err := FileWriter.Put(FileWriter, config)
     if err != nil {
         log.Printf("Error saving config: %v", err)
     }
