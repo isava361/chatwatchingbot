@@ -28,13 +28,10 @@ func readBotToken(filename string) (string, error) {
 	return "", fmt.Errorf("no token found in %s", filename)
 }
 
-func (fw FileWriter) Get(key string) (string, error) { 
-	return "bitch", nil
-}
 func (fw FileWriter) Put(config *Config) error {
 	fw.mutex.Lock()
 	defer fw.mutex.Unlock()
-	file, err := os.Create(fw.FileName)
+	file, err :=	 os.Create(fw.FileName)
 	if err != nil {
 		return err
 	}
@@ -55,7 +52,51 @@ func (fw FileWriter) Put(config *Config) error {
 
 	return nil
 }
-  
+
+func (fw FileWriter) Del(config *Config, command string, removeSerchPhrase string, chatID int64) (error) { 
+	newChatTriggers := []config{}
+	if command == "remove"{
+		config, exists := config.ChatTriggers[Chat.ID]
+		if exists{
+        	for _, config := range config {
+            	if config.SearchPhrase != removeSearchPhrase {
+       	    	    newChatTriggers = append(newChatTriggers, config)
+       	    	} else {
+       	    	    // Add file deletion for ChatTriggers
+						if config.FileType != "" {
+							err := os.Remove(myResponse.FileName)
+							if err != nil {
+								log.Printf("Error deleting media: %v", err)
+								return err
+						}
+					}
+    	        }
+			}
+		} 
+	} else if command == "removeglobal"{
+		for _, config := range config.MyResponses {
+            if config.SearchPhrase != removeSearchPhrase {
+                newChatTriggers = append(newChatTriggers, config)
+            } else {
+               // Add file deletion for ChatTriggers
+				if config.FileType != "" {
+					err := os.Remove(myResponse.FileName)
+					if err != nil {
+						log.Printf("Error deleting media: %v", err)
+						return err
+					}
+				}
+            }
+        }
+	}
+
+	err := FileWriter.Put(config)
+    if err != nil {
+        log.Printf("Error saving config: %v", err)
+    }
+	return err
+}
+
 
 func downloadAndSaveFile(bot *tgbotapi.BotAPI, fileID, savePath, extension string) (string, error) {
 	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})

@@ -29,38 +29,14 @@ func CommandArguments(command string, message *tgbotapi.Message) string {
 
 
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
-    log.Println("Handling /remove command")
+    
+	log.Println("Handling /remove command")
 
     removeSearchPhrase := CommandArguments("/remove", message)
 
-    chatTriggerRemoved := false
-    chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
-    if exists {
-        newChatTriggers := []MyResponse{}
-        for _, myResponse := range chatTriggers {
-            if myResponse.SearchPhrase != removeSearchPhrase {
-                newChatTriggers = append(newChatTriggers, myResponse)
-            } else {
-                chatTriggerRemoved = true
-
-                // Add file deletion for ChatTriggers
-                if myResponse.FileType != "" {
-                    err := os.Remove(myResponse.FileName)
-                    if err != nil {
-                        log.Printf("Error deleting media: %v", err)
-                    }
-                }
-            }
-        }
-        config.ChatTriggers[message.Chat.ID] = newChatTriggers
-    }
-
-    err := configwriter.Put(config)
-    if err != nil {
-        log.Printf("Error saving config: %v", err)
-    }
-
-    if chatTriggerRemoved {
+	ChatID := message.Chat.ID
+	err := configwriter.Del(config, "/remove", removeSearchPhrase, ChatID)
+	if err == nil {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Local response removed!")
         _, _ = bot.Send(msg)
     } else {
@@ -68,7 +44,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
         _, _ = bot.Send(msg)
     }
 
-    return nil
+    return err
 }
 
 func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
@@ -85,37 +61,20 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 
 	globalTriggerRemoved := false
 	newMyResponses := []MyResponse{}
-	for _, myResponse := range config.MyResponses {
-		if myResponse.SearchPhrase != removeSearchPhrase {
-			newMyResponses = append(newMyResponses, myResponse)
-		} else {
-			globalTriggerRemoved = true
-
-			// Add file deletion for GlobalTriggers
-			if myResponse.FileType != "" {
-				err := os.Remove(myResponse.FileName)
-				if err != nil {
-					log.Printf("Error deleting media: %v", err)
-				}
-			}
-		}
-	}
-	config.MyResponses = newMyResponses
 	
-	err := configwriter.Put(config)
-	if err != nil {
-		log.Printf("Error saving config: %v", err)
-	}
+    removeSearchPhrase := CommandArguments("/removeglobal", message)
 
-	if globalTriggerRemoved {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Global response removed!")
-		_, _ = bot.Send(msg)
-	} else {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "No global response found with that search phrase.")
-		_, _ = bot.Send(msg)
-	}
+	ChatID := message.Chat.ID
+	err := configwriter.Del(config, "/removeglobal", removeSearchPhrase, ChatID)
+	if err == nil {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Global response removed!")
+        _, _ = bot.Send(msg)
+    } else {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "No global response found with that search phrase.")
+        _, _ = bot.Send(msg)
+    }
 
-	return nil
+    return err
 }
 
 
