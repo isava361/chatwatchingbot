@@ -329,8 +329,8 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, conf
 	return nil
 }
 
-func NewFileWriter(config *Config, configLocation string) (*FileWriter, chan *Config) {
-	watcher, err := fsnotify.NewWatcher()
+func NewFileWriter(config *Config, configLocation string) *FileWriter {
+/*	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Panicf("Error creating file watcher: %v", err)
 	}
@@ -339,9 +339,9 @@ func NewFileWriter(config *Config, configLocation string) (*FileWriter, chan *Co
 	err = watcher.Add(configlocation)
 	if err != nil {
 		log.Panicf("Error adding file to watcher: %v", err)
-	}
+	}*/
 	var FileWriter = &FileWriter{FileName: configlocation}
-
+		/*
 	// Create a config update channel
 	configUpdate := make(chan *Config)
 
@@ -366,6 +366,6 @@ func NewFileWriter(config *Config, configLocation string) (*FileWriter, chan *Co
 			}
 		}
 	}()
-
-	return FileWriter, configUpdate
+*/
+	return FileWriter //, configUpdate
 }
