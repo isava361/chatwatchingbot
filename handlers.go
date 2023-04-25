@@ -376,7 +376,7 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, conf
 	return nil
 }
 
-func NewFileWriter(configLocation string) *FileWriter { 
+func NewFileWriter(config Config, configLocation string) *FileWriter { 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Panicf("Error creating file watcher: %v", err)
