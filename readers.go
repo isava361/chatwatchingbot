@@ -28,7 +28,7 @@ func readBotToken(filename string) (string, error) {
 	return "", fmt.Errorf("no token found in %s", filename)
 }
 
-func (fw *FileWriter) Get(key string) (string, error) { ... }
+func (fw *FileWriter) Get(key string) (string, error) { }
 func (fw *FileWriter) Put(config Config) error {
 	file, err := os.Create(fw.FileName)
 	if err != nil {
