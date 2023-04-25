@@ -5,7 +5,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "strings"
 "log"
 "fmt"
-"github.com/fsnotify/fsnotify"
+//"github.com/fsnotify/fsnotify"
 )
 
 
