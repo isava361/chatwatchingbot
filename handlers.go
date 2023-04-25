@@ -10,6 +10,19 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 const configlocation = "./config/config.json"
 
+type ConfigWriter interface {
+	Get(key string) (string, error)
+	Put(key, value string) error
+}
+  
+type FileWriter struct {
+	FileName string
+}
+  
+func (fw *FileWriter) Get(key string) (string, error) { ... }
+func (fw *FileWriter) Put(key, value string) error { ... }
+  
+
 func messageContains(messageText, targetString string) bool {
 return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
 }
