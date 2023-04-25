@@ -8,7 +8,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "fmt"
 )
 
-configlocation := "./config/config.json"
+const configlocation = "./config/config.json"
 
 func messageContains(messageText, targetString string) bool {
 return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
