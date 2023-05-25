@@ -42,14 +42,6 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
                 newChatTriggers = append(newChatTriggers, myResponse)
             } else {
                 chatTriggerRemoved = true
-/*
-                // Add file deletion for ChatTriggers
-                if myResponse.FileType != "" {
-                    err := os.Remove(myResponse.FileName)
-                    if err != nil {
-                        log.Printf("Error deleting media: %v", err)
-                    }
-                }*/
             }
         }
         config.ChatTriggers[message.Chat.ID] = newChatTriggers
@@ -90,14 +82,6 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 			newMyResponses = append(newMyResponses, myResponse)
 		} else {
 			globalTriggerRemoved = true
-
-			// Add file deletion for GlobalTriggers
-			/*if myResponse.FileType != "" {
-				err := os.Remove(myResponse.FileName)
-				if err != nil {
-					log.Printf("Error deleting media: %v", err)
-				}
-			}*/
 		}
 	}
 	config.MyResponses = newMyResponses
@@ -182,40 +166,32 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
 	if len(message.ReplyToMessage.Photo) > 0 { // photo proccess
 		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
-//		fileName, err := downloadAndSaveFile(bot, photoFileID, "./photos", ".jpg")
-//		if err != nil {
-//			return myResponse, err
-//		}
 		myResponse.FileType = FilePhoto
 		myResponse.FileID = photoFileID
-//		myResponse.FileName = fileName
 	} else if message.ReplyToMessage.Animation != nil { // gif proccess
 		gifFileID := message.ReplyToMessage.Animation.FileID
-//		fileName, err := downloadAndSaveFile(bot, gifFileID, "./gifs", ".gif")
-//		if err != nil {
-//			return myResponse, err
-//		}
 		myResponse.FileType = FileGIF
 		myResponse.FileID = gifFileID
-//		myResponse.FileName = fileName
 	} else if message.ReplyToMessage.Voice != nil { // voice proccess
 		voiceFileID := message.ReplyToMessage.Voice.FileID
-//		fileName, err := downloadAndSaveFile(bot, voiceFileID, "./voices", ".ogg")
-//		if err != nil {
-//			return myResponse, err
-//		}
 		myResponse.FileType = FileVoice
 		myResponse.FileID = voiceFileID
-//		myResponse.FileName = fileName
 	} else if message.ReplyToMessage.Sticker != nil { // Sticker proccess
     	stickerFileID := message.ReplyToMessage.Sticker.FileID
-//    	fileName, err := downloadAndSaveFile(bot, stickerFileID, "./stickers", ".webp")
-//    	if err != nil {
-//     		return myResponse, err
-//    	}
     	myResponse.FileType = FileSticker
     	myResponse.FileID = stickerFileID
-//    	myResponse.FileName = fileName
+  	} else if message.ReplyToMessage.Video != nil { // Video proccess
+    	videoFileID := message.ReplyToMessage.Video.FileID
+    	myResponse.FileType = FileVideo
+    	myResponse.FileID = videoFileID
+  	} else if message.ReplyToMessage.Document != nil { // Document proccess
+    	documentFileID := message.ReplyToMessage.Document.FileID
+    	myResponse.FileType = FileDocument
+    	myResponse.FileID = documentFileID
+  	} else if message.ReplyToMessage.VideoNote != nil { // Document proccess
+    	videonoteFileID := message.ReplyToMessage.VideoNote.FileID
+    	myResponse.FileType = FileVideoNote
+    	myResponse.FileID = videonoteFileID
   	} else if !allowedMessageType(message) {
 		return myResponse, fmt.Errorf("Unsupported message type: %v", message)
 	} else {
@@ -276,6 +252,18 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
     	stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
     	stickerMsg.ReplyToMessageID = message.MessageID
     	return stickerMsg, nil
+    } else if myResponse.FileType == FileVideo {
+    	videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	videoMsg.ReplyToMessageID = message.MessageID
+    	return videoMsg, nil
+    } else if myResponse.FileType == FileDocument {
+    	documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	documentMsg.ReplyToMessageID = message.MessageID
+    	return documentMsg, nil
+    } else if myResponse.FileType == FileVideoNote {
+    	videonoteMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	videonoteMsg.ReplyToMessageID = message.MessageID
+    	return videonoteMsg, nil
     } else {
 		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
 		textMsg.ReplyToMessageID = message.MessageID

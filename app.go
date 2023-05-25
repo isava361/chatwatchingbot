@@ -12,6 +12,9 @@ const FilePhoto FileType = "photo"
 const FileGIF FileType = "gif"
 const FileSticker FileType = "sticker"
 const FileVoice FileType = "voice"
+const FileVideo FileType = "video"
+const FileDoc FileType = "document"
+const FileVideoNote FileType = "videonote"
 
 type MyResponse struct {
 	SearchPhrase string   `json:"searchPhrase"`
