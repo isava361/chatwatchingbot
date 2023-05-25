@@ -57,7 +57,7 @@ func (fw FileWriter) Put(config *Config) error {
 }
   
 
-func downloadAndSaveFile(bot *tgbotapi.BotAPI, fileID, savePath, extension string) (string, error) {
+/*func downloadAndSaveFile(bot *tgbotapi.BotAPI, fileID, savePath, extension string) (string, error) {
 	file, err := bot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
 		return "", err
@@ -88,4 +88,4 @@ func downloadAndSaveFile(bot *tgbotapi.BotAPI, fileID, savePath, extension strin
 	}
 
 	return filename, nil
-}
+}*/
