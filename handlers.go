@@ -327,7 +327,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		}
 	}
 	
-	if command == "chatid"{
+	if command == "chatid" {
 		handleChatIDCommand(bot, message)
 	}
 
