@@ -271,7 +271,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
     	videonoteMsg.ReplyToMessageID = message.MessageID
     	return videonoteMsg, nil
     } else if myResponse.FileType == FileAudio {
-    	audiotMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	audioMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
     	audioMsg.ReplyToMessageID = message.MessageID
 		audioMsg.Caption = myResponse.Response
     	return audioMsg, nil
