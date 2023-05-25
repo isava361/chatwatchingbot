@@ -255,10 +255,12 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
     } else if myResponse.FileType == FileVideo {
     	videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
     	videoMsg.ReplyToMessageID = message.MessageID
+		videoMsg.Caption = myResponse.Response
     	return videoMsg, nil
     } else if myResponse.FileType == FileDocument {
     	documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
     	documentMsg.ReplyToMessageID = message.MessageID
+		documentMsg.Caption = myResponse.Response
     	return documentMsg, nil
     } else if myResponse.FileType == FileVideoNote {
     	videonoteMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
