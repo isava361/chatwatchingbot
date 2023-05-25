@@ -282,7 +282,11 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 	}
 }
 
-
+func handleChatIDCommand (bot *tgbotapi.BotAPI, message *tgbotapi.Message){
+	chatid := "This chat ID is: " + strconv.FormatInt(message.Chat.ID, 10)
+	msg := tgbotapi.NewMessage(message.Chat.ID, chatid)
+	bot.Send(msg)
+}
 
 
 type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config, ConfigWriter) error
@@ -307,6 +311,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		"addglobal":   handleAddGlobalCommand,
 		"triggers":    handleTriggersCommand,
 		"removeglobal": handleRemoveGlobalCommand,
+		"chatid": handleChatIDCommand,
 	}
 
 	command := message.Command()
