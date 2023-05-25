@@ -1,15 +1,15 @@
 package main
 
 import (
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+//	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
-	"io"
-	"net/http"
-	"path/filepath"
+//	"io"
+//	"net/http"
+//	"path/filepath"
 	"bytes"
 )
 

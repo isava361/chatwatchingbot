@@ -3,7 +3,7 @@ package main
 import (
 tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "strings"
-"os"
+//"os"
 "log"
 "fmt"
 "github.com/fsnotify/fsnotify"
