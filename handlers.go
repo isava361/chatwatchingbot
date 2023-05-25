@@ -188,6 +188,10 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     	documentFileID := message.ReplyToMessage.Document.FileID
     	myResponse.FileType = FileDocument
     	myResponse.FileID = documentFileID
+  	} else if message.ReplyToMessage.Audio != nil { // Document proccess
+    	audioFileID := message.ReplyToMessage.Document.FileID
+    	myResponse.FileType = FileAudio
+    	myResponse.FileID = audioFileID
   	} else if message.ReplyToMessage.VideoNote != nil { // Document proccess
     	videonoteFileID := message.ReplyToMessage.VideoNote.FileID
     	myResponse.FileType = FileVideoNote
@@ -266,6 +270,11 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
     	videonoteMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
     	videonoteMsg.ReplyToMessageID = message.MessageID
     	return videonoteMsg, nil
+    } else if myResponse.FileType == FileAudio {
+    	audiotMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	audioMsg.ReplyToMessageID = message.MessageID
+		audioMsg.Caption = myResponse.Response
+    	return audioMsg, nil
     } else {
 		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
 		textMsg.ReplyToMessageID = message.MessageID
