@@ -312,7 +312,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		"addglobal":   handleAddGlobalCommand,
 		"triggers":    handleTriggersCommand,
 		"removeglobal": handleRemoveGlobalCommand,
-		"chatid": handleChatIDCommand,
 	}
 
 	command := message.Command()
@@ -327,6 +326,11 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 			return handler(bot, message, config, configwriter)
 		}
 	}
+	
+	if command == "chatid"{
+		handleChatIDCommand(bot, message)
+	}
+
 
 	chatSpecificTriggerFound := false
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
