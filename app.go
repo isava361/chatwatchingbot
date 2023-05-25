@@ -15,7 +15,7 @@ const FileVoice FileType = "voice"
 const FileVideo FileType = "video"
 const FileDocument FileType = "document"
 const FileVideoNote FileType = "videonote"
-const FileVideoNote FileType = "audio"
+const FileAudio FileType = "audio"
 
 type MyResponse struct {
 	SearchPhrase string   `json:"searchPhrase"`
