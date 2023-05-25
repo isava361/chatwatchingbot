@@ -188,8 +188,8 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
     	documentFileID := message.ReplyToMessage.Document.FileID
     	myResponse.FileType = FileDocument
     	myResponse.FileID = documentFileID
-  	} else if message.ReplyToMessage.Audio != nil { // Document proccess
-    	audioFileID := message.ReplyToMessage.Document.FileID
+  	} else if message.ReplyToMessage.Audio != nil { // Audio proccess
+    	audioFileID := message.ReplyToMessage.Audio.FileID
     	myResponse.FileType = FileAudio
     	myResponse.FileID = audioFileID
   	} else if message.ReplyToMessage.VideoNote != nil { // Document proccess
