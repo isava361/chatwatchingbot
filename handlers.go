@@ -49,8 +49,8 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
                     if err != nil {
                         log.Printf("Error deleting media: %v", err)
                     }
-                }
-            }*/
+                }*/
+            }
         }
         config.ChatTriggers[message.Chat.ID] = newChatTriggers
     }
