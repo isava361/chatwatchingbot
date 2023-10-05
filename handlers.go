@@ -299,13 +299,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		return nil
 	}
 
-	if message.Voice != nil || message.VideoNote != nil {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Сука, у тебя руки отвалились?")
-		msg.ReplyToMessageID = message.MessageID
-		bot.Send(msg)
-		return nil
-	}
-
 	commandHandlers := map[string]commandHandlerFunc{
 		"add":         handleAddCommand,
 		"remove":      handleRemoveCommand,
