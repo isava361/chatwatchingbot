@@ -443,4 +443,10 @@ func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
     // Send the QR code
     msg := tgbotapi.NewPhoto(chatID, tgbotapi.FilePath(filePath))
     bot.Send(msg)
+	err = os.Remove(filePath)
+    if err != nil {
+        // Log the error and return it
+        log.Printf("Failed to delete file: %s, error: %v\n", filePath, err)
+        return err
+    }
 }
