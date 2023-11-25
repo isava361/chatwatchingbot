@@ -324,6 +324,10 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		handleChatIDCommand(bot, message)
 	}
 
+	if command == "generateqr" {
+		handleGenerateQR(bot, message)
+	}
+
 
 	chatSpecificTriggerFound := false
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
@@ -422,4 +426,20 @@ func NewFileWriter(config *Config, configLocation string) (*FileWriter, chan *Co
 	}()
 
 	return FileWriter, configUpdate
+}
+
+func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
+	var code string
+	chatID := message.Chat.ID
+	filePath := fmt.Sprintf("./temp/%s.jpg", code)
+    err := qrcode.WriteFile(strings.ToUpper(code), qrcode.Medium, 256, filePath)
+    if err != nil {
+        msg := tgbotapi.NewMessage(userID, "Failed to generate QR code.")
+        bot.Send(msg)
+        return
+    }
+
+    // Send the QR code
+    msg := tgbotapi.NewPhotoUpload(chatID, filePath)
+    bot.Send(msg)
 }
