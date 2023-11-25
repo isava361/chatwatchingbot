@@ -431,6 +431,7 @@ func NewFileWriter(config *Config, configLocation string) (*FileWriter, chan *Co
 
 func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	var code string
+	code = message.Text
 	chatID := message.Chat.ID
 	filePath := fmt.Sprintf("./temp/%s.jpg", code)
     err := qrcode.WriteFile(strings.ToUpper(code), qrcode.Medium, 256, filePath)
