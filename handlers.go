@@ -9,6 +9,9 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "github.com/fsnotify/fsnotify"
 "strconv"
 "github.com/skip2/go-qrcode"
+"github.com/boombuler/barcode"
+"github.com/boombuler/barcode/code128"
+"image/png"
 )
 
 
@@ -329,6 +332,9 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		handleGenerateQR(bot, message)
 	}
 
+	if command == "generatebar" {
+		handleGenerateBarcode(bot, message)
+	}
 
 	chatSpecificTriggerFound := false
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
@@ -448,6 +454,59 @@ func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	err = os.Remove(filePath)
     if err != nil {
         // Log the error and return it
+        log.Printf("Failed to delete file: %s, error: %v\n", filePath, err)
+    }
+}
+
+func handleGenerateBarcode(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
+    code := message.Text
+    chatID := message.Chat.ID
+    filePath := fmt.Sprintf("./temp/%s.png", code)
+
+    // Generate barcode
+    barcode, err := code128.Encode(code)
+    if err != nil {
+        msg := tgbotapi.NewMessage(chatID, "Failed to generate barcode.")
+        msg.ReplyToMessageID = message.MessageID
+        bot.Send(msg)
+        return
+    }
+
+    // Scale the barcode to 300x100
+    scaledBarcode, err := barcode.Scale(300, 100)
+    if err != nil {
+        msg := tgbotapi.NewMessage(chatID, "Failed to scale barcode.")
+        msg.ReplyToMessageID = message.MessageID
+        bot.Send(msg)
+        return
+    }
+
+    // Create the file
+    file, err := os.Create(filePath)
+    if err != nil {
+        msg := tgbotapi.NewMessage(chatID, "Failed to create file.")
+        msg.ReplyToMessageID = message.MessageID
+        bot.Send(msg)
+        return
+    }
+    defer file.Close()
+
+    // Encode the barcode as PNG
+    err = png.Encode(file, scaledBarcode)
+    if err != nil {
+        msg := tgbotapi.NewMessage(chatID, "Failed to encode barcode.")
+        msg.ReplyToMessageID = message.MessageID
+        bot.Send(msg)
+        return
+    }
+
+    // Send the barcode
+    msg := tgbotapi.NewPhoto(chatID, tgbotapi.FilePath(filePath))
+    bot.Send(msg)
+
+    // Delete the file
+    err = os.Remove(filePath)
+    if err != nil {
         log.Printf("Failed to delete file: %s, error: %v\n", filePath, err)
     }
 }
