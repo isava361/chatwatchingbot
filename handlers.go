@@ -8,6 +8,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "fmt"
 "github.com/fsnotify/fsnotify"
 "strconv"
+"github.com/skip2/go-qrcode"
 )
 
 
@@ -434,7 +435,7 @@ func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	filePath := fmt.Sprintf("./temp/%s.jpg", code)
     err := qrcode.WriteFile(strings.ToUpper(code), qrcode.Medium, 256, filePath)
     if err != nil {
-        msg := tgbotapi.NewMessage(userID, "Failed to generate QR code.")
+        msg := tgbotapi.NewMessage(chatID, "Failed to generate QR code.")
         bot.Send(msg)
         return
     }
