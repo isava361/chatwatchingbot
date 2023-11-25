@@ -441,6 +441,6 @@ func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
     }
 
     // Send the QR code
-    msg := tgbotapi.NewPhotoUpload(chatID, filePath)
+    msg := tgbotapi.NewPhoto(chatID, filePath)
     bot.Send(msg)
 }
