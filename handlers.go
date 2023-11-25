@@ -464,7 +464,7 @@ func handleGenerateBarcode(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
     filePath := fmt.Sprintf("./temp/%s.png", code)
 
     // Generate barcode
-    barcode, err := code128.Encode(code)
+    bar, err := code128.Encode(code)
     if err != nil {
         msg := tgbotapi.NewMessage(chatID, "Failed to generate barcode.")
         msg.ReplyToMessageID = message.MessageID
@@ -473,7 +473,7 @@ func handleGenerateBarcode(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
     }
 
     // Scale the barcode to 300x100
-    scaledBarcode, err := barcode.Scale(300, 100)
+    scaledBarcode, err := barcode.Scale(bar, 300, 100)
     if err != nil {
         msg := tgbotapi.NewMessage(chatID, "Failed to scale barcode.")
         msg.ReplyToMessageID = message.MessageID
