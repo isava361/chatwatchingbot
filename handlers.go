@@ -27,16 +27,10 @@ func messageContains(messageText, targetString string) bool {
 return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
 }
 
-
-func CommandArguments(command string, message *tgbotapi.Message) string {
-	return strings.TrimSpace(strings.TrimPrefix(message.Text, command))
-}
-
-
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
     log.Println("Handling /remove command")
 
-    removeSearchPhrase := CommandArguments("/remove", message)
+    removeSearchPhrase := 	removeSearchPhrase := message.CommandArguments()
 
     chatTriggerRemoved := false
     chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
@@ -78,7 +72,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 		return nil
 	}
 
-	removeSearchPhrase := CommandArguments("/removeglobal", message)
+	removeSearchPhrase := message.CommandArguments()
 
 	globalTriggerRemoved := false
 	newMyResponses := []MyResponse{}
@@ -110,7 +104,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 
 
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
-	newSearchPhrase := CommandArguments("/add", message)
+	newSearchPhrase := message.CommandArguments()
 
 	newMyResponse, err := createMyResponse(bot, message)
 	if err != nil {
@@ -135,7 +129,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 }
 
 func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
-	newSearchPhrase := CommandArguments("/addglobal", message)
+	newSearchPhrase := message.CommandArguments()
 
 	newMyResponse, err := createMyResponse(bot, message)
 	if err != nil {
@@ -436,8 +430,7 @@ func NewFileWriter(config *Config, configLocation string) (*FileWriter, chan *Co
 }
 
 func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-	var code string
-	code = CommandArguments("/generateqr", message)
+	code := message.CommandArguments()
 	chatID := message.Chat.ID
 	filePath := fmt.Sprintf("./temp/%s.jpg", code)
     err := qrcode.WriteFile(strings.ToUpper(code), qrcode.Medium, 256, filePath)
@@ -459,7 +452,7 @@ func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 }
 
 func handleGenerateBarcode(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-    code := CommandArguments("/generatebar", message)
+    code := message.CommandArguments()
     chatID := message.Chat.ID
     filePath := fmt.Sprintf("./temp/%s.png", code)
 
