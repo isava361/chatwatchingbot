@@ -459,7 +459,7 @@ func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 }
 
 func handleGenerateBarcode(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
-    code := code = CommandArguments("/generatebar", message)
+    code := CommandArguments("/generatebar", message)
     chatID := message.Chat.ID
     filePath := fmt.Sprintf("./temp/%s.png", code)
 
