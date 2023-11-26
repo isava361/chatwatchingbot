@@ -30,7 +30,7 @@ return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetStri
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
     log.Println("Handling /remove command")
 
-    removeSearchPhrase := 	removeSearchPhrase := message.CommandArguments()
+    removeSearchPhrase := message.CommandArguments()
 
     chatTriggerRemoved := false
     chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
