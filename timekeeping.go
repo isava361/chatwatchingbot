@@ -1,10 +1,12 @@
 package main
 
 import (
+	"database/sql"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	_ "github.com/mattn/go-sqlite3"
 	"fmt"
 	"log"
+	"strings"
 )
 
 func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {

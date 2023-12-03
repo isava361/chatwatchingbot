@@ -12,6 +12,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "github.com/boombuler/barcode"
 "github.com/boombuler/barcode/code128"
 "image/png"
+"database/sql"
 )
 
 
