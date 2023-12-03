@@ -68,7 +68,7 @@ func main() {
 	}
 	defer db.Close()
 
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS timezones (chatID INTEGER PRIMARY KEY, location TEXT)`)
+	_, err = db.Exec(`CREATE TABLE timezones (chatID INTEGER, location TEXT, PRIMARY KEY (chatID, location))`)
 	if err != nil {
 		log.Println(err)
 		return
