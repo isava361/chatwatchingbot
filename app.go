@@ -97,10 +97,7 @@ func main() {
 			   continue
 		   }
 		   for _, chatID := range chatIDs {
-			   err := updateTimeMessage(bot, chatID, db)
-			   if err != nil {
-				   log.Printf("Error updating time message for chat %d: %v", chatID, err)
-			   }
+			   updateTimeMessage(bot, chatID, db)
 		   }
 	   }
    }()
