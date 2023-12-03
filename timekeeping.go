@@ -113,35 +113,39 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
 }
 
 func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
-    // Query for locations associated with the specific chat.
-    rows, err := db.Query("SELECT location FROM timezones WHERE chatID = ?", message.Chat.ID)
-    if err != nil {
-        log.Printf("Error querying locations for chat %d: %v", message.Chat.ID, err)
-        return
-    }
-    defer rows.Close()
+	// Query for locations and their aliases (if any) associated with the specific chat.
+	query := `
+	SELECT tz.location, IFNULL(a.alias, tz.location) AS display_location
+	FROM timezones tz
+	LEFT JOIN alias a ON tz.chatID = a.chatID AND tz.location = a.location
+	WHERE tz.chatID = ?`
+	
+	rows, err := db.Query(query, message.Chat.ID)
+	if err != nil {
+		log.Printf("Error querying locations for chat %d: %v", message.Chat.ID, err)
+		return
+	}
+	defer rows.Close()
 
-    var messageText string
-    var locations []string
-    for rows.Next() {
-        var loc string
-        if err := rows.Scan(&loc); err != nil {
-            log.Printf("Error scanning row for chat %d: %v", message.Chat.ID, err)
-            return
-        }
-        currentTime, err := getCurrentTimeForLocation(loc)
-        if err != nil {
-            log.Printf("Error getting current time for location %s: %v", loc, err)
-            continue
-        }
-        messageText += fmt.Sprintf("%s %s\n", loc, currentTime.Format("15:04"))
-        locations = append(locations, loc)
-    }
+	var messageText string
+	for rows.Next() {
+		var loc, displayLoc string
+		if err := rows.Scan(&loc, &displayLoc); err != nil {
+			log.Printf("Error scanning row for chat %d: %v", message.Chat.ID, err)
+			return
+		}
+		currentTime, err := getCurrentTimeForLocation(loc)
+		if err != nil {
+			log.Printf("Error getting current time for location %s: %v", loc, err)
+			continue
+		}
+		messageText += fmt.Sprintf("%s %s\n", displayLoc, currentTime.Format("15:04"))
+	}
 
-    if err = rows.Err(); err != nil {
-        log.Printf("Error with rows for chat %d: %v", message.Chat.ID, err)
-        return
-    }
+	if err = rows.Err(); err != nil {
+		log.Printf("Error with rows for chat %d: %v", message.Chat.ID, err)
+		return
+	}
 
     // Check if there is an existing message ID for this chat.
     var messageID int

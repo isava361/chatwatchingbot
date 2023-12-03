@@ -80,6 +80,12 @@ func main() {
 		return
 	}
 
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS alias (chatID INTEGER PRIMARY KEY, location TEXT, alias TEXT)`)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
