@@ -340,7 +340,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 	}
 
 	if command == "test" {
-		updateTimeMessage(bot, message, db)
+		updateTimeMessage(bot, db)
 	}
 
 	chatSpecificTriggerFound := false
