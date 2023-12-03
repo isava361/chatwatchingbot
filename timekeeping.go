@@ -12,7 +12,7 @@ import (
 
 func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     // Extract the command arguments which is the location.
-    location := strings.ToLower(message.CommandArguments())
+    location := message.CommandArguments()
 
     // Prepare SQL statement to insert the new timezone.
     stmt, err := db.Prepare("INSERT INTO timezones (chatID, location) VALUES ($1, $2)")
