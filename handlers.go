@@ -335,6 +335,10 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		timeAdd(bot, message, db)
 	}
 
+	if command == "removelocation" {
+		timeRemove(bot, message, db)
+	}
+
 
 	chatSpecificTriggerFound := false
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
