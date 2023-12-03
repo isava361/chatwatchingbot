@@ -122,16 +122,22 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatID int64, db *sql.DB) {
 
     var messageText string
     var locations []string
-    for rows.Next() {
-        var loc string
-        if err := rows.Scan(&loc); err != nil {
-            log.Printf("Error scanning row: %v", err)
-            return
-        }
-        currentTime := getCurrentTimeForLocation(loc)
-        messageText += fmt.Sprintf("%s %s\n", loc, currentTime.Format("15:04"))
-        locations = append(locations, loc)
-    }
+	for rows.Next() {
+		var loc string
+		if err := rows.Scan(&loc); err != nil {
+			log.Printf("Error scanning row: %v", err)
+			return
+		}
+		currentTime, err := getCurrentTimeForLocation(loc)
+		if err != nil {
+			log.Printf("Error getting current time for location %s: %v", loc, err)
+			// Decide how you want to handle the error. For example, you might continue to the next record.
+			continue
+		}
+		messageText += fmt.Sprintf("%s %s\n", loc, currentTime.Format("15:04"))
+		locations = append(locations, loc)
+	}
+	
 
     if err = rows.Err(); err != nil {
         log.Printf("Error with rows: %v", err)
