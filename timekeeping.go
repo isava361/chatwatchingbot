@@ -11,18 +11,18 @@ import (
 )
 
 func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
-    // Extract the command arguments which is the location.
-    location := message.CommandArguments()
+	// Extract the command arguments which is the location.
+	location := message.CommandArguments()
 
-    // Prepare SQL statement to insert the new timezone.
-    stmt, err := db.Prepare("INSERT INTO timezones (chatID, location) VALUES ($1, $2)")
-    if err != nil {
-        log.Printf("Error preparing statement: %v", err)
-        return
-    }
-    defer stmt.Close()
+	// Prepare SQL statement to insert the new timezone for the specific chat.
+	stmt, err := db.Prepare("INSERT INTO timezones (chatID, location) VALUES (?, ?)")
+	if err != nil {
+		log.Printf("Error preparing statement: %v", err)
+		return
+	}
+	defer stmt.Close()
 
-    // Execute the statement with the chat ID and location.
+	// Execute the statement with the chat ID and location.
 	_, err = stmt.Exec(message.Chat.ID, location)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
@@ -33,7 +33,7 @@ func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
 		}
 		return
 	}
-
+   
     // Query for all current locations.
     rows, err := db.Query("SELECT location FROM timezones")
     if err != nil {
@@ -78,16 +78,16 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     // Convert location to lowercase
     location := message.CommandArguments()
 
-    // Prepare SQL statement to remove the timezone.
-    stmt, err := db.Prepare("DELETE FROM timezones WHERE location = $1")
+    // Prepare SQL statement to remove the timezone for the specific chat.
+    stmt, err := db.Prepare("DELETE FROM timezones WHERE chatID = ? AND location = ?")
     if err != nil {
         log.Printf("Error preparing statement: %v", err)
         return
     }
     defer stmt.Close()
 
-    // Execute the statement with the location.
-    result, err := stmt.Exec(location)
+    // Execute the statement with the chat ID and location.
+    result, err := stmt.Exec(message.Chat.ID, location)
     if err != nil {
         log.Printf("Error executing statement: %v", err)
         return
@@ -100,7 +100,7 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
         return
     }
 
-    // Send a message back to the chat depending on whether a row was deleted.
+    // Message back to the chat depending on whether a row was deleted.
     var msgText string
     if rowsAffected > 0 {
         msgText = fmt.Sprintf("Timezone location '%s' removed successfully!", location)
@@ -109,11 +109,7 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     }
 
     msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
-    _, err = bot.Send(msg)
-    if err != nil {
-        log.Printf("Error sending message: %v", err)
-        return
-    }
+    bot.Send(msg)
 }
 
 func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
