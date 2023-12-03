@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 )
 
 func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
@@ -108,4 +109,77 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
         log.Printf("Error sending message: %v", err)
         return
     }
+}
+
+func updateTimeMessage(bot *tgbotapi.BotAPI, chatID int64, db *sql.DB) {
+    // Query for all locations.
+    rows, err := db.Query("SELECT location FROM timezones")
+    if err != nil {
+        log.Printf("Error querying locations: %v", err)
+        return
+    }
+    defer rows.Close()
+
+    var messageText string
+    var locations []string
+    for rows.Next() {
+        var loc string
+        if err := rows.Scan(&loc); err != nil {
+            log.Printf("Error scanning row: %v", err)
+            return
+        }
+        currentTime := getCurrentTimeForLocation(loc)
+        messageText += fmt.Sprintf("%s %s\n", loc, currentTime.Format("15:04"))
+        locations = append(locations, loc)
+    }
+
+    if err = rows.Err(); err != nil {
+        log.Printf("Error with rows: %v", err)
+        return
+    }
+
+    // Check if there is an existing message ID for this chat.
+    var messageID int
+    err = db.QueryRow("SELECT messageID FROM messagelist WHERE chatID = ?", chatID).Scan(&messageID)
+
+    switch {
+    case err == sql.ErrNoRows:
+        // If no existing message, send a new one and record its message ID.
+        msg := tgbotapi.NewMessage(chatID, messageText)
+        sentMsg, err := bot.Send(msg)
+        if err != nil {
+            log.Printf("Error sending message: %v", err)
+            return
+        }
+
+        // Insert the new message ID into the database.
+        _, err = db.Exec("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", chatID, sentMsg.MessageID)
+        if err != nil {
+            log.Printf("Error inserting new messageID: %v", err)
+        }
+
+    case err == nil:
+        // If there is an existing message, edit it.
+        edit := tgbotapi.NewEditMessageText(chatID, messageID, messageText)
+        _, err = bot.Send(edit)
+        if err != nil {
+            log.Printf("Error editing message: %v", err)
+        }
+
+    default:
+        // Handle other potential errors.
+        log.Printf("Error querying for existing messageID: %v", err)
+    }
+}
+
+func getCurrentTimeForLocation(location string) (time.Time, error) {
+    // Load location using the IANA Time Zone database
+    loc, err := time.LoadLocation(location)
+    if err != nil {
+        log.Printf("Error loading location: %v", err)
+        return time.Time{}, err // return zero value of time.Time in case of error
+    }
+
+    // Get current time in the specified location
+    return time.Now().In(loc), nil
 }
