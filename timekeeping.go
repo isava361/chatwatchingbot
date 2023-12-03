@@ -177,13 +177,30 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.
 }
 
 func getCurrentTimeForLocation(location string) (time.Time, error) {
-    // Load location using the IANA Time Zone database
-    loc, err := time.LoadLocation(location)
-    if err != nil {
-        log.Printf("Error loading location: %v", err)
-        return time.Time{}, err // return zero value of time.Time in case of error
+    // List of common prefixes to try
+    prefixes := []string{"Europe/", "America/", "Asia/", "Africa/", "Australia/"}
+
+    // Normalize location to Title case since IANA time zone IDs use Title case
+    location = strings.Title(strings.ToLower(location))
+
+    var loc *time.Location
+    var err error
+
+    // First, try the raw location string in case it's already a full IANA identifier
+    loc, err = time.LoadLocation(location)
+    if err == nil {
+        return time.Now().In(loc), nil
     }
 
-    // Get current time in the specified location
-    return time.Now().In(loc), nil
+    // If not successful, try with different regional prefixes
+    for _, prefix := range prefixes {
+        loc, err = time.LoadLocation(prefix + location)
+        if err == nil {
+            return time.Now().In(loc), nil
+        }
+    }
+
+    // If none of the combinations worked, return the last error
+    log.Printf("Error loading location: %v", err)
+    return time.Time{}, err
 }
