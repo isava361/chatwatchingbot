@@ -24,8 +24,7 @@ func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     // Execute the statement with the chat ID and location.
     _, err = stmt.Exec(message.Chat.ID, location)
     if err != nil {
-        // Handle the specific error if it's a duplicate key error (chatID already exists).
-        log.Printf("Error executing statement: %v. It's possible the record already exists.", err)
+        log.Printf("Error executing statement: %v", err)
         return
     }
 
