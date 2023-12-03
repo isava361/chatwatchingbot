@@ -278,7 +278,7 @@ func getAllActiveChatIDs(db *sql.DB) ([]int64, error) {
     var chatIDs []int64
 
     // Query to select all distinct chatIDs from the messagelist table
-    rows, err := db.Query("SELECT DISTINCT chatID FROM messagelist")
+    rows, err := db.Query("SELECT DISTINCT chatID FROM timezones")
     if err != nil {
         return nil, err
     }
