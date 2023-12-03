@@ -88,7 +88,7 @@ func main() {
 	}
 
    // Start a ticker that triggers every 5 minutes
-   ticker := time.NewTicker(1 * time.Minute)
+   ticker := time.NewTicker(5 * time.Minute)
    go func() {
 	   for range ticker.C {
 		   chatIDs, err := getAllActiveChatIDs(db)
