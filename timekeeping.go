@@ -312,11 +312,10 @@ func resetMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
 	defer stmt.Close()
 
 	// Execute the statement with the chat ID and location.
-	result, err := stmt.Exec(chatID)
+	_, err := stmt.Exec(chatID)
 	if err != nil {
 		log.Printf("Error executing statement: %v", err)
 		return
 	}
-
 	updateTimeMessage(bot, chatID, db)
 }
