@@ -112,7 +112,7 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     bot.Send(msg)
 }
 
-func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
+func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) (err) {
 	// Query for locations and their aliases (if any) associated with the specific chat.
 	query := `
 	SELECT tz.location, IFNULL(a.alias, tz.location) AS display_location
@@ -123,7 +123,7 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 	rows, err := db.Query(query, chatid)
 	if err != nil {
 		log.Printf("Error querying locations for chat %d: %v", chatid, err)
-		return
+		return err
 	}
 	defer rows.Close()
 
@@ -132,7 +132,7 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 		var loc, displayLoc string
 		if err := rows.Scan(&loc, &displayLoc); err != nil {
 			log.Printf("Error scanning row for chat %d: %v", chatid, err)
-			return
+			return err
 		}
 		currentTime, err := getCurrentTimeForLocation(loc)
 		if err != nil {
@@ -144,7 +144,7 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 
 	if err = rows.Err(); err != nil {
 		log.Printf("Error with rows for chat %d: %v", chatid, err)
-		return
+		return err
 	}
 
     // Check if there is an existing message ID for this chat.
@@ -158,7 +158,7 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
         sentMsg, err := bot.Send(msg)
         if err != nil {
             log.Printf("Error sending message: %v", err)
-            return
+            return err
         }
 
         // Insert the new message ID into the database.
