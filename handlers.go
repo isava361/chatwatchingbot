@@ -290,7 +290,7 @@ func handleChatIDCommand (bot *tgbotapi.BotAPI, message *tgbotapi.Message){
 
 type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config, ConfigWriter) error
 
-func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
+func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter, db *sql.DB) error {
 	receivedMessage := message.Text
 
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
@@ -329,6 +329,11 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 	if command == "generatebar" {
 		handleGenerateBarcode(bot, message)
 	}
+
+	if command == "addlocation" {
+		timeAdd(bot, message, db)
+	}
+
 
 	chatSpecificTriggerFound := false
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {

@@ -5,6 +5,7 @@ import (
 	"log"
 	"sync"
 	"database/sql"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type FileType string
@@ -67,9 +68,13 @@ func main() {
 	}
 	defer db.Close()
 
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS users (userID INTEGER PRIMARY KEY, userName TEXT, cardID TEXT, coffeeTotal INTEGER, lastNotification INTEGER)`)
-	
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS timezones (chatID INTEGER PRIMARY KEY, location TEXT)`)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS messagelist (chatID INTEGER PRIMARY KEY, messageID INTEGER)`)
 	if err != nil {
 		log.Println(err)
 		return
@@ -99,7 +104,7 @@ func main() {
 			}
 
 			log.Printf("Message received")
-			err := handleMessage(bot, m, config, cf)
+			err := handleMessage(bot, m, config, cf, db)
 			if err != nil {
 				log.Printf("[%s] %s,   err: %s", update.Message.From.UserName, update.Message.Text, err.Error())
 				continue
