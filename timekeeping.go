@@ -112,7 +112,7 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     bot.Send(msg)
 }
 
-func updateTimeMessage(bot *tgbotapi.BotAPI, chatid string, db *sql.DB) {
+func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 	// Query for locations and their aliases (if any) associated with the specific chat.
 	query := `
 	SELECT tz.location, IFNULL(a.alias, tz.location) AS display_location
