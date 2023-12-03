@@ -185,8 +185,8 @@ func getCurrentTimeForLocation(location string) (time.Time, error) {
     // List of common prefixes to try
     prefixes := []string{"Europe/", "America/", "Asia/", "Africa/", "Australia/"}
 
-    // Normalize location to Title case since IANA time zone IDs use Title case
-    location = strings.Title(strings.ToLower(location))
+    // Normalize location: replace spaces with underscores and convert to Title case
+    location = strings.Title(strings.Replace(strings.ToLower(location), " ", "_", -1))
 
     var loc *time.Location
     var err error
