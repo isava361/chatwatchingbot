@@ -4,6 +4,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"log"
 	"sync"
+	"database/sql"
 )
 
 type FileType string
@@ -58,6 +59,21 @@ func main() {
 	}
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
+	
+	db, err := sql.Open("sqlite3", "./mydb.db")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer db.Close()
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS users (userID INTEGER PRIMARY KEY, userName TEXT, cardID TEXT, coffeeTotal INTEGER, lastNotification INTEGER)`)
+	
+
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
