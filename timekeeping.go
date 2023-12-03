@@ -151,7 +151,7 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.
     switch {
     case err == sql.ErrNoRows:
         // If no existing message, send a new one and record its message ID.
-        msg := tgbotapi.NewMessage(message.chatID, messageText)
+        msg := tgbotapi.NewMessage(message.Chat.ID, messageText)
         sentMsg, err := bot.Send(msg)
         if err != nil {
             log.Printf("Error sending message: %v", err)
