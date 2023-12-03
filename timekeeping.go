@@ -186,20 +186,24 @@ func getCurrentTimeForLocation(location string) (time.Time, error) {
     prefixes := []string{"Europe/", "America/", "Asia/", "Africa/", "Australia/"}
 
     // Normalize location: replace spaces with underscores and convert to Title case
-    location = strings.Title(strings.Replace(strings.ToLower(location), " ", "_", -1))
+    locationParts := strings.Split(strings.ToLower(location), " ")
+    for i, part := range locationParts {
+        locationParts[i] = strings.Title(part)
+    }
+    normalizedLocation := strings.Join(locationParts, "_")
 
     var loc *time.Location
     var err error
 
     // First, try the raw location string in case it's already a full IANA identifier
-    loc, err = time.LoadLocation(location)
+    loc, err = time.LoadLocation(normalizedLocation)
     if err == nil {
         return time.Now().In(loc), nil
     }
 
     // If not successful, try with different regional prefixes
     for _, prefix := range prefixes {
-        loc, err = time.LoadLocation(prefix + location)
+        loc, err = time.LoadLocation(prefix + normalizedLocation)
         if err == nil {
             return time.Now().In(loc), nil
         }
