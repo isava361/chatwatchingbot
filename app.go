@@ -90,7 +90,6 @@ func main() {
 	chatIDs, err := getAllActiveChatIDs(db)
 	if err != nil {
 		log.Printf("Error getting active chats: %v", err)
-		continue
 	}
 	for _, chatID := range chatIDs {
 		updateTimeMessage(bot, chatID, db)
