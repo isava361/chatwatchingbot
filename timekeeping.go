@@ -146,7 +146,7 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.
 
     // Check if there is an existing message ID for this chat.
     var messageID int
-    err = db.QueryRow("SELECT messageID FROM messagelist WHERE chatID = ?", message.chatID).Scan(&messageID)
+    err = db.QueryRow("SELECT messageID FROM messagelist WHERE chatID = ?", message.chat.ID).Scan(&messageID)
 
     switch {
     case err == sql.ErrNoRows:
@@ -159,14 +159,14 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.
         }
 
         // Insert the new message ID into the database.
-        _, err = db.Exec("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", message.chatID, sentMsg.MessageID)
+        _, err = db.Exec("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", message.chat.ID, sentMsg.MessageID)
         if err != nil {
             log.Printf("Error inserting new messageID: %v", err)
         }
 
     case err == nil:
         // If there is an existing message, edit it.
-        edit := tgbotapi.NewEditMessageText(message.chatID, messageID, messageText)
+        edit := tgbotapi.NewEditMessageText(message.chat.ID, messageID, messageText)
         _, err = bot.Send(edit)
         if err != nil {
             log.Printf("Error editing message: %v", err)
