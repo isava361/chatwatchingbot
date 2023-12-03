@@ -35,7 +35,7 @@ func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
 	}
    
     // Query for all current locations.
-    rows, err := db.Query("SELECT location FROM timezones")
+	rows, err := db.Query("SELECT location FROM timezones WHERE chatID = ?", message.Chat.ID)
     if err != nil {
         log.Printf("Error querying locations: %v", err)
         return
