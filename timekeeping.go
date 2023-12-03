@@ -112,35 +112,33 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
 }
 
 func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
-    // Query for all locations.
-    rows, err := db.Query("SELECT location FROM timezones")
+    // Query for locations associated with the specific chat.
+    rows, err := db.Query("SELECT location FROM timezones WHERE chatID = ?", message.Chat.ID)
     if err != nil {
-        log.Printf("Error querying locations: %v", err)
+        log.Printf("Error querying locations for chat %d: %v", message.Chat.ID, err)
         return
     }
     defer rows.Close()
 
     var messageText string
     var locations []string
-	for rows.Next() {
-		var loc string
-		if err := rows.Scan(&loc); err != nil {
-			log.Printf("Error scanning row: %v", err)
-			return
-		}
-		currentTime, err := getCurrentTimeForLocation(loc)
-		if err != nil {
-			log.Printf("Error getting current time for location %s: %v", loc, err)
-			// Decide how you want to handle the error. For example, you might continue to the next record.
-			continue
-		}
-		messageText += fmt.Sprintf("%s %s\n", loc, currentTime.Format("15:04"))
-		locations = append(locations, loc)
-	}
-	
+    for rows.Next() {
+        var loc string
+        if err := rows.Scan(&loc); err != nil {
+            log.Printf("Error scanning row for chat %d: %v", message.Chat.ID, err)
+            return
+        }
+        currentTime, err := getCurrentTimeForLocation(loc)
+        if err != nil {
+            log.Printf("Error getting current time for location %s: %v", loc, err)
+            continue
+        }
+        messageText += fmt.Sprintf("%s %s\n", loc, currentTime.Format("15:04"))
+        locations = append(locations, loc)
+    }
 
     if err = rows.Err(); err != nil {
-        log.Printf("Error with rows: %v", err)
+        log.Printf("Error with rows for chat %d: %v", message.Chat.ID, err)
         return
     }
 
