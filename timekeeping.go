@@ -118,8 +118,7 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 	SELECT tz.location, IFNULL(a.alias, tz.location) AS display_location
 	FROM timezones tz
 	LEFT JOIN alias a ON tz.chatID = a.chatID AND tz.location = a.location
-	WHERE tz.chatID = ?
-	ORDER BY tz.location;`
+	WHERE tz.chatID = ?`
 	
 	rows, err := db.Query(query, chatid)
 	if err != nil {
