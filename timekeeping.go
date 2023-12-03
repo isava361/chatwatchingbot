@@ -11,7 +11,7 @@ import (
 
 func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     // Extract the command arguments which is the location.
-    location := message.CommandArguments()
+    location := strings.ToLower(message.CommandArguments())
 
     // Prepare SQL statement to insert the new timezone.
     stmt, err := db.Prepare("INSERT INTO timezones (chatID, location) VALUES ($1, $2)")
@@ -65,6 +65,48 @@ func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     _, err = bot.Send(locationsMsg)
     if err != nil {
         log.Printf("Error sending locations message: %v", err)
+        return
+    }
+}
+
+func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
+    // Convert location to lowercase
+    location := strings.ToLower(message.CommandArguments())
+
+    // Prepare SQL statement to remove the timezone.
+    stmt, err := db.Prepare("DELETE FROM timezones WHERE location = $1")
+    if err != nil {
+        log.Printf("Error preparing statement: %v", err)
+        return
+    }
+    defer stmt.Close()
+
+    // Execute the statement with the location.
+    result, err := stmt.Exec(location)
+    if err != nil {
+        log.Printf("Error executing statement: %v", err)
+        return
+    }
+
+    // Check if any row was affected.
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        log.Printf("Error getting rows affected: %v", err)
+        return
+    }
+
+    // Send a message back to the chat depending on whether a row was deleted.
+    var msgText string
+    if rowsAffected > 0 {
+        msgText = fmt.Sprintf("Timezone location '%s' removed successfully!", location)
+    } else {
+        msgText = fmt.Sprintf("No timezone location found for '%s'.", location)
+    }
+
+    msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
+    _, err = bot.Send(msg)
+    if err != nil {
+        log.Printf("Error sending message: %v", err)
         return
     }
 }
