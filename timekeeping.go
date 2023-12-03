@@ -111,7 +111,7 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     }
 }
 
-func updateTimeMessage(bot *tgbotapi.BotAPI, chatID int64, db *sql.DB) {
+func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     // Query for all locations.
     rows, err := db.Query("SELECT location FROM timezones")
     if err != nil {
@@ -146,12 +146,12 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatID int64, db *sql.DB) {
 
     // Check if there is an existing message ID for this chat.
     var messageID int
-    err = db.QueryRow("SELECT messageID FROM messagelist WHERE chatID = ?", chatID).Scan(&messageID)
+    err = db.QueryRow("SELECT messageID FROM messagelist WHERE chatID = ?", message.chatID).Scan(&messageID)
 
     switch {
     case err == sql.ErrNoRows:
         // If no existing message, send a new one and record its message ID.
-        msg := tgbotapi.NewMessage(chatID, messageText)
+        msg := tgbotapi.NewMessage(message.chatID, messageText)
         sentMsg, err := bot.Send(msg)
         if err != nil {
             log.Printf("Error sending message: %v", err)
@@ -159,14 +159,14 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatID int64, db *sql.DB) {
         }
 
         // Insert the new message ID into the database.
-        _, err = db.Exec("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", chatID, sentMsg.MessageID)
+        _, err = db.Exec("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", message.chatID, sentMsg.MessageID)
         if err != nil {
             log.Printf("Error inserting new messageID: %v", err)
         }
 
     case err == nil:
         // If there is an existing message, edit it.
-        edit := tgbotapi.NewEditMessageText(chatID, messageID, messageText)
+        edit := tgbotapi.NewEditMessageText(message.chatID, messageID, messageText)
         _, err = bot.Send(edit)
         if err != nil {
             log.Printf("Error editing message: %v", err)
