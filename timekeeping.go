@@ -71,7 +71,7 @@ func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
 
 func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     // Convert location to lowercase
-    location := strings.ToLower(message.CommandArguments())
+    location := message.CommandArguments()
 
     // Prepare SQL statement to remove the timezone.
     stmt, err := db.Prepare("DELETE FROM timezones WHERE location = $1")
