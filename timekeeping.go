@@ -213,3 +213,63 @@ func getCurrentTimeForLocation(location string) (time.Time, error) {
     log.Printf("Error loading location: %v", err)
     return time.Time{}, err
 }
+
+func addOrUpdateAlias(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
+    // Extract and split the command arguments into location and alias.
+    args := strings.SplitN(message.CommandArguments(), "-", 2)
+    if len(args) != 2 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Invalid format. Please use 'Location - Alias'.")
+        bot.Send(msg)
+        return
+    }
+    location := strings.TrimSpace(args[0])
+    alias := strings.TrimSpace(args[1])
+
+    // Prepare SQL statement to check if the alias already exists for this location.
+    checkStmt, err := db.Prepare("SELECT EXISTS(SELECT 1 FROM alias WHERE chatID = ? AND location = ?)")
+    if err != nil {
+        log.Printf("Error preparing check statement: %v", err)
+        return
+    }
+    defer checkStmt.Close()
+
+    var exists bool
+    err = checkStmt.QueryRow(message.Chat.ID, location).Scan(&exists)
+    if err != nil {
+        log.Printf("Error executing check statement: %v", err)
+        return
+    }
+
+    // Based on existence, either insert or update the alias.
+    var sqlStmt string
+    if exists {
+        // Update existing alias
+        sqlStmt = "UPDATE alias SET alias = ? WHERE chatID = ? AND location = ?"
+    } else {
+        // Insert new alias
+        sqlStmt = "INSERT INTO alias (chatID, location, alias) VALUES (?, ?, ?)"
+    }
+
+    stmt, err := db.Prepare(sqlStmt)
+    if err != nil {
+        log.Printf("Error preparing statement: %v", err)
+        return
+    }
+    defer stmt.Close()
+
+    // Execute the statement.
+    if exists {
+        _, err = stmt.Exec(alias, message.Chat.ID, location)
+    } else {
+        _, err = stmt.Exec(message.Chat.ID, location, alias)
+    }
+
+    if err != nil {
+        log.Printf("Error executing statement: %v", err)
+        return
+    }
+
+    // Confirmation message back to the chat.
+    confirmationMsg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Alias '%s' set for location '%s'", alias, location))
+    bot.Send(confirmationMsg)
+}
