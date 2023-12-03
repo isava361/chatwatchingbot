@@ -318,11 +318,5 @@ func resetMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
 		return
 	}
 
-	// Check if any row was affected.
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		log.Printf("Error getting rows affected: %v", err)
-		return
-	}
 	updateTimeMessage(bot, chatID, db)
 }
