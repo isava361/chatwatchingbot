@@ -339,6 +339,9 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		timeRemove(bot, message, db)
 	}
 
+	if command == "test" {
+		updateTimeMessage(bot, message, db)
+	}
 
 	chatSpecificTriggerFound := false
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
