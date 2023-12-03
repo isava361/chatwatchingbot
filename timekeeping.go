@@ -23,11 +23,16 @@ func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     defer stmt.Close()
 
     // Execute the statement with the chat ID and location.
-    _, err = stmt.Exec(message.Chat.ID, location)
-    if err != nil {
-        log.Printf("Error executing statement: %v", err)
-        return
-    }
+	_, err = stmt.Exec(message.Chat.ID, location)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			msg := tgbotapi.NewMessage(message.Chat.ID, "This location has already been added.")
+			bot.Send(msg)
+		} else {
+			log.Printf("Error executing statement: %v", err)
+		}
+		return
+	}
 
     // Query for all current locations.
     rows, err := db.Query("SELECT location FROM timezones")
