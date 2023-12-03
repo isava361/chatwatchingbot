@@ -112,7 +112,7 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     bot.Send(msg)
 }
 
-func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
+func updateTimeMessage(bot *tgbotapi.BotAPI, chatid string, db *sql.DB) {
 	// Query for locations and their aliases (if any) associated with the specific chat.
 	query := `
 	SELECT tz.location, IFNULL(a.alias, tz.location) AS display_location
@@ -120,9 +120,9 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.
 	LEFT JOIN alias a ON tz.chatID = a.chatID AND tz.location = a.location
 	WHERE tz.chatID = ?`
 	
-	rows, err := db.Query(query, message.Chat.ID)
+	rows, err := db.Query(query, chatid)
 	if err != nil {
-		log.Printf("Error querying locations for chat %d: %v", message.Chat.ID, err)
+		log.Printf("Error querying locations for chat %d: %v", chatid, err)
 		return
 	}
 	defer rows.Close()
@@ -131,7 +131,7 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.
 	for rows.Next() {
 		var loc, displayLoc string
 		if err := rows.Scan(&loc, &displayLoc); err != nil {
-			log.Printf("Error scanning row for chat %d: %v", message.Chat.ID, err)
+			log.Printf("Error scanning row for chat %d: %v", chatid, err)
 			return
 		}
 		currentTime, err := getCurrentTimeForLocation(loc)
@@ -143,18 +143,18 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.
 	}
 
 	if err = rows.Err(); err != nil {
-		log.Printf("Error with rows for chat %d: %v", message.Chat.ID, err)
+		log.Printf("Error with rows for chat %d: %v", chatid, err)
 		return
 	}
 
     // Check if there is an existing message ID for this chat.
     var messageID int
-    err = db.QueryRow("SELECT messageID FROM messagelist WHERE chatID = ?", message.Chat.ID).Scan(&messageID)
+    err = db.QueryRow("SELECT messageID FROM messagelist WHERE chatID = ?", chatid).Scan(&messageID)
 
     switch {
     case err == sql.ErrNoRows:
         // If no existing message, send a new one and record its message ID.
-        msg := tgbotapi.NewMessage(message.Chat.ID, messageText)
+        msg := tgbotapi.NewMessage(chatid, messageText)
         sentMsg, err := bot.Send(msg)
         if err != nil {
             log.Printf("Error sending message: %v", err)
@@ -162,14 +162,14 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.
         }
 
         // Insert the new message ID into the database.
-        _, err = db.Exec("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", message.Chat.ID, sentMsg.MessageID)
+        _, err = db.Exec("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", chatid, sentMsg.MessageID)
         if err != nil {
             log.Printf("Error inserting new messageID: %v", err)
         }
 
     case err == nil:
         // If there is an existing message, edit it.
-        edit := tgbotapi.NewEditMessageText(message.Chat.ID, messageID, messageText)
+        edit := tgbotapi.NewEditMessageText(chatid, messageID, messageText)
         _, err = bot.Send(edit)
         if err != nil {
             log.Printf("Error editing message: %v", err)
@@ -272,4 +272,31 @@ func addOrUpdateAlias(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
     // Confirmation message back to the chat.
     confirmationMsg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Alias '%s' set for location '%s'", alias, location))
     bot.Send(confirmationMsg)
+}
+
+func getAllActiveChatIDs(db *sql.DB) ([]int64, error) {
+    var chatIDs []int64
+
+    // Query to select all distinct chatIDs from the messagelist table
+    rows, err := db.Query("SELECT DISTINCT chatID FROM messagelist")
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    // Iterate through the rows and append each chatID to the slice
+    for rows.Next() {
+        var chatID int64
+        if err := rows.Scan(&chatID); err != nil {
+            return nil, err
+        }
+        chatIDs = append(chatIDs, chatID)
+    }
+
+    // Check for errors encountered during iteration
+    if err = rows.Err(); err != nil {
+        return nil, err
+    }
+
+    return chatIDs, nil
 }

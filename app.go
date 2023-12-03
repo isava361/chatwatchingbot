@@ -86,6 +86,24 @@ func main() {
 		return
 	}
 
+   // Start a ticker that triggers every 5 minutes
+   ticker := time.NewTicker(1 * time.Minute)
+   go func() {
+	   for range ticker.C {
+		   chatIDs, err := getAllActiveChatIDs(db)
+		   if err != nil {
+			   log.Printf("Error getting active chats: %v", err)
+			   continue
+		   }
+		   for _, chatID := range chatIDs {
+			   err := updateTimeMessage(bot, chatID, db)
+			   if err != nil {
+				   log.Printf("Error updating time message for chat %d: %v", chatID, err)
+			   }
+		   }
+	   }
+   }()
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 

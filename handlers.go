@@ -339,10 +339,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		timeRemove(bot, message, db)
 	}
 
-	if command == "test" {
-		updateTimeMessage(bot, message, db)
-	}
-
 	if command == "alias" {
 		addOrUpdateAlias(bot, message, db)
 	}
