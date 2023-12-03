@@ -300,3 +300,29 @@ func getAllActiveChatIDs(db *sql.DB) ([]int64, error) {
 
     return chatIDs, nil
 }
+
+func resetMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
+	chatID := message.Chat.ID
+	// Prepare SQL statement to remove the timezone for the specific chat.
+	stmt, err := db.Prepare("DELETE FROM messagelist WHERE chatID = ?")
+	if err != nil {
+		log.Printf("Error preparing statement: %v", err)
+		return
+	}
+	defer stmt.Close()
+
+	// Execute the statement with the chat ID and location.
+	result, err := stmt.Exec(chatID)
+	if err != nil {
+		log.Printf("Error executing statement: %v", err)
+		return
+	}
+
+	// Check if any row was affected.
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("Error getting rows affected: %v", err)
+		return
+	}
+	updateTimeMessage(bot, chatID, db)
+}

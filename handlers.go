@@ -343,6 +343,11 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		addOrUpdateAlias(bot, message, db)
 	}
 
+	if command == "resetmessage" {
+		resetMessage(bot, message, db)
+	}
+
+
 	chatSpecificTriggerFound := false
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
 		chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
