@@ -95,8 +95,8 @@ func main() {
 		updateTimeMessage(bot, chatID, db)
 	}
 
-   // Start a ticker that triggers every 5 minutes
-   ticker := time.NewTicker(1 * time.Minute)
+   // Start a ticker that triggers every 30 seconds
+   ticker := time.NewTicker(30 * time.Second)
    go func() {
 	for range ticker.C {
 		chatIDs, err := getAllActiveChatIDs(db)
