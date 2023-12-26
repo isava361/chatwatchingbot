@@ -347,6 +347,12 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		resetMessage(bot, message, db)
 	}
 
+	if command == "detectqr" {
+		msg := tgbotapi.NewMessage(message.Chat.ID, decodeQRCode(bot, message))
+		_, _ = bot.Send(msg)
+	}
+
+
 
 	chatSpecificTriggerFound := false
 	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
