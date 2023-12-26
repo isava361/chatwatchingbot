@@ -347,11 +347,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		resetMessage(bot, message, db)
 	}
 
-	if command == "detectqr" {
-		msgtext,_ := decodeQRCode(bot, message)
-		msg := tgbotapi.NewMessage(message.Chat.ID, msgtext)
-		_, _ = bot.Send(msg)
-	}
 
 
 
