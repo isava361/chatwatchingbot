@@ -16,12 +16,12 @@ import (
 
 // decodeQRCode downloads the photo, decodes the QR code, and deletes the photo.
 func decodeQRCode(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (string, error) {
-	if message.Photo == nil || len(*message.Photo) == 0 {
+	if message.Photo == nil || len(message.Photo) == 0 {
 		return "", fmt.Errorf("no photo in the message")
 	}
 
 	// Get the highest resolution photo
-	photos := *message.Photo
+	photos := message.Photo
 	fileID := photos[len(photos)-1].FileID
 
 	fileURL, err := bot.GetFileDirectURL(fileID)
