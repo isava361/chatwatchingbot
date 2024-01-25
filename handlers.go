@@ -466,6 +466,7 @@ func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
         msg := tgbotapi.NewMessage(chatID, "Failed to generate QR code.")
 		msg.ReplyToMessageID = message.MessageID
         bot.Send(msg)
+		log.Printf("Failed to delete file: %s, error: %v\n", filePath, err)
         return
     }
 
