@@ -14,6 +14,13 @@ func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
 	// Extract the command arguments which is the location.
 	location := message.CommandArguments()
 
+    _, err := getCurrentTimeForLocation(location)
+    if err != nil {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "This location is not being available. Please try different town in this time zone")
+        bot.Send(msg)
+        return
+    }
+
 	// Prepare SQL statement to insert the new timezone for the specific chat.
 	stmt, err := db.Prepare("INSERT INTO timezones (chatID, location) VALUES (?, ?)")
 	if err != nil {
@@ -78,12 +85,6 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     // Convert location to lowercase
     location := message.CommandArguments()
 
-    _, err := getCurrentTimeForLocation(location)
-    if err != nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "This location is not being available. Please try different town in this time zone")
-        bot.Send(msg)
-        return
-    }
 
     // Prepare SQL statement to remove the timezone for the specific chat.
     stmt, err := db.Prepare("DELETE FROM timezones WHERE chatID = ? AND location = ?")
