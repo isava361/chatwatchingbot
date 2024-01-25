@@ -588,7 +588,7 @@ func parseCommandArguments(commandText string) (string, int, error) {
 
     // Expecting at least 3 parts: the command, risk, and population
     if len(parts) < 3 {
-        return "", 0, errors.New("invalid command format")
+        return "", 0, "invalid command format"
     }
 
     risk := parts[1]
