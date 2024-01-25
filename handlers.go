@@ -15,6 +15,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "database/sql"
 "regexp"
 "math/rand"
+"time"
 )
 /*
 // SampleSize represents the sample sizes for different risk categories.
