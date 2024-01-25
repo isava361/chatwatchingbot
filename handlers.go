@@ -14,9 +14,13 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "image/png"
 "database/sql"
 "regexp"
+"math/rand"
 )
-
-
+/*
+// SampleSize represents the sample sizes for different risk categories.
+type SampleSize struct {
+	Low, Medium, High int
+}*/
 
 func allowedMessageType(message *tgbotapi.Message) bool {
 	if (message.ReplyToMessage.Game != nil){
@@ -542,4 +546,123 @@ func handleGenerateBarcode(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
     if err != nil {
         log.Printf("Failed to delete file: %s, error: %v\n", filePath, err)
     }
+}
+
+func handleSampleSize(bot *tgbotapi.BotAPI, message *tgbotapi.Message){
+	commandText := message.Text // Assuming message.Text contains the full message
+	riskCategory, populationSize, err := parseCommandArguments(commandText)
+	if err != nil {
+		// handle error, for example, send a message back to the user indicating the correct format
+		fmt.Println(err)
+		return
+	}
+
+	sampleSize, err := GetSampleSize(populationSize, riskCategory)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	randomSelection := GenerateRandomSelection(sampleSize, populationSize)
+
+	// Create the initial part of the message
+	messageText := fmt.Sprintf("For %s risk and population of %d, sample size is %d\n", riskCategory, populationSize, sampleSize)
+
+	// Append the list of random numbers
+	messageText += "Random numbers for random selection: "
+	for _, num := range randomSelection {
+		messageText += fmt.Sprintf("%d ", num)
+	}
+
+	// Send the message
+	msg := tgbotapi.NewMessage(message.Chat.ID, messageText)
+	bot.Send(msg)
+}
+
+func parseCommandArguments(commandText string) (string, int, error) {
+    parts := strings.Fields(commandText)
+
+    // Expecting at least 3 parts: the command, risk, and population
+    if len(parts) < 3 {
+        return "", 0, errors.New("invalid command format")
+    }
+
+    risk := parts[1]
+    populationStr := parts[2]
+
+    // Convert population string to an integer
+    population, err := strconv.Atoi(populationStr)
+    if err != nil {
+        return "", 0, fmt.Errorf("invalid population number: %s", populationStr)
+    }
+
+    return risk, population, nil
+}
+
+func GetSampleSize(population int, risk string) (int, error) {
+    var sampleSizes = []struct {
+        MinPopulation int
+        MaxPopulation int
+        Sizes         SampleSize
+    }{
+        {0, 1, SampleSize{1, 1, 1}},
+        {2, 4, SampleSize{2, 2, 2}},
+        {5, 12, SampleSize{2, 3, 5}},
+        {13, 52, SampleSize{5, 10, 15}},
+        {53, 250, SampleSize{20, 30, 40}},
+        {251, int(^uint(0) >> 1), SampleSize{25, 45, 60}}, // Max int for anything over 250
+    }
+
+    for i, size := range sampleSizes {
+        if population >= size.MinPopulation && population <= size.MaxPopulation {
+            return getRiskSize(size.Sizes, risk), nil
+        } else if i < len(sampleSizes)-1 && population < sampleSizes[i+1].MinPopulation {
+            // Interpolation
+            nextSize := sampleSizes[i+1]
+            return interpolate(size.MaxPopulation, nextSize.MinPopulation, population, getRiskSize(size.Sizes, risk), getRiskSize(nextSize.Sizes, risk)), nil
+        }
+    }
+
+    return 0, fmt.Errorf("population size out of range")
+}
+
+func getRiskSize(sizes SampleSize, risk string) int {
+    switch risk {
+    case "low":
+        return sizes.Low
+    case "medium":
+        return sizes.Medium
+    case "high":
+        return sizes.High
+    default:
+        return 0
+    }
+}
+
+func interpolate(x0, x1, x, y0, y1 int) int {
+    // Linear interpolation
+    return y0 + (x-x0)*(y1-y0)/(x1-x0)
+}
+
+
+func GenerateRandomSelection(sampleSize, population int) []int {
+    rand.Seed(time.Now().UnixNano())
+
+    if sampleSize > population {
+        // Cannot have more unique numbers than the population
+        return nil
+    }
+
+    selection := make([]int, 0, sampleSize)
+    generated := make(map[int]bool)
+
+    for len(selection) < sampleSize {
+        num := rand.Intn(population) + 1
+        if !generated[num] {
+            generated[num] = true
+            selection = append(selection, num)
+        }
+    }
+
+    return selection
 }
