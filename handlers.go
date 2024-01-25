@@ -16,12 +16,13 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "regexp"
 "math/rand"
 "time"
+"errors"
 )
-/*
+
 // SampleSize represents the sample sizes for different risk categories.
 type SampleSize struct {
 	Low, Medium, High int
-}*/
+}
 
 func allowedMessageType(message *tgbotapi.Message) bool {
 	if (message.ReplyToMessage.Game != nil){
@@ -589,7 +590,7 @@ func parseCommandArguments(commandText string) (string, int, error) {
 
     // Expecting at least 3 parts: the command, risk, and population
     if len(parts) < 3 {
-        return "", 0, "invalid command format"
+        return "", 0, errors.New("invalid command format")
     }
 
     risk := parts[1]
