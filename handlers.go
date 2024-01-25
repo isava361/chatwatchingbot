@@ -622,10 +622,12 @@ func GetSampleSize(population int, risk string) (int, error) {
 
     for i, size := range sampleSizes {
         if population >= size.MinPopulation && population <= size.MaxPopulation {
-            return getRiskSize(size.Sizes, risk), nil
-        } else if i < len(sampleSizes)-1 && population < sampleSizes[i+1].MinPopulation {
+            if i == len(sampleSizes)-1 || population == size.MaxPopulation {
+                return getRiskSize(size.Sizes, risk), nil
+            }
+            // Interpolate within the range
             nextSize := sampleSizes[i+1]
-            return int(math.Ceil(interpolate(float64(size.MaxPopulation), float64(nextSize.MinPopulation), float64(population), float64(getRiskSize(size.Sizes, risk)), float64(getRiskSize(nextSize.Sizes, risk))))), nil
+            return int(math.Ceil(interpolate(float64(size.MaxPopulation), float64(nextSize.MinPopulation-1), float64(population), float64(getRiskSize(size.Sizes, risk)), float64(getRiskSize(nextSize.Sizes, risk))))), nil
         }
     }
 
