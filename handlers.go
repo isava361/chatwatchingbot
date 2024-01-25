@@ -347,6 +347,12 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		resetMessage(bot, message, db)
 	}
 
+	if chatID == "-1001245934322" && messageContains("@Porky8888"){
+		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
+		photoMsg.ReplyToMessageID = message.MessageID
+		photoMsg.Caption = "Машталер в 5 утра"
+		bot.Send(photoMsg)
+	}
 
 
 
