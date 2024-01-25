@@ -623,9 +623,8 @@ func GetSampleSize(population int, risk string) (int, error) {
         if population >= size.MinPopulation && population <= size.MaxPopulation {
             return getRiskSize(size.Sizes, risk), nil
         } else if i < len(sampleSizes)-1 && population < sampleSizes[i+1].MinPopulation {
-            // Interpolation
             nextSize := sampleSizes[i+1]
-            return interpolate(size.MaxPopulation, nextSize.MinPopulation, population, getRiskSize(size.Sizes, risk), getRiskSize(nextSize.Sizes, risk)), nil
+            return int(math.Ceil(interpolate(float64(size.MaxPopulation), float64(nextSize.MinPopulation), float64(population), float64(getRiskSize(size.Sizes, risk)), float64(getRiskSize(nextSize.Sizes, risk))))), nil
         }
     }
 
@@ -645,10 +644,13 @@ func getRiskSize(sizes SampleSize, risk string) int {
     }
 }
 
-func interpolate(x0, x1, x, y0, y1 int) int {
-    // Linear interpolation
-    return y0 + (x-x0)*(y1-y0)/(x1-x0)
+func interpolate(x0, x1, x, y0, y1 float64) float64 {
+    if x1 == x0 {
+        return y0
+    }
+    return y0 + (y1-y0)*(x-x0)/(x1-x0)
 }
+
 
 
 func GenerateRandomSelection(sampleSize, population int) []int {
