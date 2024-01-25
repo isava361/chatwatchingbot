@@ -466,7 +466,7 @@ func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 
 	chatID := message.Chat.ID
 	filePath := fmt.Sprintf("./temp/%s.jpg", sanitizedCode)
-	err := qrcode.WriteFile(strings.ToUpper(code), qrcode.Medium, 256, filePath)
+	err := qrcode.WriteFile(code, qrcode.Medium, 256, filePath)
 	if err != nil {
 		msg := tgbotapi.NewMessage(chatID, "Failed to generate QR code.")
 		msg.ReplyToMessageID = message.MessageID
