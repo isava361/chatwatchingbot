@@ -459,25 +459,35 @@ func NewFileWriter(config *Config, configLocation string) (*FileWriter, chan *Co
 
 func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	code := message.CommandArguments()
-	chatID := message.Chat.ID
-	filePath := fmt.Sprintf("./temp/%s.jpg", code)
-    err := qrcode.WriteFile(strings.ToUpper(code), qrcode.Medium, 256, filePath)
-    if err != nil {
-        msg := tgbotapi.NewMessage(chatID, "Failed to generate QR code.")
-		msg.ReplyToMessageID = message.MessageID
-        bot.Send(msg)
-		log.Printf("Failed to createQR: %v\n", err)
-        return
-    }
 
-    // Send the QR code
-    msg := tgbotapi.NewPhoto(chatID, tgbotapi.FilePath(filePath))
-    bot.Send(msg)
+	// Sanitize the code to be used in file path
+	sanitizedCode := sanitizeFileName(code)
+
+	chatID := message.Chat.ID
+	filePath := fmt.Sprintf("./temp/%s.jpg", sanitizedCode)
+	err := qrcode.WriteFile(strings.ToUpper(code), qrcode.Medium, 256, filePath)
+	if err != nil {
+		msg := tgbotapi.NewMessage(chatID, "Failed to generate QR code.")
+		msg.ReplyToMessageID = message.MessageID
+		bot.Send(msg)
+		log.Printf("Failed to create QR: %v\n", err)
+		return
+	}
+
+	// Send the QR code
+	msg := tgbotapi.NewPhoto(chatID, tgbotapi.FilePath(filePath))
+	bot.Send(msg)
 	err = os.Remove(filePath)
-    if err != nil {
-        // Log the error and return it
-        log.Printf("Failed to delete file: %s, error: %v\n", filePath, err)
-    }
+	if err != nil {
+		// Log the error
+		log.Printf("Failed to delete file: %s, error: %v\n", filePath, err)
+	}
+}
+
+func sanitizeFileName(fileName string) string {
+	// Replace invalid characters with underscore
+	re := regexp.MustCompile(`[^a-zA-Z0-9.-]`)
+	return re.ReplaceAllString(fileName, "_")
 }
 
 func handleGenerateBarcode(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
