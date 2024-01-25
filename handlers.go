@@ -578,7 +578,7 @@ func handleSampleSize(bot *tgbotapi.BotAPI, message *tgbotapi.Message){
 	// Append the list of random numbers
 	messageText += "Random numbers for random selection: "
 	for _, num := range randomSelection {
-		messageText += fmt.Sprintf("%d ", num)
+		messageText += fmt.Sprintf("%d \n", num)
 	}
 
 	// Send the message
