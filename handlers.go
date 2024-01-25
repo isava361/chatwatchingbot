@@ -17,6 +17,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "math/rand"
 "time"
 "errors"
+"sort"
 )
 
 // SampleSize represents the sample sizes for different risk categories.
@@ -671,6 +672,9 @@ func GenerateRandomSelection(sampleSize, population int) []int {
             selection = append(selection, num)
         }
     }
+
+    // Sort the selection in ascending order
+    sort.Ints(selection)
 
     return selection
 }
