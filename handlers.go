@@ -348,7 +348,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		resetMessage(bot, message, db)
 	}
 
-	currentTime := getCurrentTimeForLocation("America/Los Angeles")
+	currentTime,_ := getCurrentTimeForLocation("America/Los Angeles")
 
 	if message.Chat.ID == -1001245934322 && messageContains(receivedMessage, "@Porky8888") && isTimeBetween2AMAnd7AM (currentTime) {
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
