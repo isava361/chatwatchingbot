@@ -82,6 +82,7 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     if err != nil {
         msg := tgbotapi.NewMessage(message.Chat.ID, "This location is not being available. Please try different town in this time zone")
         bot.Send(msg)
+        return
     }
 
     // Prepare SQL statement to remove the timezone for the specific chat.
