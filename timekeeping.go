@@ -78,6 +78,12 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     // Convert location to lowercase
     location := message.CommandArguments()
 
+    _, err := getCurrentTimeForLocation(location)
+    if err != nil {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "This location is not being available. Please try different town in this time zone")
+        bot.Send(msg)
+    }
+
     // Prepare SQL statement to remove the timezone for the specific chat.
     stmt, err := db.Prepare("DELETE FROM timezones WHERE chatID = ? AND location = ?")
     if err != nil {
