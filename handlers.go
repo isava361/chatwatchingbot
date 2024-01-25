@@ -352,7 +352,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 	if message.Chat.ID == -1001245934322 && messageContains(receivedMessage, "@Porky8888")/* && isTimeBetween2AMAnd7AM (currentTime)*/ {
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
 		photoMsg.ReplyToMessageID = message.MessageID
-		photoMsg.Caption = fmt.Sprintf("Машталер в %v утра", currentTime.Hour)
+		photoMsg.Caption = fmt.Sprintf("Машталер в %v утра", currentTime.Hour())
 		bot.Send(photoMsg)
 	}
 
