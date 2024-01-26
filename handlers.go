@@ -607,7 +607,7 @@ func parseCommandArguments(commandText string) (string, int, error) {
     return risk, population, nil
 }
 
-func getSampleSize(population int, risk string) (int, error) {
+func GetSampleSize(population int, risk string) (int, error) {
     var sampleSizes = []struct {
         MinPopulation int
         MaxPopulation int
