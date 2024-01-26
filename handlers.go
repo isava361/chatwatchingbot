@@ -631,12 +631,14 @@ func GetSampleSize(population int, risk string) (int, error) {
             }
             // Interpolate between this size and the previous size
             prevSize := sampleSizes[i-1]
-            return int(math.Ceil(interpolate(float64(prevSize.MaxPopulation), float64(size.MinPopulation), float64(population), float64(getRiskSize(prevSize.Sizes, risk)), float64(getRiskSize(size.Sizes, risk))))), nil
+            interpolatedValue := interpolate(float64(prevSize.MaxPopulation), float64(size.MinPopulation), float64(population), float64(getRiskSize(prevSize.Sizes, risk)), float64(getRiskSize(size.Sizes, risk)))
+            return int(math.Ceil(interpolatedValue)), nil
         }
     }
 
     return 0, fmt.Errorf("population size out of range")
 }
+
 func getRiskSize(sizes SampleSize, risk string) int {
     switch risk {
     case "low":
