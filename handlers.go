@@ -622,7 +622,7 @@ func GetSampleSize(population int, risk string) (int, error) {
     }
 
     for i, size := range sampleSizes {
-        if population == size.MaxPopulation || population == size.MinPopulation {
+        if population == size.MaxPopulation {
             return getRiskSize(size.Sizes, risk), nil
         }
 
@@ -650,7 +650,7 @@ func getRiskSize(sizes SampleSize, risk string) int {
     }
 }
 
-func interpolate(x0, x1, x, y0, y1 float64) float64 {
+func interpolate(x0, y0, x, x1, y1 float64) float64 {
     if x1 == x0 {
         return y0
     }
