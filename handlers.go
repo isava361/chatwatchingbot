@@ -626,9 +626,13 @@ func GetSampleSize(population int, risk string) (int, error) {
             if i == len(sampleSizes)-1 || population == size.MaxPopulation {
                 return getRiskSize(size.Sizes, risk), nil
             }
-            // Interpolate within the range
             nextSize := sampleSizes[i+1]
-            return int(math.Ceil(interpolate(float64(size.MaxPopulation), float64(nextSize.MinPopulation-1), float64(population), float64(getRiskSize(size.Sizes, risk)), float64(getRiskSize(nextSize.Sizes, risk))))), nil
+            // Adjusting the upper limit for interpolation
+            upperLimit := nextSize.MinPopulation
+            if upperLimit > size.MaxPopulation {
+                upperLimit = size.MaxPopulation
+            }
+            return int(math.Ceil(interpolate(float64(size.MinPopulation), float64(upperLimit), float64(population), float64(getRiskSize(size.Sizes, risk)), float64(getRiskSize(nextSize.Sizes, risk))))), nil
         }
     }
 
