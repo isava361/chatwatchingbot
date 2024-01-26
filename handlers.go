@@ -607,7 +607,7 @@ func parseCommandArguments(commandText string) (string, int, error) {
     return risk, population, nil
 }
 
-func GetSampleSize(population int, risk string) (int, error) {
+func getSampleSizeForPopulation(population int, risk RiskLevel) (int, error) {
     var sampleSizes = []struct {
         MinPopulation int
         MaxPopulation int
@@ -618,23 +618,24 @@ func GetSampleSize(population int, risk string) (int, error) {
         {5, 12, SampleSize{2, 3, 5}},
         {13, 52, SampleSize{5, 10, 15}},
         {53, 250, SampleSize{20, 30, 40}},
-        {251, int(^uint(0) >> 1), SampleSize{25, 45, 60}}, // Max int for anything over 250
+        {251, int(^uint(0) >> 1), SampleSize{25, 45, 60}},
     }
 
     for i, size := range sampleSizes {
-        if population == size.MaxPopulation {
-            return getRiskSize(size.Sizes, risk), nil
-        }
+        if population <= size.MaxPopulation {
+            if i == 0 || population == size.MaxPopulation {
+                return getRiskSize(size.Sizes, risk), nil
+            }
 
-        if population < size.MaxPopulation {
-            // Interpolate between this size and the previous size
             prevSize := sampleSizes[i-1]
-            interpolatedValue := interpolate(float64(prevSize.MaxPopulation), float64(size.MaxPopulation), float64(population), float64(getRiskSize(prevSize.Sizes, risk)), float64(getRiskSize(size.Sizes, risk)))
+            y0 := float64(getRiskSize(prevSize.Sizes, risk))
+            y1 := float64(getRiskSize(size.Sizes, risk))
+            interpolatedValue := interpolate(float64(prevSize.MaxPopulation), y0, float64(population), float64(size.MaxPopulation), y1)
             return int(math.Ceil(interpolatedValue)), nil
         }
     }
 
-    return 0, fmt.Errorf("population size out of range")
+    return 0, errors.New("population out of range")
 }
 
 func getRiskSize(sizes SampleSize, risk string) int {
@@ -656,7 +657,6 @@ func interpolate(x0, y0, x, x1, y1 float64) float64 {
     }
     return y0 + (y1-y0)*(x-x0)/(x1-x0)
 }
-
 
 
 func GenerateRandomSelection(sampleSize, population int) []int {
