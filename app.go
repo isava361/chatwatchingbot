@@ -87,6 +87,12 @@ func main() {
 		return
 	}
 
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS triggers (chatID INTEGER, SearchPhrase TEXT, Response TEXT, FileType TEXT, FileID TEXT, FileName TEXT)`)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
 	chatIDs, err := getAllActiveChatIDs(db)
 	if err != nil {
 		log.Printf("Error getting active chats: %v", err)
