@@ -332,3 +332,8 @@ func isTimeBetween2AMAnd7AM(t time.Time) bool {
     hour := t.Hour()
     return hour >= 2 && hour <= 7
 }
+
+func isTimeBetween19And8(t time.Time) bool {
+    hour := t.Hour()
+    return hour >= 19 && hour <= 8
+}

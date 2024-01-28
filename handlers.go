@@ -218,11 +218,11 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
 func updateConfig(config *Config, message *tgbotapi.Message, myResponse MyResponse) {
 	if message.Command() == "add" {
-		if config.ChatTriggers == nil {
+		if config.ChatTriggers == nil && message.Text != "" {
 			config.ChatTriggers = make(map[int64][]MyResponse)
 		}
 		config.ChatTriggers[message.Chat.ID] = append(config.ChatTriggers[message.Chat.ID], myResponse)
-	} else if message.Command() == "addglobal" {
+	} else if message.Command() == "addglobal"  && message.Text != "" {
 		config.MyResponses = append(config.MyResponses, myResponse)
 	}
 }
@@ -361,11 +361,19 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 	}
 
 	currentTime,_ := getCurrentTimeForLocation("America/Los Angeles")
+	currentTimeMoscow,_ := getCurrentTimeForLocation("Europe/Moscow")
 
 	if message.Chat.ID == -1001245934322 && messageContains(receivedMessage, "@Porky8888") && isTimeBetween2AMAnd7AM (currentTime) {
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
 		photoMsg.ReplyToMessageID = message.MessageID
 		photoMsg.Caption = fmt.Sprintf("Машталер в %v утра", currentTime.Hour())
+		bot.Send(photoMsg)
+	}
+
+	if message.Chat.ID == -1001970411651 && messageContains(receivedMessage, "@vincenitycarter") && isTimeBetween19And8 (currentTimeMoscow) {
+		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAX9ltZqzarpyU2hvPVyxKhKAC8PHkQACGb4xGwkasVFr50gGsQVszgEAAwIAA3kAAzQE"))
+		photoMsg.ReplyToMessageID = message.MessageID
+		photoMsg.Caption = fmt.Sprintf("Сегодня, в %v часов %v минут, Яков Андреев был найден спящим в своей квартире. Приносим соболезнования всем его тиммейтам", currentTimeMoscow.Hour(), currentTimeMoscow.Minute())
 		bot.Send(photoMsg)
 	}
 
