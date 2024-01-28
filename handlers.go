@@ -140,6 +140,11 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *C
 
 func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
 	newSearchPhrase := message.CommandArguments()
+	if message.From.ID != int64(193117018) {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to use this command.")
+		_, _ = bot.Send(msg)
+		return nil
+	}
 
 	newMyResponse, err := createMyResponse(bot, message)
 	if err != nil {
