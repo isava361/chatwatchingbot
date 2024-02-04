@@ -164,10 +164,20 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 		return
 	}
 
-	// Sort the locations by CurrentTime.
-	sort.Slice(locations, func(i, j int) bool {
-		return locations[i].CurrentTime.Before(locations[j].CurrentTime)
-	})
+    log.Println("Before sorting:")
+    for _, loc := range locations {
+        log.Printf("%s: %s\n", loc.DisplayLocation, loc.CurrentTime)
+    }
+    
+    // Perform the sorting
+    sort.Slice(locations, func(i, j int) bool {
+        return locations[i].CurrentTime.Before(locations[j].CurrentTime)
+    })
+    
+    log.Println("After sorting:")
+    for _, loc := range locations {
+        log.Printf("%s: %s\n", loc.DisplayLocation, loc.CurrentTime)
+    }
 
 	// Construct the message text using the sorted locations.
 	var messageText string
