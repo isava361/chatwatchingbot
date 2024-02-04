@@ -368,7 +368,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 	currentTime,_ := getCurrentTimeForLocation("America/Los Angeles")
 	currentTimeMoscow,_ := getCurrentTimeForLocation("Europe/Moscow")
 
-	if message.Chat.ID == -1001245934322 && messageContains(receivedMessage, "@Porky8888") && isTimeBetween2AMAnd7AM (currentTime) {
+	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) && messageContains(receivedMessage, "@Porky8888") && isTimeBetween2AMAnd7AM (currentTime) {
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
 		photoMsg.ReplyToMessageID = message.MessageID
 		photoMsg.Caption = fmt.Sprintf("Машталер в %v утра", currentTime.Hour())
