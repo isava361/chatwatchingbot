@@ -121,6 +121,15 @@ func timeRemove(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
 }
 
 func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
+	// Define a struct to hold location, display location, and their current time.
+	type locationTime struct {
+		Location      string
+		DisplayLocation string
+		CurrentTime   time.Time
+	}
+
+	var locations []locationTime
+
 	// Query for locations and their aliases (if any) associated with the specific chat.
 	query := `
 	SELECT tz.location, IFNULL(a.alias, tz.location) AS display_location
@@ -135,7 +144,6 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 	}
 	defer rows.Close()
 
-	var messageText string
 	for rows.Next() {
 		var loc, displayLoc string
 		if err := rows.Scan(&loc, &displayLoc); err != nil {
@@ -147,12 +155,23 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 			log.Printf("Error getting current time for location %s: %v", loc, err)
 			continue
 		}
-		messageText += fmt.Sprintf("%s %s\n", displayLoc, currentTime.Format("15:04"))
+		locations = append(locations, locationTime{Location: loc, DisplayLocation: displayLoc, CurrentTime: currentTime})
 	}
 
 	if err = rows.Err(); err != nil {
 		log.Printf("Error with rows for chat %d: %v", chatid, err)
 		return
+	}
+
+	// Sort the locations by CurrentTime.
+	sort.Slice(locations, func(i, j int) bool {
+		return locations[i].CurrentTime.Before(locations[j].CurrentTime)
+	})
+
+	// Construct the message text using the sorted locations.
+	var messageText string
+	for _, loc := range locations {
+		messageText += fmt.Sprintf("%s %s\n", loc.DisplayLocation, loc.CurrentTime.Format("15:04"))
 	}
 
     // Check if there is an existing message ID for this chat.
@@ -188,6 +207,7 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
         log.Printf("Error querying for existing messageID: %v", err)
     }
 }
+
 
 func getCurrentTimeForLocation(location string) (time.Time, error) {
     // List of common prefixes to try
