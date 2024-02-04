@@ -8,6 +8,7 @@ import (
 	"log"
 	"strings"
 	"time"
+    "sort"
 )
 
 func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
