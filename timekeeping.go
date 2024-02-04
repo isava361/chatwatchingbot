@@ -186,9 +186,18 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 */
 
     sort.Slice(locations, func(i, j int) bool {
-        // Compare the entire time, including date, to respect the chronological order across time zones.
-        return locations[i].CurrentTime.Before(locations[j].CurrentTime)
+        // Convert CurrentTime to a "local hour" extending beyond 24 for sorting.
+        // This is a simplistic approach and might need adjustment for your exact use case.
+        localHourI := locations[i].CurrentTime.Hour() + locations[i].CurrentTime.Day()*24
+        localHourJ := locations[j].CurrentTime.Hour() + locations[j].CurrentTime.Day()*24
+
+        // If the "local hours" are equal, further compare minutes for precise ordering.
+        if localHourI == localHourJ {
+            return locations[i].CurrentTime.Minute() < locations[j].CurrentTime.Minute()
+        }
+        return localHourI < localHourJ
     })
+
 
 
     
