@@ -169,15 +169,18 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
         log.Printf("%s: %s\n", loc.DisplayLocation, loc.CurrentTime)
     }
     
-    // Debugging: print comparison results during sorting
+    // Debugging: print comparison results during sorting with UTC conversion
     sort.Slice(locations, func(i, j int) bool {
-        result := locations[i].CurrentTime.Before(locations[j].CurrentTime)
-        log.Printf("Comparing %s (%s) with %s (%s): %t\n",
-            locations[i].DisplayLocation, locations[i].CurrentTime,
-            locations[j].DisplayLocation, locations[j].CurrentTime,
+        timeIUTC := locations[i].CurrentTime.UTC()
+        timeJUTC := locations[j].CurrentTime.UTC()
+        result := timeIUTC.Before(timeJUTC)
+        log.Printf("Comparing %s (UTC: %s) with %s (UTC: %s): %t\n",
+            locations[i].DisplayLocation, timeIUTC,
+            locations[j].DisplayLocation, timeJUTC,
             result)
         return result
     })
+
 
     
     log.Println("After sorting:")
