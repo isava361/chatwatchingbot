@@ -212,6 +212,8 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
         if err != nil {
             log.Printf("Error editing message: %v", err)
         }
+
+    }
 }
 
 
