@@ -633,6 +633,11 @@ func GetSampleSize(population int, risk string) (int, error) {
         {53, 250, SampleSize{20, 30, 40}},
         {251, int(^uint(0) >> 1), SampleSize{25, 45, 60}},
     }
+// Directly return the size for populations above 250
+if population > 250 {
+	lastSize := sampleSizes[len(sampleSizes)-1].Sizes
+	return getRiskSize(lastSize, risk), nil
+}
 
     for i, size := range sampleSizes {
         if population <= size.MaxPopulation {
