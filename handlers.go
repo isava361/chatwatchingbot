@@ -368,13 +368,13 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 	currentTime,_ := getCurrentTimeForLocation("America/Los Angeles")
 	currentTimeMoscow,_ := getCurrentTimeForLocation("Europe/Moscow")
 
-	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) && messageContains(receivedMessage, "@Porky8888") && isTimeBetween2AMAnd7AM (currentTime) {
+	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) && messageContains(receivedMessage, "@Porky8888") && isTimeBetween (currentTime, 2, 7) {
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
 		photoMsg.ReplyToMessageID = message.MessageID
-		if currentTime.Hour() != 2 {
-		photoMsg.Caption = fmt.Sprintf("Машталер в %v утра", currentTime.Hour())
-		} else {
+		if isTimeBetween (currentTime, 2, 4) {
 			photoMsg.Caption = fmt.Sprintf("Машталер в %v ночи", currentTime.Hour())
+		} else {
+			photoMsg.Caption = fmt.Sprintf("Машталер в %v утра", currentTime.Hour())
 		}
 		bot.Send(photoMsg)
 	}

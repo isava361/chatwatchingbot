@@ -383,9 +383,9 @@ func resetMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
 	updateTimeMessage(bot, chatID, db)
 }
 
-func isTimeBetween2AMAnd7AM(t time.Time) bool {
+func isTimeBetween(t time.Time, hour1 int64, hour2 int64) bool {
     hour := t.Hour()
-    return hour >= 2 && hour <= 7
+    return hour >= hour1 && hour <= hour2
 }
 
 func isTimeBetween19And8(t time.Time) bool {
