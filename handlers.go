@@ -33,7 +33,7 @@ func allowedMessageType(message *tgbotapi.Message) bool {
 }
 
 func messageContains(messageText, targetString string) bool {
-return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
+    return strings.Contains(messageText, targetString) || strings.EqualFold(messageText, targetString)
 }
 
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
