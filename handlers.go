@@ -211,18 +211,6 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
 
 
-func updateConfig(config *Config, message *tgbotapi.Message, myResponse MyResponse) {
-	if message.Command() == "add" {
-		if config.ChatTriggers == nil && message.Text != "" {
-			config.ChatTriggers = make(map[int64][]MyResponse)
-		}
-		config.ChatTriggers[message.Chat.ID] = append(config.ChatTriggers[message.Chat.ID], myResponse)
-	} else if message.Command() == "addglobal"  && message.Text != "" {
-		config.MyResponses = append(config.MyResponses, myResponse)
-	}
-}
-
-
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
 	if myResponse.Response == "" && myResponse.FileType == "gif" && myResponse.FileType == "photo" {
 		return nil
@@ -293,9 +281,9 @@ func handleChatIDCommand (bot *tgbotapi.BotAPI, message *tgbotapi.Message){
 }
 
 
-type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config, ConfigWriter) error
+type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *sql.DB) error
 
-func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter, db *sql.DB) error {
+func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	receivedMessage := message.Text
 
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
@@ -319,7 +307,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		}
 
 		if allowed, _ := allowedCommands[command]; allowed || message.ReplyToMessage != nil {
-			return handler(bot, message, config, configwriter)
+			return handler(bot, message, db)
 		}
 	}
 	

@@ -123,7 +123,7 @@ if err != nil {
 			}
 
 			log.Printf("Message received")
-			err := handleMessage(bot, m, config, cf, db)
+			func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error
 			if err != nil {
 				log.Printf("[%s] %s,   err: %s", update.Message.From.UserName, update.Message.Text, err.Error())
 				continue
