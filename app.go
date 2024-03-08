@@ -21,35 +21,16 @@ const FileVideoNote FileType = "videonote"
 const FileAudio FileType = "audio"
 
 type MyResponse struct {
-	SearchPhrase string   `json:"searchPhrase"`
-	Response     string   `json:"response,omitempty"`
-	FileType     FileType `json:"fileType,omitempty"`
-	FileID       string   `json:"fileID,omitempty"`
-	FileName     string   `json:"filename,omitempty"`
+    ID           int64    `json:"id"`
+    SearchPhrase string   `json:"searchPhrase"`
+    Response     string   `json:"response,omitempty"`
+    FileType     FileType `json:"fileType,omitempty"`
+    FileID       string   `json:"fileID,omitempty"`
+    FileName     string   `json:"filename,omitempty"`
 }
 
-type Config struct {
-	MyResponses  []MyResponse           `json:"myResponses"`
-	ChatTriggers map[int64][]MyResponse `json:"chat_triggers,omitempty"`
-}
-
-type ConfigWriter interface {
-	Get(key string) (string, error)
-	Put(config *Config) error
-}
-  
-type FileWriter struct {
-	FileName string
-	mutex sync.Mutex
-}
-
-const configlocation = "./config/config.json"
 
 func main() {
-	config, err := readConfig(configlocation)
-	if err != nil {
-		log.Panicf("Config error: %v", err)
-	}
 
 	token, err := readBotToken("./config/token.txt")
 	if err != nil {
@@ -87,6 +68,23 @@ func main() {
 		return
 	}
 
+	_, err = db.Exec(`
+    CREATE TABLE IF NOT EXISTS triggers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_id INTEGER,
+        search_phrase TEXT,
+        response TEXT,
+        file_type TEXT,
+        file_id TEXT,
+        file_name TEXT,
+        is_global BOOLEAN
+    	)
+	`)
+
+if err != nil {
+    log.Fatalf("Error creating triggers table: %v", err)
+}
+
 	chatIDs, err := getAllActiveChatIDs(db)
 	if err != nil {
 		log.Printf("Error getting active chats: %v", err)
@@ -115,15 +113,6 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 	
-	var cf ConfigWriter
-	configUpdate := make(chan *Config)
-	cf, configUpdate = NewFileWriter(config, configlocation)
-
-	go func() {
-		for newConfig := range configUpdate {
-			config = newConfig
-		}
-	}()
 
 	for update := range updates {
 

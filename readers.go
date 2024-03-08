@@ -27,34 +27,6 @@ func readBotToken(filename string) (string, error) {
 
 	return "", fmt.Errorf("no token found in %s", filename)
 }
-
-func (fw FileWriter) Get(key string) (string, error) { 
-	return "bitch", nil
-}
-func (fw FileWriter) Put(config *Config) error {
-	fw.mutex.Lock()
-	defer fw.mutex.Unlock()
-	file, err := os.Create(fw.FileName)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	buf := new(bytes.Buffer)
-	encoder := json.NewEncoder(buf)
-	encoder.SetIndent("", "  ")
-	err = encoder.Encode(config)
-	if err != nil {
-		return err
-	}
-
-	_, err = file.Write(buf.Bytes())
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
   
 
 /*func downloadAndSaveFile(bot *tgbotapi.BotAPI, fileID, savePath, extension string) (string, error) {
