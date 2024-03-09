@@ -482,22 +482,15 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
     }
     defer rows.Close()
 
-    chatSpecificTriggers := []MyResponse{}
+    chatSpecificTriggers := []string{}
     for rows.Next() {
-        var trigger MyResponse
-        err := rows.Scan(
-            &trigger.ID,
-            &trigger.SearchPhrase,
-            &sql.NullString{},
-            &sql.NullString{},
-            &sql.NullString{},
-            &sql.NullString{},
-        )
+        var searchPhrase string
+        err := rows.Scan(&searchPhrase)
         if err != nil {
             log.Printf("Error scanning chat-specific trigger: %v", err)
             continue
         }
-        chatSpecificTriggers = append(chatSpecificTriggers, trigger)
+        chatSpecificTriggers = append(chatSpecificTriggers, searchPhrase)
     }
 
     // Retrieve global triggers from the database
@@ -512,38 +505,19 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
     }
     defer rows.Close()
 
-    globalTriggers := []MyResponse{}
+    globalTriggers := []string{}
     for rows.Next() {
-        var trigger MyResponse
-        err := rows.Scan(
-            &trigger.ID,
-            &trigger.SearchPhrase,
-            &sql.NullString{},
-            &sql.NullString{},
-            &sql.NullString{},
-            &sql.NullString{},
-        )
+        var searchPhrase string
+        err := rows.Scan(&searchPhrase)
         if err != nil {
             log.Printf("Error scanning global trigger: %v", err)
             continue
         }
-        globalTriggers = append(globalTriggers, trigger)
+        globalTriggers = append(globalTriggers, searchPhrase)
     }
 
-    // Extract search phrases from chat-specific triggers
-    localTriggers := make([]string, len(chatSpecificTriggers))
-    for i, trigger := range chatSpecificTriggers {
-        localTriggers[i] = trigger.SearchPhrase
-    }
-
-    // Extract search phrases from global triggers
-    globalTriggersStr := make([]string, len(globalTriggers))
-    for i, trigger := range globalTriggers {
-        globalTriggersStr[i] = trigger.SearchPhrase
-    }
-
-    localTriggersStr := strings.Join(localTriggers, ", ")
-    globalTriggersJoined := strings.Join(globalTriggersStr, ", ")
+    localTriggersStr := strings.Join(chatSpecificTriggers, ", ")
+    globalTriggersJoined := strings.Join(globalTriggers, ", ")
 
     response := "Local Triggers:\n" + localTriggersStr + "\n\nGlobal Triggers:\n" + globalTriggersJoined
 
