@@ -369,90 +369,98 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		bot.Send(photoMsg)
 	}
 
-
-
-	   // Retrieve chat-specific triggers from the database
-	   rows, err := db.Query(`
-	   SELECT id, search_phrase, response, file_type, file_id, file_name
-	   FROM triggers
-	   WHERE chat_id = ? AND is_global = ?
+   // Retrieve chat-specific triggers from the database
+   rows, err := db.Query(`
+       SELECT id, search_phrase, response, file_type, file_id, file_name
+       FROM triggers
+       WHERE chat_id = ? AND is_global = ?
    `, message.Chat.ID, false)
    if err != nil {
-	   log.Printf("Error retrieving chat-specific triggers: %v", err)
-	   return err
+       log.Printf("Error retrieving chat-specific triggers: %v", err)
+       return err
    }
    defer rows.Close()
 
    chatSpecificTriggers := []*MyResponse{}
    for rows.Next() {
-	   var trigger MyResponse
-	   err := rows.Scan(
-		   &trigger.ID,
-		   &trigger.SearchPhrase,
-		   &trigger.Response,
-		   &trigger.FileType,
-		   &trigger.FileID,
-		   &trigger.FileName,
-	   )
-	   if err != nil {
-		   log.Printf("Error scanning chat-specific trigger: %v", err)
-		   continue
-	   }
-	   chatSpecificTriggers = append(chatSpecificTriggers, &trigger)
+       var trigger MyResponse
+       var response, fileType, fileID, fileName sql.NullString
+       err := rows.Scan(
+           &trigger.ID,
+           &trigger.SearchPhrase,
+           &response,
+           &fileType,
+           &fileID,
+           &fileName,
+       )
+       if err != nil {
+           log.Printf("Error scanning chat-specific trigger: %v", err)
+           continue
+       }
+       trigger.Response = response.String
+       trigger.FileType = FileType(fileType.String)
+       trigger.FileID = fileID.String
+       trigger.FileName = fileName.String
+       chatSpecificTriggers = append(chatSpecificTriggers, &trigger)
    }
 
    chatSpecificTriggerFound := false
    for _, trigger := range chatSpecificTriggers {
-    if messageContains(receivedMessage, trigger.SearchPhrase) {
-        err := processResponse(bot, message, *trigger)
-        if err != nil {
-            return err
-        }
-        chatSpecificTriggerFound = true
-        break
-    }
-}
+       if messageContains(receivedMessage, trigger.SearchPhrase) {
+           err := processResponse(bot, message, *trigger)
+           if err != nil {
+               return err
+           }
+           chatSpecificTriggerFound = true
+           break
+       }
+   }
 
    if !chatSpecificTriggerFound {
-	   // Retrieve global triggers from the database
-	   rows, err := db.Query(`
-		   SELECT id, search_phrase, response, file_type, file_id, file_name
-		   FROM triggers
-		   WHERE is_global = ?
-	   `, true)
-	   if err != nil {
-		   log.Printf("Error retrieving global triggers: %v", err)
-		   return err
-	   }
-	   defer rows.Close()
+       // Retrieve global triggers from the database
+       rows, err := db.Query(`
+           SELECT id, search_phrase, response, file_type, file_id, file_name
+           FROM triggers
+           WHERE is_global = ?
+       `, true)
+       if err != nil {
+           log.Printf("Error retrieving global triggers: %v", err)
+           return err
+       }
+       defer rows.Close()
 
-	   globalTriggers := []*MyResponse{}
-	   for rows.Next() {
-		   var trigger MyResponse
-		   err := rows.Scan(
-			   &trigger.ID,
-			   &trigger.SearchPhrase,
-			   &trigger.Response,
-			   &trigger.FileType,
-			   &trigger.FileID,
-			   &trigger.FileName,
-		   )
-		   if err != nil {
-			   log.Printf("Error scanning global trigger: %v", err)
-			   continue
-		   }
-		   globalTriggers = append(globalTriggers, &trigger)
-	   }
+       globalTriggers := []*MyResponse{}
+       for rows.Next() {
+           var trigger MyResponse
+           var response, fileType, fileID, fileName sql.NullString
+           err := rows.Scan(
+               &trigger.ID,
+               &trigger.SearchPhrase,
+               &response,
+               &fileType,
+               &fileID,
+               &fileName,
+           )
+           if err != nil {
+               log.Printf("Error scanning global trigger: %v", err)
+               continue
+           }
+           trigger.Response = response.String
+           trigger.FileType = FileType(fileType.String)
+           trigger.FileID = fileID.String
+           trigger.FileName = fileName.String
+           globalTriggers = append(globalTriggers, &trigger)
+       }
 
-	   for _, trigger := range globalTriggers {
-		if messageContains(receivedMessage, trigger.SearchPhrase) {
-			err := processResponse(bot, message, *trigger)
-			if err != nil {
-				return err
-			}
-			break
-		}
-	}
+       for _, trigger := range globalTriggers {
+           if messageContains(receivedMessage, trigger.SearchPhrase) {
+               err := processResponse(bot, message, *trigger)
+               if err != nil {
+                   return err
+               }
+               break
+           }
+       }
    }
 
    return nil
