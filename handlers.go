@@ -18,6 +18,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "time"
 "errors"
 "sort"
+"golang.org/x/text/unicode/norm"
 )
 
 // SampleSize represents the sample sizes for different risk categories.
@@ -33,8 +34,13 @@ func allowedMessageType(message *tgbotapi.Message) bool {
 }
 
 func messageContains(messageText, targetString string) bool {
-    return strings.Contains(messageText, targetString) || strings.EqualFold(messageText, targetString)
+    // Normalize the message text and target string to NFC form
+    normalizedMessage := norm.NFC.String(messageText)
+    normalizedTarget := norm.NFC.String(targetString)
+
+    return strings.Contains(normalizedMessage, normalizedTarget)
 }
+
 
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     removeSearchPhrase := message.CommandArguments()
