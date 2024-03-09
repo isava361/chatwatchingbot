@@ -103,6 +103,23 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     newSearchPhrase := message.CommandArguments()
 
+    // Check if the trigger already exists for the specific chat
+    var count int
+    err := db.QueryRow(`
+        SELECT COUNT(*) FROM triggers
+        WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+    `, message.Chat.ID, newSearchPhrase, false).Scan(&count)
+    if err != nil {
+        log.Printf("Error checking trigger existence: %v", err)
+        return err
+    }
+
+    if count > 0 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "This trigger already exists for this chat.")
+        bot.Send(msg)
+        return nil
+    }
+
     newMyResponse, err := createMyResponse(bot, message)
     if err != nil {
         log.Printf("Error creating MyResponse: %v", err)
@@ -137,6 +154,23 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
     }
 
     newSearchPhrase := message.CommandArguments()
+
+    // Check if the global trigger already exists
+    var count int
+    err := db.QueryRow(`
+        SELECT COUNT(*) FROM triggers
+        WHERE search_phrase = ? AND is_global = ?
+    `, newSearchPhrase, true).Scan(&count)
+    if err != nil {
+        log.Printf("Error checking global trigger existence: %v", err)
+        return err
+    }
+
+    if count > 0 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "This global trigger already exists.")
+        bot.Send(msg)
+        return nil
+    }
 
     newMyResponse, err := createMyResponse(bot, message)
     if err != nil {
