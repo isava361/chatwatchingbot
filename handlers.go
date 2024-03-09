@@ -473,7 +473,7 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
         return err
     }
     defer rows.Close()
-
+	chatSpecificTriggers:= []MyResponse{}
     for rows.Next() {
         var trigger MyResponse
         err := rows.Scan(
@@ -503,7 +503,7 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
     }
     defer rows.Close()
 
-    globalTriggers := []string{}
+    globalTriggers := []MyResponse{}
 	for rows.Next() {
         var trigger MyResponse
         err := rows.Scan(
@@ -522,7 +522,7 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
     }
 
 
-    localTriggersStr := strings.Join(localTriggers, ", ")
+    localTriggersStr := strings.Join(chatSpecificTriggers, ", ")
     globalTriggersStr := strings.Join(globalTriggers, ", ")
 
     response := "Local Triggers:\n" + localTriggersStr + "\n\nGlobal Triggers:\n" + globalTriggersStr
