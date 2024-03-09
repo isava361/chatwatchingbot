@@ -473,7 +473,8 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
         return err
     }
     defer rows.Close()
-	chatSpecificTriggers:= []MyResponse{}
+
+    chatSpecificTriggers := []MyResponse{}
     for rows.Next() {
         var trigger MyResponse
         err := rows.Scan(
@@ -504,7 +505,7 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
     defer rows.Close()
 
     globalTriggers := []MyResponse{}
-	for rows.Next() {
+    for rows.Next() {
         var trigger MyResponse
         err := rows.Scan(
             &trigger.ID,
@@ -521,11 +522,22 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
         globalTriggers = append(globalTriggers, trigger)
     }
 
+    // Extract search phrases from chat-specific triggers
+    localTriggers := make([]string, len(chatSpecificTriggers))
+    for i, trigger := range chatSpecificTriggers {
+        localTriggers[i] = trigger.SearchPhrase
+    }
 
-    localTriggersStr := strings.Join(chatSpecificTriggers, ", ")
-    globalTriggersStr := strings.Join(globalTriggers, ", ")
+    // Extract search phrases from global triggers
+    globalTriggersStr := make([]string, len(globalTriggers))
+    for i, trigger := range globalTriggers {
+        globalTriggersStr[i] = trigger.SearchPhrase
+    }
 
-    response := "Local Triggers:\n" + localTriggersStr + "\n\nGlobal Triggers:\n" + globalTriggersStr
+    localTriggersStr := strings.Join(localTriggers, ", ")
+    globalTriggersJoined := strings.Join(globalTriggersStr, ", ")
+
+    response := "Local Triggers:\n" + localTriggersStr + "\n\nGlobal Triggers:\n" + globalTriggersJoined
 
     msg := tgbotapi.NewMessage(message.Chat.ID, response)
     _, _ = bot.Send(msg)
