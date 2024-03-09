@@ -6,7 +6,6 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "os"
 "log"
 "fmt"
-"github.com/fsnotify/fsnotify"
 "strconv"
 "github.com/skip2/go-qrcode"
 "github.com/boombuler/barcode"
@@ -19,6 +18,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "time"
 "errors"
 "sort"
+"golang.org/x/text/unicode/norm"
 )
 
 // SampleSize represents the sample sizes for different risk categories.
@@ -34,34 +34,29 @@ func allowedMessageType(message *tgbotapi.Message) bool {
 }
 
 func messageContains(messageText, targetString string) bool {
-return strings.Contains(strings.ToLower(messageText), strings.ToLower(targetString))
+    // Normalize the message text and target string to NFC form
+    normalizedMessage := norm.NFC.String(messageText)
+    normalizedTarget := norm.NFC.String(targetString)
+
+    return strings.Contains(normalizedMessage, normalizedTarget)
 }
 
-func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
-    log.Println("Handling /remove command")
 
+func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     removeSearchPhrase := message.CommandArguments()
 
-    chatTriggerRemoved := false
-    chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
-    if exists {
-        newChatTriggers := []MyResponse{}
-        for _, myResponse := range chatTriggers {
-            if myResponse.SearchPhrase != removeSearchPhrase {
-                newChatTriggers = append(newChatTriggers, myResponse)
-            } else {
-                chatTriggerRemoved = true
-            }
-        }
-        config.ChatTriggers[message.Chat.ID] = newChatTriggers
-    }
-
-    err := configwriter.Put(config)
+    // Delete the trigger from the database
+    result, err := db.Exec(`
+        DELETE FROM triggers
+        WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+    `, message.Chat.ID, removeSearchPhrase, false)
     if err != nil {
-        log.Printf("Error saving config: %v", err)
+        log.Printf("Error deleting trigger: %v", err)
+        return err
     }
 
-    if chatTriggerRemoved {
+    rowsAffected, _ := result.RowsAffected()
+    if rowsAffected > 0 {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Local response removed!")
         _, _ = bot.Send(msg)
     } else {
@@ -72,100 +67,134 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config
     return nil
 }
 
-func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
-	log.Println("Handling /removeglobal command")
+func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    // Check if the message comes from the allowed user
+    if message.From.ID != int64(193117018) {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to use this command.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
 
-	// Check if the message comes from the allowed user
-	if message.From.ID != int64(193117018) {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to use this command.")
-		_, _ = bot.Send(msg)
-		return nil
-	}
+    removeSearchPhrase := message.CommandArguments()
 
-	removeSearchPhrase := message.CommandArguments()
+    // Delete the global trigger from the database
+    result, err := db.Exec(`
+        DELETE FROM triggers
+        WHERE search_phrase = ? AND is_global = ?
+    `, removeSearchPhrase, true)
+    if err != nil {
+        log.Printf("Error deleting global trigger: %v", err)
+        return err
+    }
 
-	globalTriggerRemoved := false
-	newMyResponses := []MyResponse{}
-	for _, myResponse := range config.MyResponses {
-		if myResponse.SearchPhrase != removeSearchPhrase {
-			newMyResponses = append(newMyResponses, myResponse)
-		} else {
-			globalTriggerRemoved = true
-		}
-	}
-	config.MyResponses = newMyResponses
-	
-	err := configwriter.Put(config)
-	if err != nil {
-		log.Printf("Error saving config: %v", err)
-	}
+    rowsAffected, _ := result.RowsAffected()
+    if rowsAffected > 0 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Global response removed!")
+        _, _ = bot.Send(msg)
+    } else {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "No global response found with that search phrase.")
+        _, _ = bot.Send(msg)
+    }
 
-	if globalTriggerRemoved {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Global response removed!")
-		_, _ = bot.Send(msg)
-	} else {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "No global response found with that search phrase.")
-		_, _ = bot.Send(msg)
-	}
-
-	return nil
+    return nil
 }
 
 
+func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    newSearchPhrase := message.CommandArguments()
 
-func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
-	newSearchPhrase := message.CommandArguments()
+    // Check if the trigger already exists for the specific chat
+    var count int
+    err := db.QueryRow(`
+        SELECT COUNT(*) FROM triggers
+        WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+    `, message.Chat.ID, newSearchPhrase, false).Scan(&count)
+    if err != nil {
+        log.Printf("Error checking trigger existence: %v", err)
+        return err
+    }
 
-	newMyResponse, err := createMyResponse(bot, message)
-	if err != nil {
-		log.Printf("Error creating MyResponse: %v", err)
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this trigger")
-		bot.Send(msg)
-		return err
-	}
-	newMyResponse.SearchPhrase = newSearchPhrase
+    if count > 0 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "This trigger already exists for this chat.")
+        bot.Send(msg)
+        return nil
+    }
 
-	updateConfig(config, message, newMyResponse)
+    newMyResponse, err := createMyResponse(bot, message)
+    if err != nil {
+        log.Printf("Error creating MyResponse: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this trigger")
+        bot.Send(msg)
+        return err
+    }
+    newMyResponse.SearchPhrase = newSearchPhrase
 
-	err = configwriter.Put(config)
-	if err != nil {
-		log.Printf("Error saving config: %v", err)
-	}
+    // Insert the trigger into the database
+    _, err = db.Exec(`
+        INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, is_global)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, message.Chat.ID, newMyResponse.SearchPhrase, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, false)
+    if err != nil {
+        log.Printf("Error inserting trigger: %v", err)
+        return err
+    }
 
-	msg := tgbotapi.NewMessage(message.Chat.ID, "New response added!")
-	_, _ = bot.Send(msg)
+    msg := tgbotapi.NewMessage(message.Chat.ID, "New response added!")
+    _, _ = bot.Send(msg)
 
-	return nil
+    return nil
 }
 
-func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
-	newSearchPhrase := message.CommandArguments()
-	if message.From.ID != int64(193117018) {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to use this command.")
-		_, _ = bot.Send(msg)
-		return nil
-	}
+func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    // Check if the message comes from the allowed user
+    if message.From.ID != int64(193117018) {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to use this command.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
 
-	newMyResponse, err := createMyResponse(bot, message)
-	if err != nil {
-		log.Printf("Error creating MyResponse: %v", err)
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this trigger")
-		bot.Send(msg)
-		return err
-	}
-	newMyResponse.SearchPhrase = newSearchPhrase
+    newSearchPhrase := message.CommandArguments()
 
-	updateConfig(config, message, newMyResponse)
+    // Check if the global trigger already exists
+    var count int
+    err := db.QueryRow(`
+        SELECT COUNT(*) FROM triggers
+        WHERE search_phrase = ? AND is_global = ?
+    `, newSearchPhrase, true).Scan(&count)
+    if err != nil {
+        log.Printf("Error checking global trigger existence: %v", err)
+        return err
+    }
 
-	err = configwriter.Put(config)
-	if err != nil {
-		log.Printf("Error saving config: %v", err)
-	}
+    if count > 0 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "This global trigger already exists.")
+        bot.Send(msg)
+        return nil
+    }
 
-	msg := tgbotapi.NewMessage(message.Chat.ID, "New response added!")
-	_, _ = bot.Send(msg)
+    newMyResponse, err := createMyResponse(bot, message)
+    if err != nil {
+        log.Printf("Error creating MyResponse: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this trigger")
+        bot.Send(msg)
+        return err
+    }
+    newMyResponse.SearchPhrase = newSearchPhrase
 
-	return nil
+    // Insert the global trigger into the database
+    _, err = db.Exec(`
+        INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, is_global)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, 0, newMyResponse.SearchPhrase, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, true)
+    if err != nil {
+        log.Printf("Error inserting global trigger: %v", err)
+        return err
+    }
+
+    msg := tgbotapi.NewMessage(message.Chat.ID, "New global response added!")
+    _, _ = bot.Send(msg)
+
+    return nil
 }
 
 
@@ -219,18 +248,6 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 	return myResponse, nil
 }
 
-
-
-func updateConfig(config *Config, message *tgbotapi.Message, myResponse MyResponse) {
-	if message.Command() == "add" {
-		if config.ChatTriggers == nil && message.Text != "" {
-			config.ChatTriggers = make(map[int64][]MyResponse)
-		}
-		config.ChatTriggers[message.Chat.ID] = append(config.ChatTriggers[message.Chat.ID], myResponse)
-	} else if message.Command() == "addglobal"  && message.Text != "" {
-		config.MyResponses = append(config.MyResponses, myResponse)
-	}
-}
 
 
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
@@ -303,9 +320,9 @@ func handleChatIDCommand (bot *tgbotapi.BotAPI, message *tgbotapi.Message){
 }
 
 
-type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *Config, ConfigWriter) error
+type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *sql.DB) error
 
-func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter, db *sql.DB) error {
+func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	receivedMessage := message.Text
 
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
@@ -329,7 +346,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		}
 
 		if allowed, _ := allowedCommands[command]; allowed || message.ReplyToMessage != nil {
-			return handler(bot, message, config, configwriter)
+			return handler(bot, message, db)
 		}
 	}
 	
@@ -386,105 +403,162 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Conf
 		bot.Send(photoMsg)
 	}
 
+   // Retrieve chat-specific triggers from the database
+   rows, err := db.Query(`
+       SELECT id, search_phrase, response, file_type, file_id, file_name
+       FROM triggers
+       WHERE chat_id = ? AND is_global = ?
+   `, message.Chat.ID, false)
+   if err != nil {
+       log.Printf("Error retrieving chat-specific triggers: %v", err)
+       return err
+   }
+   defer rows.Close()
 
+   chatSpecificTriggers := []*MyResponse{}
+   for rows.Next() {
+       var trigger MyResponse
+       var response, fileType, fileID, fileName sql.NullString
+       err := rows.Scan(
+           &trigger.ID,
+           &trigger.SearchPhrase,
+           &response,
+           &fileType,
+           &fileID,
+           &fileName,
+       )
+       if err != nil {
+           log.Printf("Error scanning chat-specific trigger: %v", err)
+           continue
+       }
+       trigger.Response = response.String
+       trigger.FileType = FileType(fileType.String)
+       trigger.FileID = fileID.String
+       trigger.FileName = fileName.String
+       chatSpecificTriggers = append(chatSpecificTriggers, &trigger)
+   }
 
-	chatSpecificTriggerFound := false
-	if message.Chat.Type == "supergroup" || message.Chat.Type == "group" {
-		chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
-		if exists {
-			for _, myResponse := range chatTriggers {
-				if messageContains(receivedMessage, myResponse.SearchPhrase) {
-					err := processResponse(bot, message, myResponse)
-					if err != nil {
-						return err
-					}
-					chatSpecificTriggerFound = true
-					break
-				}
-			}
-		}
-	}
+   chatSpecificTriggerFound := false
+   for _, trigger := range chatSpecificTriggers {
+       if messageContains(receivedMessage, trigger.SearchPhrase) {
+           err := processResponse(bot, message, *trigger)
+           if err != nil {
+               return err
+           }
+           chatSpecificTriggerFound = true
+           break
+       }
+   }
 
-	if !chatSpecificTriggerFound {
-		for _, myResponse := range config.MyResponses {
-			if messageContains(receivedMessage, myResponse.SearchPhrase) {
-				err := processResponse(bot, message, myResponse)
-				if err != nil {
-					return err
-				}
-				break
-			}
-		}
-	}
+   if !chatSpecificTriggerFound {
+       // Retrieve global triggers from the database
+       rows, err := db.Query(`
+           SELECT id, search_phrase, response, file_type, file_id, file_name
+           FROM triggers
+           WHERE is_global = ?
+       `, true)
+       if err != nil {
+           log.Printf("Error retrieving global triggers: %v", err)
+           return err
+       }
+       defer rows.Close()
 
-	return nil
+       globalTriggers := []*MyResponse{}
+       for rows.Next() {
+           var trigger MyResponse
+           var response, fileType, fileID, fileName sql.NullString
+           err := rows.Scan(
+               &trigger.ID,
+               &trigger.SearchPhrase,
+               &response,
+               &fileType,
+               &fileID,
+               &fileName,
+           )
+           if err != nil {
+               log.Printf("Error scanning global trigger: %v", err)
+               continue
+           }
+           trigger.Response = response.String
+           trigger.FileType = FileType(fileType.String)
+           trigger.FileID = fileID.String
+           trigger.FileName = fileName.String
+           globalTriggers = append(globalTriggers, &trigger)
+       }
+
+       for _, trigger := range globalTriggers {
+           if messageContains(receivedMessage, trigger.SearchPhrase) {
+               err := processResponse(bot, message, *trigger)
+               if err != nil {
+                   return err
+               }
+               break
+           }
+       }
+   }
+
+   return nil
 }
 
 
-func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, config *Config, configwriter ConfigWriter) error {
-	log.Println("Handling /triggers command")
+func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    log.Println("Handling /triggers command")
 
-	chatTriggers, exists := config.ChatTriggers[message.Chat.ID]
-	var localTriggers, globalTriggers []string
+    // Retrieve chat-specific triggers from the database
+    rows, err := db.Query(`
+        SELECT search_phrase
+        FROM triggers
+        WHERE chat_id = ? AND is_global = ?
+    `, message.Chat.ID, false)
+    if err != nil {
+        log.Printf("Error retrieving chat-specific triggers: %v", err)
+        return err
+    }
+    defer rows.Close()
 
-	if exists {
-		for _, myResponse := range chatTriggers {
-			localTriggers = append(localTriggers, myResponse.SearchPhrase)
-		}
-	}
+    chatSpecificTriggers := []string{}
+    for rows.Next() {
+        var searchPhrase string
+        err := rows.Scan(&searchPhrase)
+        if err != nil {
+            log.Printf("Error scanning chat-specific trigger: %v", err)
+            continue
+        }
+        chatSpecificTriggers = append(chatSpecificTriggers, searchPhrase)
+    }
 
-	for _, myResponse := range config.MyResponses {
-		globalTriggers = append(globalTriggers, myResponse.SearchPhrase)
-	}
+    // Retrieve global triggers from the database
+    rows, err = db.Query(`
+        SELECT search_phrase
+        FROM triggers
+        WHERE is_global = ?
+    `, true)
+    if err != nil {
+        log.Printf("Error retrieving global triggers: %v", err)
+        return err
+    }
+    defer rows.Close()
 
-	localTriggersStr := strings.Join(localTriggers, ", ")
-	globalTriggersStr := strings.Join(globalTriggers, ", ")
+    globalTriggers := []string{}
+    for rows.Next() {
+        var searchPhrase string
+        err := rows.Scan(&searchPhrase)
+        if err != nil {
+            log.Printf("Error scanning global trigger: %v", err)
+            continue
+        }
+        globalTriggers = append(globalTriggers, searchPhrase)
+    }
 
-	response := "Local Triggers:\n" + localTriggersStr + "\n\nGlobal Triggers:\n" + globalTriggersStr
+    localTriggersStr := strings.Join(chatSpecificTriggers, ", ")
+    globalTriggersJoined := strings.Join(globalTriggers, ", ")
 
-	msg := tgbotapi.NewMessage(message.Chat.ID, response)
-	_, _ = bot.Send(msg)
+    response := "Local Triggers:\n" + localTriggersStr + "\n\nGlobal Triggers:\n" + globalTriggersJoined
 
-	return nil
-}
+    msg := tgbotapi.NewMessage(message.Chat.ID, response)
+    _, _ = bot.Send(msg)
 
-func NewFileWriter(config *Config, configLocation string) (*FileWriter, chan *Config) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Panicf("Error creating file watcher: %v", err)
-	}
-
-	// Add the configuration file to the watcher
-	err = watcher.Add(configlocation)
-	if err != nil {
-		log.Panicf("Error adding file to watcher: %v", err)
-	}
-	var FileWriter = &FileWriter{FileName: configlocation}
-
-	// Create a config update channel
-	configUpdate := make(chan *Config)
-
-	// Goroutine to handle configuration file changes
-	go func() {
-		for {
-			select {
-			case event := <-watcher.Events:
-				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Remove == fsnotify.Remove {
-					log.Println("Config file changed, reloading...")
-					newConfig, err := readConfig(configlocation)
-					if err != nil {
-						log.Printf("Error reading config: %v", err)
-					} else {
-						configUpdate <- newConfig
-					}
-				}
-			case err := <-watcher.Errors:
-				log.Println("Error in file watcher:", err)
-			}
-		}
-	}()
-
-	return FileWriter, configUpdate
+    return nil
 }
 
 func handleGenerateQR(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {

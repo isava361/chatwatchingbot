@@ -164,10 +164,6 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 		return
 	}
 
-    log.Println("Before sorting:")
-    for _, loc := range locations {
-        log.Printf("%s: %s\n", loc.DisplayLocation, loc.CurrentTime)
-    }
     
  /*   // Debugging: print comparison results during sorting with UTC conversion
     sort.Slice(locations, func(i, j int) bool {
@@ -197,14 +193,6 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
         }
         return localHourI < localHourJ
     })
-
-
-
-    
-    log.Println("After sorting:")
-    for _, loc := range locations {
-        log.Printf("%s: %s\n", loc.DisplayLocation, loc.CurrentTime)
-    }
 
 	// Construct the message text using the sorted locations.
 	var messageText string
