@@ -384,15 +384,22 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
    defer rows.Close()
 
    chatSpecificTriggers := []MyResponse{}
-   for rows.Next() {
-	   var trigger MyResponse
-	   err := rows.Scan(&trigger.ID, &trigger.SearchPhrase, &trigger.Response, &trigger.FileType, &trigger.FileID, &trigger.FileName)
-	   if err != nil {
-		   log.Printf("Error scanning chat-specific trigger: %v", err)
-		   continue
-	   }
-	   chatSpecificTriggers = append(chatSpecificTriggers, trigger)
-   }
+    for rows.Next() {
+        var trigger MyResponse
+        err := rows.Scan(
+            &trigger.ID,
+            &trigger.SearchPhrase,
+            &trigger.Response,
+            &trigger.FileType,
+            &trigger.FileID,
+            &trigger.FileName,
+        )
+        if err != nil {
+            log.Printf("Error scanning chat-specific trigger: %v", err)
+            continue
+        }
+        chatSpecificTriggers = append(chatSpecificTriggers, trigger)
+    }
 
    chatSpecificTriggerFound := false
    for _, trigger := range chatSpecificTriggers {
@@ -421,14 +428,21 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 
 	   globalTriggers := []MyResponse{}
 	   for rows.Next() {
-		   var trigger MyResponse
-		   err := rows.Scan(&trigger.ID, &trigger.SearchPhrase, &trigger.Response, &trigger.FileType, &trigger.FileID, &trigger.FileName)
-		   if err != nil {
-			   log.Printf("Error scanning global trigger: %v", err)
-			   continue
-		   }
-		   globalTriggers = append(globalTriggers, trigger)
-	   }
+        var trigger MyResponse
+        err := rows.Scan(
+            &trigger.ID,
+            &trigger.SearchPhrase,
+            &trigger.Response,
+            &trigger.FileType,
+            &trigger.FileID,
+            &trigger.FileName,
+        )
+        if err != nil {
+            log.Printf("Error scanning global trigger: %v", err)
+            continue
+        }
+        globalTriggers = append(globalTriggers, trigger)
+    }
 
 	   for _, trigger := range globalTriggers {
 		   if messageContains(receivedMessage, trigger.SearchPhrase) {
