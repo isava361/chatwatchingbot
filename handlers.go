@@ -460,15 +460,21 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
     }
     defer rows.Close()
 
-    localTriggers := []string{}
     for rows.Next() {
-        var searchPhrase string
-        err := rows.Scan(&searchPhrase)
+        var trigger MyResponse
+        err := rows.Scan(
+            &trigger.ID,
+            &trigger.SearchPhrase,
+            &sql.NullString{},
+            &sql.NullString{},
+            &sql.NullString{},
+            &sql.NullString{},
+        )
         if err != nil {
             log.Printf("Error scanning chat-specific trigger: %v", err)
             continue
         }
-        localTriggers = append(localTriggers, searchPhrase)
+        chatSpecificTriggers = append(chatSpecificTriggers, trigger)
     }
 
     // Retrieve global triggers from the database
@@ -484,15 +490,23 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
     defer rows.Close()
 
     globalTriggers := []string{}
-    for rows.Next() {
-        var searchPhrase string
-        err := rows.Scan(&searchPhrase)
+	for rows.Next() {
+        var trigger MyResponse
+        err := rows.Scan(
+            &trigger.ID,
+            &trigger.SearchPhrase,
+            &sql.NullString{},
+            &sql.NullString{},
+            &sql.NullString{},
+            &sql.NullString{},
+        )
         if err != nil {
             log.Printf("Error scanning global trigger: %v", err)
             continue
         }
-        globalTriggers = append(globalTriggers, searchPhrase)
+        globalTriggers = append(globalTriggers, trigger)
     }
+
 
     localTriggersStr := strings.Join(localTriggers, ", ")
     globalTriggersStr := strings.Join(globalTriggers, ", ")
