@@ -38,9 +38,12 @@ func messageContains(messageText, targetString string) bool {
     normalizedMessage := norm.NFC.String(messageText)
     normalizedTarget := norm.NFC.String(targetString)
 
-    return strings.Contains(normalizedMessage, normalizedTarget)
-}
+    // Convert both strings to lowercase for case-insensitive comparison
+    lowercaseMessage := strings.ToLower(normalizedMessage)
+    lowercaseTarget := strings.ToLower(normalizedTarget)
 
+    return strings.Contains(lowercaseMessage, lowercaseTarget)
+}
 
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     removeSearchPhrase := message.CommandArguments()
