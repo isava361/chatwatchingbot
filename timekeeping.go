@@ -241,14 +241,14 @@ func getCurrentTimeForLocation(location string) (time.Time, error) {
     normalizedLocation := strings.Join(locationParts, "_")
 
     // Use the go-timezone package to load the location
-    loc, err := timezone.GetTimezones(normalizedLocation)
-    if err != nil || len(loc) == 0 {
+    loc, err := timezone.GetLocationFromTimezone(normalizedLocation)
+    if err != nil {
         log.Printf("Error loading location: %v", err)
         return time.Time{}, fmt.Errorf("invalid location: %s", location)
     }
 
-    // Return the current time in the first matched location
-    return time.Now().In(loc[0]), nil
+    // Return the current time in the matched location
+    return time.Now().In(loc), nil
 }
 
 
