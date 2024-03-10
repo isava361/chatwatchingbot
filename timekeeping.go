@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
     "sort"
-    "github.com/tkuchiki/go-timezone"
+    timezone "github.com/tkuchiki/go-timezone"
+
 )
 
 func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
