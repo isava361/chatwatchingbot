@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
     "sort"
-    timezone "github.com/tkuchiki/go-timezone"
-
 )
 
 func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
@@ -19,7 +17,7 @@ func timeAdd(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
 
     _, err := getCurrentTimeForLocation(location)
     if err != nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Invalid location: %s. Please provide a valid timezone location.", location))
+        msg := tgbotapi.NewMessage(message.Chat.ID, "This location is not being available. Please try different town in this time zone")
         bot.Send(msg)
         return
     }
@@ -147,22 +145,24 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 	}
 	defer rows.Close()
 
-    for rows.Next() {
-        var loc, displayLoc string
-        if err := rows.Scan(&loc, &displayLoc); err != nil {
-            log.Printf("Error scanning row for chat %d: %v", chatid, err)
-            return
-        }
-        currentTime, err := getCurrentTimeForLocation(loc)
-        if err != nil {
-            log.Printf("Error getting current time for location %s: %v", loc, err)
-            // Send an error message to the user
-            msg := tgbotapi.NewMessage(chatid, fmt.Sprintf("Invalid location: %s. Please update the location using /addlocation.", loc))
-            bot.Send(msg)
-            continue
-        }
-        locations = append(locations, locationTime{Location: loc, DisplayLocation: displayLoc, CurrentTime: currentTime})
-    }
+	for rows.Next() {
+		var loc, displayLoc string
+		if err := rows.Scan(&loc, &displayLoc); err != nil {
+			log.Printf("Error scanning row for chat %d: %v", chatid, err)
+			return
+		}
+		currentTime, err := getCurrentTimeForLocation(loc)
+		if err != nil {
+			log.Printf("Error getting current time for location %s: %v", loc, err)
+			continue
+		}
+		locations = append(locations, locationTime{Location: loc, DisplayLocation: displayLoc, CurrentTime: currentTime})
+	}
+
+	if err = rows.Err(); err != nil {
+		log.Printf("Error with rows for chat %d: %v", chatid, err)
+		return
+	}
 
     
  /*   // Debugging: print comparison results during sorting with UTC conversion
@@ -233,6 +233,9 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 
 
 func getCurrentTimeForLocation(location string) (time.Time, error) {
+    // List of common prefixes to try
+    prefixes := []string{"Europe/", "America/", "Asia/", "Africa/", "Australia/"}
+
     // Normalize location: replace spaces with underscores and convert to Title case
     locationParts := strings.Split(strings.ToLower(location), " ")
     for i, part := range locationParts {
@@ -240,17 +243,27 @@ func getCurrentTimeForLocation(location string) (time.Time, error) {
     }
     normalizedLocation := strings.Join(locationParts, "_")
 
-    // Use the go-timezone package to load the location
-    loc, err := timezone.GetLocationFromTimezone(normalizedLocation)
-    if err != nil {
-        log.Printf("Error loading location: %v", err)
-        return time.Time{}, fmt.Errorf("invalid location: %s", location)
+    var loc *time.Location
+    var err error
+
+    // First, try the raw location string in case it's already a full IANA identifier
+    loc, err = time.LoadLocation(normalizedLocation)
+    if err == nil {
+        return time.Now().In(loc), nil
     }
 
-    // Return the current time in the matched location
-    return time.Now().In(loc), nil
-}
+    // If not successful, try with different regional prefixes
+    for _, prefix := range prefixes {
+        loc, err = time.LoadLocation(prefix + normalizedLocation)
+        if err == nil {
+            return time.Now().In(loc), nil
+        }
+    }
 
+    // If none of the combinations worked, return the last error
+    log.Printf("Error loading location: %v", err)
+    return time.Time{}, err
+}
 
 func addOrUpdateAlias(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) {
     // Extract and split the command arguments into location and alias.
