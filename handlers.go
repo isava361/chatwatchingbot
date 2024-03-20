@@ -328,6 +328,16 @@ type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *sql.DB) error
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	receivedMessage := message.Text
 
+    if err := handleTerpetMessage(bot, message, db); err != nil {
+        return err
+    }
+    
+    if message.Command() == "topterpil" {
+        if err := handleTopTerpilCommand(bot, message, db); err != nil {
+            return err
+        }
+    }
+
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
 		return nil
 	}
@@ -781,4 +791,86 @@ func GenerateRandomSelection(sampleSize, population int) []int {
     sort.Ints(selection)
 
     return selection
+}
+
+
+func handleTerpetMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    if message.Chat.ID == -1001390115843 && strings.EqualFold(message.Text, "Терпеть") {
+        userID := message.From.ID
+        username := message.From.UserName
+        firstName := message.From.FirstName
+
+        // Insert or update the user's terpet count
+        _, err := db.Exec(`
+            INSERT INTO terpet_count (user_id, username, first_name, count)
+            VALUES (?, ?, ?, 1)
+            ON CONFLICT(user_id) DO UPDATE SET count = count + 1, username = ?, first_name = ?
+        `, userID, username, firstName, username, firstName)
+        if err != nil {
+            log.Printf("Error updating terpet count: %v", err)
+            return err
+        }
+
+        // Get the updated count for the user
+        var count int
+        err = db.QueryRow("SELECT count FROM terpet_count WHERE user_id = ?", userID).Scan(&count)
+        if err != nil {
+            log.Printf("Error retrieving terpet count: %v", err)
+            return err
+        }
+
+        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Вы терпели %d раз", count))
+        msg.ReplyToMessageID = message.MessageID
+        _, err = bot.Send(msg)
+        if err != nil {
+            log.Printf("Error sending terpet message: %v", err)
+            return err
+        }
+    }
+    return nil
+}
+
+func handleTopTerpilCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    rows, err := db.Query(`
+        SELECT COALESCE(username, first_name) AS name, count
+        FROM terpet_count
+        ORDER BY count DESC
+        LIMIT 5
+    `)
+    if err != nil {
+        log.Printf("Error retrieving top terpet counts: %v", err)
+        return err
+    }
+    defer rows.Close()
+
+    var topUsers []string
+    for rows.Next() {
+        var name string
+        var count int
+        err := rows.Scan(&name, &count)
+        if err != nil {
+            log.Printf("Error scanning top terpet count: %v", err)
+            continue
+        }
+        topUsers = append(topUsers, fmt.Sprintf("%s: %d", name, count))
+    }
+
+    if len(topUsers) == 0 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "No terpet data available.")
+        _, err = bot.Send(msg)
+        if err != nil {
+            log.Printf("Error sending top terpil message: %v", err)
+            return err
+        }
+    } else {
+        response := "Top 5 Terpil Players:\n" + strings.Join(topUsers, "\n")
+        msg := tgbotapi.NewMessage(message.Chat.ID, response)
+        _, err = bot.Send(msg)
+        if err != nil {
+            log.Printf("Error sending top terpil message: %v", err)
+            return err
+        }
+    }
+
+    return nil
 }

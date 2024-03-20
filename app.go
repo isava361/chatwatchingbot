@@ -79,10 +79,21 @@ func main() {
         is_global BOOLEAN
     	)
 	`)
+	if err != nil {
+    	log.Fatalf("Error creating triggers table: %v", err)
+	}
 
-if err != nil {
-    log.Fatalf("Error creating triggers table: %v", err)
-}
+	_, err = db.Exec(`
+    CREATE TABLE IF NOT EXISTS terpet_count (
+        user_id INTEGER PRIMARY KEY,
+        username TEXT,
+        first_name TEXT,
+        count INTEGER DEFAULT 0
+    )
+	`)
+	if err != nil {
+		log.Fatalf("Error creating terpet_count table: %v", err)
+	}
 
 	chatIDs, err := getAllActiveChatIDs(db)
 	if err != nil {
