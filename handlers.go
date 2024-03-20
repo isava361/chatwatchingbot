@@ -819,7 +819,8 @@ func handleTerpetMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sq
             return err
         }
 
-        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Вы терпели %d раз", count))
+        razForm := getRazForm(count)
+        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Вы терпели %d %s", count, razForm))
         msg.ReplyToMessageID = message.MessageID
         _, err = bot.Send(msg)
         if err != nil {
@@ -873,4 +874,14 @@ func handleTopTerpilCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
     }
 
     return nil
+}
+
+func getRazForm(count int) string {
+    if count%10 == 1 && count%100 != 11 {
+        return "раз"
+    } else if (count%10 >= 2 && count%10 <= 4 && (count%100 < 10 || count%100 >= 20)) || (count%10 == 0) {
+        return "раза"
+    } else {
+        return "раз"
+    }
 }
