@@ -864,7 +864,7 @@ func handleTopTerpilCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
             return err
         }
     } else {
-        response := "Top 5 Terpil Players:\n" + strings.Join(topUsers, "\n")
+        response := "Топ-5 Терпил:\n" + strings.Join(topUsers, "\n")
         msg := tgbotapi.NewMessage(message.Chat.ID, response)
         _, err = bot.Send(msg)
         if err != nil {
