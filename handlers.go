@@ -833,7 +833,7 @@ func handleTerpetMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sq
 
 func handleTopTerpilCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     rows, err := db.Query(`
-        SELECT COALESCE(username, first_name) AS name, count
+        SELECT COALESCE(NULLIF(username, ''), first_name) AS name, count
         FROM terpet_count
         ORDER BY count DESC
         LIMIT 5
@@ -853,7 +853,7 @@ func handleTopTerpilCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
             log.Printf("Error scanning top terpet count: %v", err)
             continue
         }
-        topUsers = append(topUsers, fmt.Sprintf("%s: %d", name, count))
+        topUsers = append(topUsers, fmt.Sprintf("%s: %d %s", name, count, getRazForm(count)))
     }
 
     if len(topUsers) == 0 {
@@ -864,7 +864,7 @@ func handleTopTerpilCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
             return err
         }
     } else {
-        response := "Топ-5 терпил:\n" + strings.Join(topUsers, "\n")
+        response := "Top 5 Terpil Players:\n" + strings.Join(topUsers, "\n")
         msg := tgbotapi.NewMessage(message.Chat.ID, response)
         _, err = bot.Send(msg)
         if err != nil {
