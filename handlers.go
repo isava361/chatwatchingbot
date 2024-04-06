@@ -409,6 +409,11 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		bot.Send(photoMsg)
 	}
 
+    if (message.Chat.ID == -1001245934322 && message.UserID == 498981592) {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Лева Пидор")
+		bot.Send(photoMsg)
+	}
+
 	if message.Chat.ID == -1001970411651 && messageContains(receivedMessage, "@vincenitycarter") && isTimeBetween19And8 (currentTimeMoscow) {
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAX9ltZ3416cTOKI_-1Jp1wXzAVCLygACG74xGwkasVEOQZYuKQ4abQEAAwIAA3kAAzQE"))
 		photoMsg.ReplyToMessageID = message.MessageID
