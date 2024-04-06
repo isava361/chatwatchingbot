@@ -409,7 +409,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		bot.Send(photoMsg)
 	}
 
-    if (message.Chat.ID == -1001245934322 && message.UserID == 498981592) {
+    if (message.Chat.ID == -1001245934322 && message.From.UserID == 498981592) {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Лева Пидор")
 		bot.Send(msg)
 	}
