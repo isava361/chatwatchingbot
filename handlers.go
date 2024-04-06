@@ -411,7 +411,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 
     if (message.Chat.ID == -1001245934322 && message.UserID == 498981592) {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Лева Пидор")
-		bot.Send(photoMsg)
+		bot.Send(msg)
 	}
 
 	if message.Chat.ID == -1001970411651 && messageContains(receivedMessage, "@vincenitycarter") && isTimeBetween19And8 (currentTimeMoscow) {
