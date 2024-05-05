@@ -795,7 +795,7 @@ func GenerateRandomSelection(sampleSize, population int) []int {
 
 
 func handleTerpetMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-    if message.Chat.ID == -1001390115843 && (strings.EqualFold(message.Text == "Терпеть") || message.Text == "/terpet") {
+    if message.Chat.ID == -1001390115843 && (message.Text == "Терпеть" || message.Text == "/terpet") {
         userID := message.From.ID
         username := message.From.UserName
         firstName := message.From.FirstName
