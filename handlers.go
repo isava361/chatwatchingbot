@@ -888,7 +888,7 @@ func getRazForm(count int) string {
 }
 
 func handleGetLinkCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-	if message.From.ID != int64(193117018) {
+	if message.From.ID = int64(193117018) {
 		args := message.CommandArguments()
 		if args == "" {
 			msg := tgbotapi.NewMessage(message.Chat.ID, "Please provide an ID.")
