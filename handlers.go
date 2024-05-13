@@ -342,14 +342,15 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return nil
 	}
 
-	commandHandlers := map[string]commandHandlerFunc{
-		"add":         handleAddCommand,
-		"remove":      handleRemoveCommand,
-		"addglobal":   handleAddGlobalCommand,
-		"triggers":    handleTriggersCommand,
-		"removeglobal": handleRemoveGlobalCommand,
-	}
-
+    commandHandlers := map[string]commandHandlerFunc{
+        "add":         handleAddCommand,
+        "remove":      handleRemoveCommand,
+        "addglobal":   handleAddGlobalCommand,
+        "triggers":    handleTriggersCommand,
+        "removeglobal": handleRemoveGlobalCommand,
+        "getlink":     handleGetLinkCommand, // Add this line
+    }
+    
 	command := message.Command()
 	if handler, ok := commandHandlers[command]; ok {
 		allowedCommands := map[string]bool{
@@ -884,4 +885,21 @@ func getRazForm(count int) string {
     } else {
         return "раз"
     }
+}
+
+func handleGetLinkCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+	if message.From.ID != int64(193117018) {
+		args := message.CommandArguments()
+		if args == "" {
+			msg := tgbotapi.NewMessage(message.Chat.ID, "Please provide an ID.")
+			_, _ = bot.Send(msg)
+			return nil
+		}
+		
+		link := fmt.Sprintf(`<a href="tg://user?id=%s">Link to User</a>`, args)
+		msg := tgbotapi.NewMessage(message.Chat.ID, link)
+		msg.ParseMode = "HTML"
+		_, _ = bot.Send(msg)
+	}
+	return nil
 }
