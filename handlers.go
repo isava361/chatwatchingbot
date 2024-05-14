@@ -889,7 +889,6 @@ func getRazForm(count int) string {
         return "раз"
     }
 }
-
 func handleGetLinkCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	if message.From.ID == int64(193117018) {
 		args := message.CommandArguments()
@@ -898,8 +897,8 @@ func handleGetLinkCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *s
 			_, _ = bot.Send(msg)
 			return nil
 		}
-		
-		link := "<a href='tg://user?id=" + args + "'>"
+
+		link := fmt.Sprintf(`<a href="tg://user?id=%s">Link to User</a>`, args)
 		msg := tgbotapi.NewMessage(message.Chat.ID, link)
 		msg.ParseMode = "HTML"
 		_, _ = bot.Send(msg)
