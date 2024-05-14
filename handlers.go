@@ -899,7 +899,7 @@ func handleGetLinkCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *s
 			return nil
 		}
 		
-		link := "<a href='tg://user?id=" + strconv.FormatInt(args, 10) + "'>"
+		link := "<a href='tg://user?id=" + args + "'>"
 		msg := tgbotapi.NewMessage(message.Chat.ID, link)
 		msg.ParseMode = "HTML"
 		_, _ = bot.Send(msg)
