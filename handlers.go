@@ -338,6 +338,10 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
         }
     }
 
+    if message.Command() == "getlink"{
+        handleGetLinkCommand(bot, message, db)
+    }
+
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
 		return nil
 	}
@@ -348,7 +352,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
         "addglobal":   handleAddGlobalCommand,
         "triggers":    handleTriggersCommand,
         "removeglobal": handleRemoveGlobalCommand,
-        "getlink":     handleGetLinkCommand, // Add this line
     }
     
 	command := message.Command()
