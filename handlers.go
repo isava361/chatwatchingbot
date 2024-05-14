@@ -899,10 +899,14 @@ func handleGetLinkCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *s
 			return nil
 		}
 		
-		link := fmt.Sprintf(`<a href="tg://user?id=%s">Link to User</a>`, args)
-		msg := tgbotapi.NewMessage(message.Chat.ID, link)
+		userID := strconv.FormatInt(message.From.ID, 10)
+		userLink := fmt.Sprintf(`<a href="tg://user?id=%s">%s</a>`, args, userID)
+		responseText := fmt.Sprintf("%s - %s - %s", userID, userLink, message.From.UserName)
+		
+		msg := tgbotapi.NewMessage(message.Chat.ID, responseText)
 		msg.ParseMode = "HTML"
 		_, _ = bot.Send(msg)
 	}
 	return nil
 }
+
