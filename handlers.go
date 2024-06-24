@@ -413,12 +413,21 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		bot.Send(photoMsg)
 	}
 
-	if message.Chat.ID == -1001970411651 && messageContains(receivedMessage, "@vincenitycarter") && isTimeBetween19And8 (currentTimeMoscow) {
-		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAX9ltZ3416cTOKI_-1Jp1wXzAVCLygACG74xGwkasVEOQZYuKQ4abQEAAwIAA3kAAzQE"))
-		photoMsg.ReplyToMessageID = message.MessageID
-		photoMsg.Caption = fmt.Sprintf("Сегодня, в %v, Яков Андреев был найден спящим в своей квартире. Приносим соболезнования всем его тиммейтам", currentTimeMoscow.Format("15:04"))
-		bot.Send(photoMsg)
-	}
+    if message.Chat.ID == -1001970411651 && messageContains(receivedMessage, "@vincenitycarter") && isTimeBetween19And8(currentTimeMoscow) {
+        // Initialize random number generator
+        rand.Seed(time.Now().UnixNano())
+        
+        // Choose FileID based on random number
+        fileID := "AgACAgQAAx0Cc2pGjQACAX9ltZ3416cTOKI_-1Jp1wXzAVCLygACG74xGwkasVEOQZYuKQ4abQEAAwIAA3kAAzQE"
+        if rand.Float32() < 0.5 {
+            fileID = "AgACAgIAAx0Cc2pGjQACAnVmeHhbXkkqgeg_DNEW1dChwB3BYQACuNoxG2g9yUsZaxbgiGFD_wEAAwIAA3kAAzUE"
+        }
+    
+        photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(fileID))
+        photoMsg.ReplyToMessageID = message.MessageID
+        photoMsg.Caption = fmt.Sprintf("Сегодня, в %v, Яков Андреев был найден спящим в своей квартире. Приносим соболезнования всем его тиммейтам", currentTimeMoscow.Format("15:04"))
+        bot.Send(photoMsg)
+    }
 
    // Retrieve chat-specific triggers from the database
    rows, err := db.Query(`
