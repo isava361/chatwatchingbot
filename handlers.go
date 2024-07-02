@@ -532,8 +532,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
                break
            }
        }
-       
-       return nil
    }
 
    if message.From.ID == 578801 {
@@ -544,7 +542,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
             vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
             bot.Send(vasyaMsg)
         }
-        return nil
     }
    return nil
 }
