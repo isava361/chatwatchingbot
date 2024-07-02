@@ -537,15 +537,15 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
    }
 
    if message.From.ID == 578801 {
-    // Initialize random number generator
-    rand.Seed(time.Now().UnixNano())
+        // Initialize random number generator
+        rand.Seed(time.Now().UnixNano())
 
-    if rand.Float32() < 0.05 {
-        vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
-        bot.Send(vasyaMsg)
+        if rand.Float32() < 0.05 {
+            vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
+            bot.Send(vasyaMsg)
+        }
+        return nil
     }
-}
-
    return nil
 }
 
