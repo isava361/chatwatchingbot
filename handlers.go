@@ -340,6 +340,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 
     if message.Command() == "getlink"{
         handleGetLinkCommand(bot, message, db)
+        return nil
     }
 
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
@@ -369,34 +370,42 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	
 	if command == "chatid" {
 		handleChatIDCommand(bot, message)
+        return nil
 	}
 
 	if command == "generateqr" {
 		handleGenerateQR(bot, message)
+        return nil
 	}
 
 	if command == "generatebar" {
 		handleGenerateBarcode(bot, message)
+        return nil
 	}
 
 	if command == "addlocation" {
 		timeAdd(bot, message, db)
+        return nil
 	}
 
 	if command == "removelocation" {
 		timeRemove(bot, message, db)
+        return nil
 	}
 
 	if command == "alias" {
 		addOrUpdateAlias(bot, message, db)
+        return nil
 	}
 
 	if command == "resetmessage" {
 		resetMessage(bot, message, db)
+        return nil
 	}
 
 	if command == "samplesize" {
 		handleSampleSize(bot, message)
+        return nil
 	}
 
 	currentTime,_ := getCurrentTimeForLocation("America/Los Angeles")
@@ -411,6 +420,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 			photoMsg.Caption = fmt.Sprintf("Машталер в %v утра", currentTime.Hour())
 		}
 		bot.Send(photoMsg)
+        return nil
 	}
 
     if message.Chat.ID == -1001970411651 && messageContains(receivedMessage, "@vincenitycarter") && isTimeBetween19And8(currentTimeMoscow) {
@@ -427,6 +437,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
         photoMsg.ReplyToMessageID = message.MessageID
         photoMsg.Caption = fmt.Sprintf("Сегодня, в %v, Яков Андреев был найден спящим в своей квартире. Приносим соболезнования всем его тиммейтам", currentTimeMoscow.Format("15:04"))
         bot.Send(photoMsg)
+        return nil
     }
 
    // Retrieve chat-specific triggers from the database
@@ -521,7 +532,19 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
                break
            }
        }
+       
+       return nil
    }
+
+   if message.From.ID == 578801 {
+    // Initialize random number generator
+    rand.Seed(time.Now().UnixNano())
+
+    if rand.Float32() < 0.05 {
+        vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
+        bot.Send(vasyaMsg)
+    }
+}
 
    return nil
 }
