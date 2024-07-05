@@ -550,7 +550,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
                 vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню прислал")
                 vasyaMsg.ReplyToMessageID = message.MessageID
                 bot.Send(vasyaMsg)
-                }
             }
         }
     }
