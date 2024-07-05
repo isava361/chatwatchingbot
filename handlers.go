@@ -535,15 +535,19 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
    }
 
    if message.From.ID == 578801 {
-        // Initialize random number generator
-        rand.Seed(time.Now().UnixNano())
+    // Initialize random number generator
+    rand.Seed(time.Now().UnixNano())
 
+    // Check if the message is not a photo, video, or voice message
+    if message.Photo == nil && message.Video == nil && message.Voice == nil {
         if rand.Float32() < 0.01 {
             vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
             vasyaMsg.ReplyToMessageID = message.MessageID
             bot.Send(vasyaMsg)
+            }
         }
     }
+
    return nil
 }
 
