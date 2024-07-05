@@ -545,6 +545,13 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
             vasyaMsg.ReplyToMessageID = message.MessageID
             bot.Send(vasyaMsg)
             }
+        } else {
+            if rand.Float32() < 0.01 {
+                vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню прислал")
+                vasyaMsg.ReplyToMessageID = message.MessageID
+                bot.Send(vasyaMsg)
+                }
+            }
         }
     }
 
