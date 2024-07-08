@@ -539,7 +539,14 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
     rand.Seed(time.Now().UnixNano())
 
     // Check if the message is not a photo, video, or voice message
-    if message.Photo == nil && message.Video == nil && message.Voice == nil {
+    if message.Photo == nil && 
+       message.Animation == nil && 
+       message.Sticker == nil && 
+       message.Voice == nil && 
+       message.Video == nil && 
+       message.Document == nil && 
+       message.VideoNote == nil && 
+       message.Audio == nil {
         if rand.Float32() < 0.01 {
             vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
             vasyaMsg.ReplyToMessageID = message.MessageID
