@@ -547,7 +547,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
        message.Document == nil && 
        message.VideoNote == nil && 
        message.Audio == nil {
-        if rand.Float32() < 0.1 {
+        if rand.Float32() < 1 {
             vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
             vasyaMsg.ReplyToMessageID = message.MessageID
             bot.Send(vasyaMsg)
