@@ -328,6 +328,12 @@ type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *sql.DB) error
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	receivedMessage := message.Text
 
+    if message.NewChatMembers != nil {
+        if err := handleNewMember(bot, message); err != nil {
+            log.Printf("Error handling new member: %v", err)
+        }
+    }
+
     if err := handleTerpetMessage(bot, message, db); err != nil {
         return err
     }
@@ -952,4 +958,34 @@ func handleGetLinkCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *s
 		_, _ = bot.Send(msg)
 	}
 	return nil
+}
+
+func handleNewMember(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
+    if message.NewChatMembers != nil {
+        // Sticker set name for the "privetcivpack_by_fStikBot" pack
+        stickerSetName := "privetcivpack_by_fStikBot"
+        
+        // Get the sticker set
+        stickerSet, err := bot.GetStickerSet(tgbotapi.StickerSetConfig{Name: stickerSetName})
+        if err != nil {
+            log.Printf("Error getting sticker set: %v", err)
+            return err
+        }
+        
+        // Choose a random sticker from the set
+        rand.Seed(time.Now().UnixNano())
+        randomIndex := rand.Intn(len(stickerSet.Stickers))
+        randomSticker := stickerSet.Stickers[randomIndex]
+        
+        // Create a new sticker message
+        stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(randomSticker.FileID))
+        
+        // Send the sticker
+        _, err = bot.Send(stickerMsg)
+        if err != nil {
+            log.Printf("Error sending sticker: %v", err)
+            return err
+        }
+    }
+    return nil
 }
