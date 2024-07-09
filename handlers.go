@@ -966,7 +966,7 @@ func handleNewMember(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
         stickerSetName := "privetcivpack_by_fStikBot"
         
         // Get the sticker set
-        stickerSet, err := bot.GetStickerSet(tgbotapi.StickerSetConfig{Name: stickerSetName})
+        stickerSet, err := bot.GetStickerSet(stickerSetName)
         if err != nil {
             log.Printf("Error getting sticker set: %v", err)
             return err
@@ -978,7 +978,7 @@ func handleNewMember(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
         randomSticker := stickerSet.Stickers[randomIndex]
         
         // Create a new sticker message
-        stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(randomSticker.FileID))
+        stickerMsg := tgbotapi.NewStickerShare(message.Chat.ID, randomSticker.FileID)
         
         // Send the sticker
         _, err = bot.Send(stickerMsg)
