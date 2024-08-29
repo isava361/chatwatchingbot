@@ -417,6 +417,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 
 	currentTime, _ := getCurrentTimeForLocation("America/Los Angeles")
 	currentTimeMoscow, _ := getCurrentTimeForLocation("Europe/Moscow")
+    currentTimeNewYork, _ := getCurrentTimeForLocation("America/New York")
 
 	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) && messageMatches(receivedMessage, "@Porky8888") && isTimeBetween(currentTime, 2, 7) {
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
@@ -442,6 +443,25 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		photoMsg.ReplyToMessageID = message.MessageID
 		photoMsg.Caption = fmt.Sprintf("Сегодня, в %v, Яков Андреев был найден спящим в своей квартире. Приносим соболезнования всем его тиммейтам", currentTimeMoscow.Format("15:04"))
 		bot.Send(photoMsg)
+		return nil
+	}
+
+    if message.Chat.ID == -1001970411651 && messageMatches(receivedMessage, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2,7) {
+		rand.Seed(time.Now().UnixNano())
+
+		fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
+		if rand.Float32() < 0.5 {
+			fileID = "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
+		}
+
+		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(fileID))
+		photoMsg.ReplyToMessageID = message.MessageID
+        if isTimeBetween(currentTime, 2, 4) {
+			photoMsg.Caption = fmt.Sprintf("Кел в %v ночи", currentTime.Hour())
+		} else {
+			photoMsg.Caption = fmt.Sprintf("Кел в %v утра", currentTime.Hour())
+		}
+        bot.Send(photoMsg)
 		return nil
 	}
 
