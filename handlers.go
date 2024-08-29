@@ -251,48 +251,55 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
 	var myResponse MyResponse
 
-	if message.ReplyToMessage.Caption != "" {
-		myResponse.Response = message.ReplyToMessage.Caption
-	} else {
-		myResponse.Response = message.ReplyToMessage.Text
+	if message.ReplyToMessage == nil {
+		return myResponse, fmt.Errorf("no reply message found")
 	}
 
-	if len(message.ReplyToMessage.Photo) > 0 { // photo proccess
+	// Check for media types first
+	if len(message.ReplyToMessage.Photo) > 0 {
 		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
 		myResponse.FileType = FilePhoto
 		myResponse.FileID = photoFileID
-	} else if message.ReplyToMessage.Animation != nil { // gif proccess
+	} else if message.ReplyToMessage.Animation != nil {
 		gifFileID := message.ReplyToMessage.Animation.FileID
 		myResponse.FileType = FileGIF
 		myResponse.FileID = gifFileID
-	} else if message.ReplyToMessage.Voice != nil { // voice proccess
+	} else if message.ReplyToMessage.Voice != nil {
 		voiceFileID := message.ReplyToMessage.Voice.FileID
 		myResponse.FileType = FileVoice
 		myResponse.FileID = voiceFileID
-	} else if message.ReplyToMessage.Sticker != nil { // Sticker proccess
-    	stickerFileID := message.ReplyToMessage.Sticker.FileID
-    	myResponse.FileType = FileSticker
-    	myResponse.FileID = stickerFileID
-  	} else if message.ReplyToMessage.Video != nil { // Video proccess
-    	videoFileID := message.ReplyToMessage.Video.FileID
-    	myResponse.FileType = FileVideo
-    	myResponse.FileID = videoFileID
-  	} else if message.ReplyToMessage.Document != nil { // Document proccess
-    	documentFileID := message.ReplyToMessage.Document.FileID
-    	myResponse.FileType = FileDocument
-    	myResponse.FileID = documentFileID
-  	} else if message.ReplyToMessage.Audio != nil { // Audio proccess
-    	audioFileID := message.ReplyToMessage.Audio.FileID
-    	myResponse.FileType = FileAudio
-    	myResponse.FileID = audioFileID
-  	} else if message.ReplyToMessage.VideoNote != nil { // Document proccess
-    	videonoteFileID := message.ReplyToMessage.VideoNote.FileID
-    	myResponse.FileType = FileVideoNote
-    	myResponse.FileID = videonoteFileID
-  	} else if !allowedMessageType(message) {
-		return myResponse, fmt.Errorf("Unsupported message type: %v", message)
-	} else {
-		return myResponse, nil
+	} else if message.ReplyToMessage.Sticker != nil {
+		stickerFileID := message.ReplyToMessage.Sticker.FileID
+		myResponse.FileType = FileSticker
+		myResponse.FileID = stickerFileID
+	} else if message.ReplyToMessage.Video != nil {
+		videoFileID := message.ReplyToMessage.Video.FileID
+		myResponse.FileType = FileVideo
+		myResponse.FileID = videoFileID
+	} else if message.ReplyToMessage.Document != nil {
+		documentFileID := message.ReplyToMessage.Document.FileID
+		myResponse.FileType = FileDocument
+		myResponse.FileID = documentFileID
+	} else if message.ReplyToMessage.Audio != nil {
+		audioFileID := message.ReplyToMessage.Audio.FileID
+		myResponse.FileType = FileAudio
+		myResponse.FileID = audioFileID
+	} else if message.ReplyToMessage.VideoNote != nil {
+		videonoteFileID := message.ReplyToMessage.VideoNote.FileID
+		myResponse.FileType = FileVideoNote
+		myResponse.FileID = videonoteFileID
+	}
+
+	// Check for caption or text
+	if message.ReplyToMessage.Caption != "" {
+		myResponse.Response = message.ReplyToMessage.Caption
+	} else if message.ReplyToMessage.Text != "" {
+		myResponse.Response = message.ReplyToMessage.Text
+	}
+
+	// If no media type was set and no text was found, return an error
+	if myResponse.FileType == "" && myResponse.Response == "" {
+		return myResponse, fmt.Errorf("unsupported message type")
 	}
 
 	return myResponse, nil
