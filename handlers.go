@@ -446,7 +446,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return nil
 	}
 
-    if message.Chat.ID == -1001970411651 && messageMatches(receivedMessage, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2,7) {
+    if message.Chat.ID == -1002245157577 && messageMatches(receivedMessage, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2,7) {
 		rand.Seed(time.Now().UnixNano())
 
 		fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
