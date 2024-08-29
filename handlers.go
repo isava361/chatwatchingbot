@@ -107,14 +107,20 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
     newSearchPhrase := message.CommandArguments()
 
     // Check if the trigger already exists for the specific chat
-    var exists bool
+    var count int
     err := db.QueryRow(`
-        SELECT EXISTS(SELECT 1 FROM triggers
-        WHERE chat_id = ? AND search_phrase = ? AND is_global = ?)
-    `, message.Chat.ID, newSearchPhrase, false).Scan(&exists)
+        SELECT COUNT(*) FROM triggers
+        WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+    `, message.Chat.ID, newSearchPhrase, false).Scan(&count)
     if err != nil {
         log.Printf("Error checking trigger existence: %v", err)
         return err
+    }
+
+    if count > 0 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "This trigger already exists for this chat.")
+        bot.Send(msg)
+        return nil
     }
 
     newMyResponse, err := createMyResponse(bot, message)
@@ -126,41 +132,17 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
     }
     newMyResponse.SearchPhrase = newSearchPhrase
 
-    var sqlStmt string
-    var actionMsg string
-
-    if exists {
-        // Update existing trigger
-        sqlStmt = `
-            UPDATE triggers 
-            SET response = ?, file_type = ?, file_id = ?, file_name = ?
-            WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
-        `
-        actionMsg = "Trigger updated successfully!"
-    } else {
-        // Insert new trigger
-        sqlStmt = `
-            INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, is_global)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `
-        actionMsg = "New trigger added successfully!"
-    }
-
-    _, err = db.Exec(sqlStmt,
-        newMyResponse.Response,
-        newMyResponse.FileType,
-        newMyResponse.FileID,
-        newMyResponse.FileName,
-        message.Chat.ID,
-        newMyResponse.SearchPhrase,
-        false)
-
+    // Insert the trigger into the database
+    _, err = db.Exec(`
+        INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, is_global)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, message.Chat.ID, newMyResponse.SearchPhrase, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, false)
     if err != nil {
-        log.Printf("Error executing statement: %v", err)
+        log.Printf("Error inserting trigger: %v", err)
         return err
     }
 
-    msg := tgbotapi.NewMessage(message.Chat.ID, actionMsg)
+    msg := tgbotapi.NewMessage(message.Chat.ID, "New response added!")
     _, _ = bot.Send(msg)
 
     return nil
@@ -177,129 +159,93 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
     newSearchPhrase := message.CommandArguments()
 
     // Check if the global trigger already exists
-    var exists bool
+    var count int
     err := db.QueryRow(`
-        SELECT EXISTS(SELECT 1 FROM triggers
-        WHERE search_phrase = ? AND is_global = ?)
-    `, newSearchPhrase, true).Scan(&exists)
+        SELECT COUNT(*) FROM triggers
+        WHERE search_phrase = ? AND is_global = ?
+    `, newSearchPhrase, true).Scan(&count)
     if err != nil {
         log.Printf("Error checking global trigger existence: %v", err)
         return err
     }
 
+    if count > 0 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "This global trigger already exists.")
+        bot.Send(msg)
+        return nil
+    }
+
     newMyResponse, err := createMyResponse(bot, message)
     if err != nil {
         log.Printf("Error creating MyResponse: %v", err)
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this global trigger")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Can't add this trigger")
         bot.Send(msg)
         return err
     }
     newMyResponse.SearchPhrase = newSearchPhrase
 
-    var sqlStmt string
-    var actionMsg string
-
-    if exists {
-        // Update existing global trigger
-        sqlStmt = `
-            UPDATE triggers 
-            SET response = ?, file_type = ?, file_id = ?, file_name = ?
-            WHERE search_phrase = ? AND is_global = ?
-        `
-        actionMsg = "Global trigger updated successfully!"
-    } else {
-        // Insert new global trigger
-        sqlStmt = `
-            INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, is_global)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `
-        actionMsg = "New global trigger added successfully!"
-    }
-
-    if exists {
-        _, err = db.Exec(sqlStmt,
-            newMyResponse.Response,
-            newMyResponse.FileType,
-            newMyResponse.FileID,
-            newMyResponse.FileName,
-            newMyResponse.SearchPhrase,
-            true)
-    } else {
-        _, err = db.Exec(sqlStmt,
-            0, // chat_id is 0 for global triggers
-            newMyResponse.SearchPhrase,
-            newMyResponse.Response,
-            newMyResponse.FileType,
-            newMyResponse.FileID,
-            newMyResponse.FileName,
-            true)
-    }
-
+    // Insert the global trigger into the database
+    _, err = db.Exec(`
+        INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, is_global)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, 0, newMyResponse.SearchPhrase, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, true)
     if err != nil {
-        log.Printf("Error executing statement: %v", err)
+        log.Printf("Error inserting global trigger: %v", err)
         return err
     }
 
-    msg := tgbotapi.NewMessage(message.Chat.ID, actionMsg)
+    msg := tgbotapi.NewMessage(message.Chat.ID, "New global response added!")
     _, _ = bot.Send(msg)
 
     return nil
 }
 
 
-
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
 	var myResponse MyResponse
 
-	if message.ReplyToMessage == nil {
-		return myResponse, fmt.Errorf("no reply message found")
-	}
-
-	// Check for media types first
-	if len(message.ReplyToMessage.Photo) > 0 {
-		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
-		myResponse.FileType = FilePhoto
-		myResponse.FileID = photoFileID
-	} else if message.ReplyToMessage.Animation != nil {
-		gifFileID := message.ReplyToMessage.Animation.FileID
-		myResponse.FileType = FileGIF
-		myResponse.FileID = gifFileID
-	} else if message.ReplyToMessage.Voice != nil {
-		voiceFileID := message.ReplyToMessage.Voice.FileID
-		myResponse.FileType = FileVoice
-		myResponse.FileID = voiceFileID
-	} else if message.ReplyToMessage.Sticker != nil {
-		stickerFileID := message.ReplyToMessage.Sticker.FileID
-		myResponse.FileType = FileSticker
-		myResponse.FileID = stickerFileID
-	} else if message.ReplyToMessage.Video != nil {
-		videoFileID := message.ReplyToMessage.Video.FileID
-		myResponse.FileType = FileVideo
-		myResponse.FileID = videoFileID
-	} else if message.ReplyToMessage.Document != nil {
-		documentFileID := message.ReplyToMessage.Document.FileID
-		myResponse.FileType = FileDocument
-		myResponse.FileID = documentFileID
-	} else if message.ReplyToMessage.Audio != nil {
-		audioFileID := message.ReplyToMessage.Audio.FileID
-		myResponse.FileType = FileAudio
-		myResponse.FileID = audioFileID
-	} else if message.ReplyToMessage.VideoNote != nil {
-		videonoteFileID := message.ReplyToMessage.VideoNote.FileID
-		myResponse.FileType = FileVideoNote
-		myResponse.FileID = videonoteFileID
-	}
-
-	// Check for caption or text
 	if message.ReplyToMessage.Caption != "" {
 		myResponse.Response = message.ReplyToMessage.Caption
-	} else if message.ReplyToMessage.Text != "" {
+	} else {
 		myResponse.Response = message.ReplyToMessage.Text
 	}
 
-	// If no media type was set and no text was found, return an error
-	if myResponse.FileType == "" && myResponse.Response == "" {
-		return myResponse, fmt.Errorf("unsupported message type")
+	if len(message.ReplyToMessage.Photo) > 0 { // photo proccess
+		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
+		myResponse.FileType = FilePhoto
+		myResponse.FileID = photoFileID
+	} else if message.ReplyToMessage.Animation != nil { // gif proccess
+		gifFileID := message.ReplyToMessage.Animation.FileID
+		myResponse.FileType = FileGIF
+		myResponse.FileID = gifFileID
+	} else if message.ReplyToMessage.Voice != nil { // voice proccess
+		voiceFileID := message.ReplyToMessage.Voice.FileID
+		myResponse.FileType = FileVoice
+		myResponse.FileID = voiceFileID
+	} else if message.ReplyToMessage.Sticker != nil { // Sticker proccess
+    	stickerFileID := message.ReplyToMessage.Sticker.FileID
+    	myResponse.FileType = FileSticker
+    	myResponse.FileID = stickerFileID
+  	} else if message.ReplyToMessage.Video != nil { // Video proccess
+    	videoFileID := message.ReplyToMessage.Video.FileID
+    	myResponse.FileType = FileVideo
+    	myResponse.FileID = videoFileID
+  	} else if message.ReplyToMessage.Document != nil { // Document proccess
+    	documentFileID := message.ReplyToMessage.Document.FileID
+    	myResponse.FileType = FileDocument
+    	myResponse.FileID = documentFileID
+  	} else if message.ReplyToMessage.Audio != nil { // Audio proccess
+    	audioFileID := message.ReplyToMessage.Audio.FileID
+    	myResponse.FileType = FileAudio
+    	myResponse.FileID = audioFileID
+  	} else if message.ReplyToMessage.VideoNote != nil { // Document proccess
+    	videonoteFileID := message.ReplyToMessage.VideoNote.FileID
+    	myResponse.FileType = FileVideoNote
+    	myResponse.FileID = videonoteFileID
+  	} else if !allowedMessageType(message) {
+		return myResponse, fmt.Errorf("Unsupported message type: %v", message)
+	} else {
+		return myResponse, nil
 	}
 
 	return myResponse, nil
