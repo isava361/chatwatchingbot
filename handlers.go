@@ -481,7 +481,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(fileID))
 		photoMsg.ReplyToMessageID = message.MessageID
-        if isTimeBetween(currentTime, 2, 4) {
+        if isTimeBetween(currentTimeNewYork, 2, 4) {
 			photoMsg.Caption = fmt.Sprintf("Кел в %v ночи", currentTimeNewYork.Hour())
 		} else {
 			photoMsg.Caption = fmt.Sprintf("Кел в %v утра", currentTimeNewYork.Hour())
