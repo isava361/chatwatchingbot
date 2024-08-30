@@ -117,12 +117,6 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
         return err
     }
 
-    if count > 0 {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "This trigger already exists for this chat.")
-        bot.Send(msg)
-        return nil
-    }
-
     newMyResponse, err := createMyResponse(bot, message)
     if err != nil {
         log.Printf("Error creating MyResponse: %v", err)
@@ -131,6 +125,25 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
         return err
     }
     newMyResponse.SearchPhrase = newSearchPhrase
+
+
+    if count > 0 {
+        // Update the trigger in the database
+        _, err = db.Exec(`
+            UPDATE triggers 
+            SET response = ?, file_type = ?, file_id = ?, file_name = ? 
+            WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+        `, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, message.Chat.ID, newMyResponse.SearchPhrase, false)
+        if err != nil {
+            log.Printf("Error updating trigger: %v", err)
+            return err
+        }
+    
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Response updated!")
+        _, _ = bot.Send(msg)
+    
+        return nil
+    }
 
     // Insert the trigger into the database
     _, err = db.Exec(`
@@ -169,12 +182,6 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
         return err
     }
 
-    if count > 0 {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "This global trigger already exists.")
-        bot.Send(msg)
-        return nil
-    }
-
     newMyResponse, err := createMyResponse(bot, message)
     if err != nil {
         log.Printf("Error creating MyResponse: %v", err)
@@ -183,6 +190,24 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
         return err
     }
     newMyResponse.SearchPhrase = newSearchPhrase
+
+    if count > 0 {
+        // Update the global trigger into the database
+        _, err = db.Exec(`
+            UPDATE triggers 
+            SET response = ?, file_type = ?, file_id = ?, file_name = ? 
+            WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+        `, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, 0, newMyResponse.SearchPhrase, true)
+        if err != nil {
+            log.Printf("Error updating global trigger: %v", err)
+            return err
+        }
+    
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Response updated!")
+        _, _ = bot.Send(msg)
+    
+        return nil
+    }
 
     // Insert the global trigger into the database
     _, err = db.Exec(`
