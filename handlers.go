@@ -464,8 +464,8 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
         return handleRoll6(bot, message)
     }
 
-    if message.Command() == "roll5" {
-        return handleRoll5(bot, message)
+    if message.Command() == "roll4" {
+        return handleRoll4(bot, message)
     }
 
 	currentTime, _ := getCurrentTimeForLocation("America/Los Angeles")
