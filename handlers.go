@@ -440,6 +440,10 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return nil
 	}
 
+    if message.Command() == "roll" {
+        return handleRoll(bot, message)
+    }
+
 	currentTime, _ := getCurrentTimeForLocation("America/Los Angeles")
 	currentTimeMoscow, _ := getCurrentTimeForLocation("Europe/Moscow")
     currentTimeNewYork, _ := getCurrentTimeForLocation("America/New York")
@@ -1040,5 +1044,28 @@ func handleNewMember(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
             return err
         }
     }
+    return nil
+}
+
+func handleRoll(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
+    // Seed the random number generator
+    rand.Seed(time.Now().UnixNano())
+
+    // Generate a random number between 1 and 100
+    result := rand.Intn(100) + 1
+
+    // Create the response message
+    response := fmt.Sprintf("🎲 You rolled: %d", result)
+    
+    // Send the message
+    msg := tgbotapi.NewMessage(message.Chat.ID, response)
+    msg.ReplyToMessageID = message.MessageID
+    
+    _, err := bot.Send(msg)
+    if err != nil {
+        log.Printf("Error sending roll result: %v", err)
+        return err
+    }
+
     return nil
 }
