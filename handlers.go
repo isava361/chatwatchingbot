@@ -444,6 +444,30 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
         return handleRoll(bot, message)
     }
 
+    if message.Command() == "roll20" {
+        return handleRoll20(bot, message)
+    }
+
+    if message.Command() == "roll12" {
+        return handleRoll12(bot, message)
+    }
+
+    if message.Command() == "roll10" {
+        return handleRoll10(bot, message)
+    }
+
+    if message.Command() == "roll8" {
+        return handleRoll8(bot, message)
+    }
+
+    if message.Command() == "roll6" {
+        return handleRoll6(bot, message)
+    }
+
+    if message.Command() == "roll5" {
+        return handleRoll5(bot, message)
+    }
+
 	currentTime, _ := getCurrentTimeForLocation("America/Los Angeles")
 	currentTimeMoscow, _ := getCurrentTimeForLocation("Europe/Moscow")
     currentTimeNewYork, _ := getCurrentTimeForLocation("America/New York")
@@ -1053,6 +1077,144 @@ func handleRoll(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
 
     // Generate a random number between 1 and 100
     result := rand.Intn(100) + 1
+
+    // Create the response message
+    response := fmt.Sprintf("🎲 You rolled: %d", result)
+    
+    // Send the message
+    msg := tgbotapi.NewMessage(message.Chat.ID, response)
+    msg.ReplyToMessageID = message.MessageID
+    
+    _, err := bot.Send(msg)
+    if err != nil {
+        log.Printf("Error sending roll result: %v", err)
+        return err
+    }
+
+    return nil
+}
+
+func handleRoll20(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
+    // Seed the random number generator
+    rand.Seed(time.Now().UnixNano())
+
+    // Generate a random number between 1 and 20
+    result := rand.Intn(20) + 1
+
+    // Create the response message
+    response := fmt.Sprintf("🎲 You rolled: %d", result)
+    
+    // Send the message
+    msg := tgbotapi.NewMessage(message.Chat.ID, response)
+    msg.ReplyToMessageID = message.MessageID
+    
+    _, err := bot.Send(msg)
+    if err != nil {
+        log.Printf("Error sending roll result: %v", err)
+        return err
+    }
+
+    return nil
+}
+
+func handleRoll12(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
+    // Seed the random number generator
+    rand.Seed(time.Now().UnixNano())
+
+    // Generate a random number between 1 and 12
+    result := rand.Intn(12) + 1
+
+    // Create the response message
+    response := fmt.Sprintf("🎲 You rolled: %d", result)
+    
+    // Send the message
+    msg := tgbotapi.NewMessage(message.Chat.ID, response)
+    msg.ReplyToMessageID = message.MessageID
+    
+    _, err := bot.Send(msg)
+    if err != nil {
+        log.Printf("Error sending roll result: %v", err)
+        return err
+    }
+
+    return nil
+}
+
+func handleRoll10(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
+    // Seed the random number generator
+    rand.Seed(time.Now().UnixNano())
+
+    // Generate a random number between 1 and 10
+    result := rand.Intn(10) + 1
+
+    // Create the response message
+    response := fmt.Sprintf("🎲 You rolled: %d", result)
+    
+    // Send the message
+    msg := tgbotapi.NewMessage(message.Chat.ID, response)
+    msg.ReplyToMessageID = message.MessageID
+    
+    _, err := bot.Send(msg)
+    if err != nil {
+        log.Printf("Error sending roll result: %v", err)
+        return err
+    }
+
+    return nil
+}
+
+func handleRoll8(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
+    // Seed the random number generator
+    rand.Seed(time.Now().UnixNano())
+
+    // Generate a random number between 1 and 8
+    result := rand.Intn(8) + 1
+
+    // Create the response message
+    response := fmt.Sprintf("🎲 You rolled: %d", result)
+    
+    // Send the message
+    msg := tgbotapi.NewMessage(message.Chat.ID, response)
+    msg.ReplyToMessageID = message.MessageID
+    
+    _, err := bot.Send(msg)
+    if err != nil {
+        log.Printf("Error sending roll result: %v", err)
+        return err
+    }
+
+    return nil
+}
+
+func handleRoll6(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
+    // Seed the random number generator
+    rand.Seed(time.Now().UnixNano())
+
+    // Generate a random number between 1 and 6
+    result := rand.Intn(6) + 1
+
+    // Create the response message
+    response := fmt.Sprintf("🎲 You rolled: %d", result)
+    
+    // Send the message
+    msg := tgbotapi.NewMessage(message.Chat.ID, response)
+    msg.ReplyToMessageID = message.MessageID
+    
+    _, err := bot.Send(msg)
+    if err != nil {
+        log.Printf("Error sending roll result: %v", err)
+        return err
+    }
+
+    return nil
+}
+
+func handleRoll4(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
+    // Seed the random number generator
+    rand.Seed(time.Now().UnixNano())
+
+    // Generate a random number between 1 and 4
+    result := rand.Intn(4) + 1
 
     // Create the response message
     response := fmt.Sprintf("🎲 You rolled: %d", result)
