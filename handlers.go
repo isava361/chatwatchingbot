@@ -104,6 +104,13 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 
 
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+
+    if message.From.ID == 89886125 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Дима саси жопу")
+        bot.Send(msg)
+        return nil
+    }
+
     newSearchPhrase := message.CommandArguments()
 
     // Check if the trigger already exists for the specific chat
