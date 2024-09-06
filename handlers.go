@@ -46,6 +46,11 @@ func messageContains(messageText, targetString string) bool {
 }
 
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    if message.From.ID == 89886125 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Дима саси жопу")
+        bot.Send(msg)
+        return nil
+    }
     removeSearchPhrase := message.CommandArguments()
 
     // Delete the trigger from the database
