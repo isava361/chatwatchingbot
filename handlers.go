@@ -108,10 +108,10 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
     }
 
     if rowsAffected > 0 {
-        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Cascade trigger response '%s' removed successfully!", triggerPhrase))
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Cascade trigger response removed successfully!")
         _, _ = bot.Send(msg)
     } else {
-        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("No cascade trigger found with the response '%s'.", triggerPhrase))
+        msg := tgbotapi.NewMessage(message.Chat.ID, "No cascade trigger found with this response.")
         _, _ = bot.Send(msg)
     }
 
