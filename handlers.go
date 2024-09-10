@@ -94,7 +94,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     }
 
     // Insert new cascade trigger
-    _, err := db.Exec(`
+    _, err = db.Exec(`
         INSERT INTO cascade_triggers (chat_id, search_phrase, responses)
         VALUES (?, ?, ?)
     `, message.Chat.ID, newResponse, triggerPhrase)
@@ -269,7 +269,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
 
     // Check if the trigger already exists for the specific chat
     var count int
-    err := db.QueryRow(`
+    err = db.QueryRow(`
         SELECT COUNT(*) FROM triggers
         WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
     `, message.Chat.ID, newSearchPhrase, false).Scan(&count)
