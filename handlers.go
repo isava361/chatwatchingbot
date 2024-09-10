@@ -69,59 +69,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 }
 
 func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-    if message.ReplyToMessage == nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message with the trigger phrase to remove.")
-        _, _ = bot.Send(msg)
-        return nil
-    }
-
-    triggerPhrase := message.ReplyToMessage.Text
-
-    // Remove the cascade trigger from the database
-    result, err := db.Exec(`
-        DELETE FROM cascade_triggers
-        WHERE chat_id = ? AND search_phrase = ?
-    `, message.Chat.ID, triggerPhrase)
-    
-    if err != nil {
-        log.Printf("Error removing cascade trigger: %v", err)
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Failed to remove cascade trigger.")
-        _, _ = bot.Send(msg)
-        return err
-    }
-
-    rowsAffected, _ := result.RowsAffected()
-    if rowsAffected > 0 {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Cascade trigger removed successfully!")
-        _, _ = bot.Send(msg)
-    } else {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "No cascade trigger found with that phrase.")
-        _, _ = bot.Send(msg)
-    }
-
-    return nil
-}
-
-func allowedMessageType(message *tgbotapi.Message) bool {
-	if (message.ReplyToMessage.Game != nil){
-		return false
-	}
-	return true
-}
-
-func messageContains(messageText, targetString string) bool {
-    // Normalize the message text and target string to NFC form
-    normalizedMessage := norm.NFC.String(messageText)
-    normalizedTarget := norm.NFC.String(targetString)
-
-    // Convert both strings to lowercase for case-insensitive comparison
-    lowercaseMessage := strings.ToLower(normalizedMessage)
-    lowercaseTarget := strings.ToLower(normalizedTarget)
-
-    return strings.Contains(lowercaseMessage, lowercaseTarget)
-}
-
-func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Check if the message is a reply
     if message.ReplyToMessage == nil {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message with the cascade trigger phrase you want to remove.")
@@ -158,6 +105,55 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
         _, _ = bot.Send(msg)
     } else {
         msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("No cascade trigger found with the phrase '%s'.", triggerPhrase))
+        _, _ = bot.Send(msg)
+    }
+
+    return nil
+}
+
+func allowedMessageType(message *tgbotapi.Message) bool {
+	if (message.ReplyToMessage.Game != nil){
+		return false
+	}
+	return true
+}
+
+func messageContains(messageText, targetString string) bool {
+    // Normalize the message text and target string to NFC form
+    normalizedMessage := norm.NFC.String(messageText)
+    normalizedTarget := norm.NFC.String(targetString)
+
+    // Convert both strings to lowercase for case-insensitive comparison
+    lowercaseMessage := strings.ToLower(normalizedMessage)
+    lowercaseTarget := strings.ToLower(normalizedTarget)
+
+    return strings.Contains(lowercaseMessage, lowercaseTarget)
+}
+
+func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    if message.From.ID == 89886125 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Дима саси жопу")
+        bot.Send(msg)
+        return nil
+    }
+    removeSearchPhrase := message.CommandArguments()
+
+    // Delete the trigger from the database
+    result, err := db.Exec(`
+        DELETE FROM triggers
+        WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+    `, message.Chat.ID, removeSearchPhrase, false)
+    if err != nil {
+        log.Printf("Error deleting trigger: %v", err)
+        return err
+    }
+
+    rowsAffected, _ := result.RowsAffected()
+    if rowsAffected > 0 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Local response removed!")
+        _, _ = bot.Send(msg)
+    } else {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "No local response found with that search phrase.")
         _, _ = bot.Send(msg)
     }
 
