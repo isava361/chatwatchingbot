@@ -828,7 +828,7 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
 
     // Retrieve cascade triggers from the database
     rows, err = db.Query(`
-        SELECT search_phrase, responses
+        SELECT DISTINCT responses
         FROM cascade_triggers
         WHERE chat_id = ?
     `, message.Chat.ID)
@@ -838,24 +838,23 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
     }
     defer rows.Close()
 
-    cascadeTriggers := make(map[string]string)
+    cascadeTriggers := []string{}
     for rows.Next() {
-        var searchPhrase, responses string
-        err := rows.Scan(&searchPhrase, &responses)
+        var triggerPhrase string
+        err := rows.Scan(&triggerPhrase)
         if err != nil {
             log.Printf("Error scanning cascade trigger: %v", err)
             continue
         }
-        cascadeTriggers[responses] = searchPhrase
+        cascadeTriggers = append(cascadeTriggers, triggerPhrase)
     }
 
     localTriggersStr := strings.Join(chatSpecificTriggers, ", ")
     globalTriggersJoined := strings.Join(globalTriggers, ", ")
+    cascadeTriggersJoined := strings.Join(cascadeTriggers, ", ")
 
-    response := "Local Triggers:\n" + localTriggersStr + "\n\nGlobal Triggers:\n" + globalTriggersJoined + "\n\nCascade Triggers:\n"
-    for trigger, response := range cascadeTriggers {
-        response += fmt.Sprintf("%s: %s\n", trigger, response)
-    }
+    response := fmt.Sprintf("Local Triggers:\n%s\n\nGlobal Triggers:\n%s\n\nCascade Triggers:\n%s",
+        localTriggersStr, globalTriggersJoined, cascadeTriggersJoined)
 
     msg := tgbotapi.NewMessage(message.Chat.ID, response)
     _, _ = bot.Send(msg)
