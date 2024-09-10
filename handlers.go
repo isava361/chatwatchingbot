@@ -32,8 +32,32 @@ type CascadeTrigger struct {
     Responses    []string
 }
 
-// Add this function to handle the /addc command
+func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool, bool, error) {
+    var normalCount, cascadeCount int
+    
+    err := db.QueryRow(`
+        SELECT COUNT(*) FROM triggers 
+        WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+    `, chatID, searchPhrase, false).Scan(&normalCount)
+    
+    if err != nil {
+        return false, false, err
+    }
+    
+    err = db.QueryRow(`
+        SELECT COUNT(*) FROM cascade_triggers 
+        WHERE chat_id = ? AND search_phrase = ?
+    `, chatID, searchPhrase).Scan(&cascadeCount)
+    
+    if err != nil {
+        return false, false, err
+    }
+    
+    return normalCount > 0, cascadeCount > 0, nil
+}
 
+
+// Add this function to handle the /addc command
 func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     if message.ReplyToMessage == nil {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message with the trigger phrase.")
@@ -49,6 +73,19 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 
     triggerPhrase := message.ReplyToMessage.Text
     newResponse := message.CommandArguments()
+
+    // Check if any type of trigger already exists
+    normalExists, _, err := checkTriggerExistence(db, message.Chat.ID, newResponse)
+    if err != nil {
+        log.Printf("Error checking trigger existence: %v", err)
+        return err
+    }
+
+    if normalExists {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "A normal trigger with this phrase already exists.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
 
     if newResponse == "" {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Please provide a response after the command.")
@@ -216,6 +253,19 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
     }
 
     newSearchPhrase := message.CommandArguments()
+
+    // Check if any type of trigger already exists
+    _, cascadeExists, err := checkTriggerExistence(db, message.Chat.ID, newSearchPhrase)
+    if err != nil {
+        log.Printf("Error checking trigger existence: %v", err)
+        return err
+    }
+
+    if cascadeExists {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "A cascade trigger with this phrase already exists. Cannot create a normal trigger.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
 
     // Check if the trigger already exists for the specific chat
     var count int
