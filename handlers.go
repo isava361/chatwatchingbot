@@ -121,30 +121,43 @@ func messageContains(messageText, targetString string) bool {
     return strings.Contains(lowercaseMessage, lowercaseTarget)
 }
 
-func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-    if message.From.ID == 89886125 {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Дима саси жопу")
-        bot.Send(msg)
+func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    // Check if the message is a reply
+    if message.ReplyToMessage == nil {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message with the cascade trigger phrase you want to remove.")
+        _, _ = bot.Send(msg)
         return nil
     }
-    removeSearchPhrase := message.CommandArguments()
 
-    // Delete the trigger from the database
+    // Get the trigger phrase from the replied message
+    triggerPhrase := message.ReplyToMessage.Text
+
+    // Remove the cascade trigger from the database
     result, err := db.Exec(`
-        DELETE FROM triggers
-        WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
-    `, message.Chat.ID, removeSearchPhrase, false)
+        DELETE FROM cascade_triggers
+        WHERE chat_id = ? AND search_phrase = ?
+    `, message.Chat.ID, triggerPhrase)
+    
     if err != nil {
-        log.Printf("Error deleting trigger: %v", err)
+        log.Printf("Error removing cascade trigger: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Failed to remove cascade trigger. Please try again.")
+        _, _ = bot.Send(msg)
         return err
     }
 
-    rowsAffected, _ := result.RowsAffected()
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        log.Printf("Error getting rows affected: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "An error occurred while removing the cascade trigger.")
+        _, _ = bot.Send(msg)
+        return err
+    }
+
     if rowsAffected > 0 {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Local response removed!")
+        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Cascade trigger '%s' removed successfully!", triggerPhrase))
         _, _ = bot.Send(msg)
     } else {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "No local response found with that search phrase.")
+        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("No cascade trigger found with the phrase '%s'.", triggerPhrase))
         _, _ = bot.Send(msg)
     }
 
