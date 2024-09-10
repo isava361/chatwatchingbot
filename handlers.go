@@ -672,7 +672,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 
     // Process cascade triggers
     // Process cascade triggers
-    rows, err := db.Query(`
+    rows, err = db.Query(`
         SELECT responses
         FROM cascade_triggers
         WHERE chat_id = ? AND search_phrase = ?
