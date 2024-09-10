@@ -83,7 +83,7 @@ func main() {
     	log.Fatalf("Error creating triggers table: %v", err)
 	}
 
-	_, err := db.Exec(`
+	_, err = db.Exec(`
 	CREATE TABLE IF NOT EXISTS cascade_triggers (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		chat_id INTEGER,
@@ -92,7 +92,7 @@ func main() {
 	)
 	`)
 	if err != nil {
-		return err
+		log.Fatalf("Error creating triggers table: %v", err)
 	}
 
 	_, err = db.Exec(`
