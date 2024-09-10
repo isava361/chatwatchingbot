@@ -71,7 +71,14 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Check if the message is a reply
     if message.ReplyToMessage == nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message with the cascade trigger phrase you want to remove.")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a bot's message with /removec to remove the cascade trigger.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
+
+    // Check if the replied message is from the bot
+    if message.ReplyToMessage.From.UserName != bot.Self.UserName {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message from the bot to remove the cascade trigger.")
         _, _ = bot.Send(msg)
         return nil
     }
@@ -82,7 +89,7 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
     // Remove the cascade trigger from the database
     result, err := db.Exec(`
         DELETE FROM cascade_triggers
-        WHERE chat_id = ? AND search_phrase = ?
+        WHERE chat_id = ? AND responses = ?
     `, message.Chat.ID, triggerPhrase)
     
     if err != nil {
@@ -101,15 +108,16 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
     }
 
     if rowsAffected > 0 {
-        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Cascade trigger '%s' removed successfully!", triggerPhrase))
+        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Cascade trigger response '%s' removed successfully!", triggerPhrase))
         _, _ = bot.Send(msg)
     } else {
-        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("No cascade trigger found with the phrase '%s'.", triggerPhrase))
+        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("No cascade trigger found with the response '%s'.", triggerPhrase))
         _, _ = bot.Send(msg)
     }
 
     return nil
 }
+
 
 func allowedMessageType(message *tgbotapi.Message) bool {
 	if (message.ReplyToMessage.Game != nil){
