@@ -42,7 +42,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     }
 
     if message.ReplyToMessage.Text == ""{
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a text message. Media is not supported with triggers.")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a text message. Media is not supported with cascade triggers.")
         _, _ = bot.Send(msg)
         return nil
     }
