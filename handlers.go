@@ -780,14 +780,14 @@ func messageMatches(messageText, targetString string) bool {
 func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     log.Println("Handling /triggers command")
 
-    // Retrieve chat-specific triggers from the database
+    // Retrieve chat-specific trigger phrases from the database
     rows, err := db.Query(`
-        SELECT search_phrase
+        SELECT DISTINCT search_phrase
         FROM triggers
         WHERE chat_id = ? AND is_global = ?
     `, message.Chat.ID, false)
     if err != nil {
-        log.Printf("Error retrieving chat-specific triggers: %v", err)
+        log.Printf("Error retrieving chat-specific trigger phrases: %v", err)
         return err
     }
     defer rows.Close()
@@ -797,20 +797,20 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
         var searchPhrase string
         err := rows.Scan(&searchPhrase)
         if err != nil {
-            log.Printf("Error scanning chat-specific trigger: %v", err)
+            log.Printf("Error scanning chat-specific trigger phrase: %v", err)
             continue
         }
         chatSpecificTriggers = append(chatSpecificTriggers, searchPhrase)
     }
 
-    // Retrieve global triggers from the database
+    // Retrieve global trigger phrases from the database
     rows, err = db.Query(`
-        SELECT search_phrase
+        SELECT DISTINCT search_phrase
         FROM triggers
         WHERE is_global = ?
     `, true)
     if err != nil {
-        log.Printf("Error retrieving global triggers: %v", err)
+        log.Printf("Error retrieving global trigger phrases: %v", err)
         return err
     }
     defer rows.Close()
@@ -820,44 +820,48 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
         var searchPhrase string
         err := rows.Scan(&searchPhrase)
         if err != nil {
-            log.Printf("Error scanning global trigger: %v", err)
+            log.Printf("Error scanning global trigger phrase: %v", err)
             continue
         }
         globalTriggers = append(globalTriggers, searchPhrase)
     }
 
-    // Retrieve cascade triggers from the database
+    // Retrieve cascade trigger phrases from the database
     rows, err = db.Query(`
-        SELECT DISTINCT responses
+        SELECT DISTINCT search_phrase
         FROM cascade_triggers
         WHERE chat_id = ?
     `, message.Chat.ID)
     if err != nil {
-        log.Printf("Error retrieving cascade triggers: %v", err)
+        log.Printf("Error retrieving cascade trigger phrases: %v", err)
         return err
     }
     defer rows.Close()
 
     cascadeTriggers := []string{}
     for rows.Next() {
-        var triggerPhrase string
-        err := rows.Scan(&triggerPhrase)
+        var searchPhrase string
+        err := rows.Scan(&searchPhrase)
         if err != nil {
-            log.Printf("Error scanning cascade trigger: %v", err)
+            log.Printf("Error scanning cascade trigger phrase: %v", err)
             continue
         }
-        cascadeTriggers = append(cascadeTriggers, triggerPhrase)
+        cascadeTriggers = append(cascadeTriggers, searchPhrase)
     }
 
     localTriggersStr := strings.Join(chatSpecificTriggers, ", ")
-    globalTriggersJoined := strings.Join(globalTriggers, ", ")
-    cascadeTriggersJoined := strings.Join(cascadeTriggers, ", ")
+    globalTriggersStr := strings.Join(globalTriggers, ", ")
+    cascadeTriggersStr := strings.Join(cascadeTriggers, ", ")
 
     response := fmt.Sprintf("Local Triggers:\n%s\n\nGlobal Triggers:\n%s\n\nCascade Triggers:\n%s",
-        localTriggersStr, globalTriggersJoined, cascadeTriggersJoined)
+        localTriggersStr, globalTriggersStr, cascadeTriggersStr)
 
     msg := tgbotapi.NewMessage(message.Chat.ID, response)
-    _, _ = bot.Send(msg)
+    _, err = bot.Send(msg)
+    if err != nil {
+        log.Printf("Error sending triggers message: %v", err)
+        return err
+    }
 
     return nil
 }
