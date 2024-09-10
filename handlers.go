@@ -26,6 +26,47 @@ type SampleSize struct {
 	Low, Medium, High int
 }
 
+type CascadeTrigger struct {
+    ID           int
+    SearchPhrase string
+    Responses    []string
+}
+
+// Add this function to handle the /addc command
+func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    if message.ReplyToMessage == nil {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message with the trigger phrase.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
+
+    triggerPhrase := message.ReplyToMessage.Text
+    responses := strings.Split(message.CommandArguments(), "|")
+
+    if len(responses) == 0 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Please provide at least one response separated by '|'.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
+
+    // Insert the cascade trigger into the database
+    _, err := db.Exec(`
+        INSERT INTO cascade_triggers (chat_id, search_phrase, responses)
+        VALUES (?, ?, ?)
+    `, message.Chat.ID, triggerPhrase, strings.Join(responses, "|"))
+
+    if err != nil {
+        log.Printf("Error inserting cascade trigger: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Failed to add cascade trigger.")
+        _, _ = bot.Send(msg)
+        return err
+    }
+
+    msg := tgbotapi.NewMessage(message.Chat.ID, "Cascade trigger added successfully!")
+    _, _ = bot.Send(msg)
+    return nil
+}
+
 func allowedMessageType(message *tgbotapi.Message) bool {
 	if (message.ReplyToMessage.Game != nil){
 		return false
@@ -480,6 +521,10 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
         return handleRoll4(bot, message)
     }
 
+    if message.Command() == "addc" {
+        return handleAddCascadeCommand(bot, message, db)
+    }
+
 	currentTime, _ := getCurrentTimeForLocation("America/Los Angeles")
 	currentTimeMoscow, _ := getCurrentTimeForLocation("Europe/Moscow")
     currentTimeNewYork, _ := getCurrentTimeForLocation("America/New York")
@@ -623,6 +668,22 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 			}
 		}
 	}
+
+    // Process cascade triggers
+    var cascadeTrigger CascadeTrigger
+    err := db.QueryRow(`
+        SELECT id, search_phrase, responses
+        FROM cascade_triggers
+        WHERE chat_id = ? AND search_phrase = ?
+    `, message.Chat.ID, message.Text).Scan(&cascadeTrigger.ID, &cascadeTrigger.SearchPhrase, &cascadeTrigger.Responses)
+
+    if err == nil {
+        responses := strings.Split(cascadeTrigger.Responses[0], "|")
+        for _, response := range responses {
+            msg := tgbotapi.NewMessage(message.Chat.ID, response)
+            _, _ = bot.Send(msg)
+        }
+    }
 
 	if message.From.ID == 578801 {
 		rand.Seed(time.Now().UnixNano())
