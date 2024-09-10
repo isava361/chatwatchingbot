@@ -41,28 +41,45 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     }
 
     triggerPhrase := message.ReplyToMessage.Text
-    responses := strings.Split(message.CommandArguments(), "|")
+    newResponses := strings.Split(message.CommandArguments(), "|")
 
-    if len(responses) == 0 {
+    if len(newResponses) == 0 {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Please provide at least one response separated by '|'.")
         _, _ = bot.Send(msg)
         return nil
     }
 
-    // Insert the cascade trigger into the database
-    _, err := db.Exec(`
-        INSERT INTO cascade_triggers (chat_id, search_phrase, responses)
-        VALUES (?, ?, ?)
-    `, message.Chat.ID, triggerPhrase, strings.Join(responses, "|"))
+    // Check if the trigger already exists
+    var existingResponses string
+    err := db.QueryRow(`
+        SELECT responses FROM cascade_triggers
+        WHERE chat_id = ? AND search_phrase = ?
+    `, message.Chat.ID, triggerPhrase).Scan(&existingResponses)
+
+    if err == sql.ErrNoRows {
+        // Insert new cascade trigger
+        _, err = db.Exec(`
+            INSERT INTO cascade_triggers (chat_id, search_phrase, responses)
+            VALUES (?, ?, ?)
+        `, message.Chat.ID, triggerPhrase, strings.Join(newResponses, "|"))
+    } else if err == nil {
+        // Append to existing trigger
+        allResponses := append(strings.Split(existingResponses, "|"), newResponses...)
+        _, err = db.Exec(`
+            UPDATE cascade_triggers
+            SET responses = ?
+            WHERE chat_id = ? AND search_phrase = ?
+        `, strings.Join(allResponses, "|"), message.Chat.ID, triggerPhrase)
+    }
 
     if err != nil {
-        log.Printf("Error inserting cascade trigger: %v", err)
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Failed to add cascade trigger.")
+        log.Printf("Error updating cascade trigger: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Failed to update cascade trigger.")
         _, _ = bot.Send(msg)
         return err
     }
 
-    msg := tgbotapi.NewMessage(message.Chat.ID, "Cascade trigger added successfully!")
+    msg := tgbotapi.NewMessage(message.Chat.ID, "Cascade trigger updated successfully!")
     _, _ = bot.Send(msg)
     return nil
 }
@@ -670,19 +687,21 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	}
 
     // Process cascade triggers
-    var cascadeTrigger CascadeTrigger
-    err = db.QueryRow(`
-        SELECT id, search_phrase, responses
+    // Process cascade triggers
+    var responses string
+    err := db.QueryRow(`
+        SELECT responses
         FROM cascade_triggers
         WHERE chat_id = ? AND search_phrase = ?
-    `, message.Chat.ID, message.Text).Scan(&cascadeTrigger.ID, &cascadeTrigger.SearchPhrase, &cascadeTrigger.Responses)
+    `, message.Chat.ID, message.Text).Scan(&responses)
 
     if err == nil {
-        responses := strings.Split(cascadeTrigger.Responses[0], "|")
-        for _, response := range responses {
+        responseList := strings.Split(responses, "|")
+        for _, response := range responseList {
             msg := tgbotapi.NewMessage(message.Chat.ID, response)
             _, _ = bot.Send(msg)
         }
+        return nil // Return after processing cascade trigger
     }
 
 	if message.From.ID == 578801 {
