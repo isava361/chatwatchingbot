@@ -671,7 +671,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 
     // Process cascade triggers
     var cascadeTrigger CascadeTrigger
-    err := db.QueryRow(`
+    err = db.QueryRow(`
         SELECT id, search_phrase, responses
         FROM cascade_triggers
         WHERE chat_id = ? AND search_phrase = ?
