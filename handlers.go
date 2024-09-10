@@ -68,6 +68,40 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     return nil
 }
 
+func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    if message.ReplyToMessage == nil {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message with the trigger phrase to remove.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
+
+    triggerPhrase := message.ReplyToMessage.Text
+
+    // Remove the cascade trigger from the database
+    result, err := db.Exec(`
+        DELETE FROM cascade_triggers
+        WHERE chat_id = ? AND search_phrase = ?
+    `, message.Chat.ID, triggerPhrase)
+    
+    if err != nil {
+        log.Printf("Error removing cascade trigger: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Failed to remove cascade trigger.")
+        _, _ = bot.Send(msg)
+        return err
+    }
+
+    rowsAffected, _ := result.RowsAffected()
+    if rowsAffected > 0 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Cascade trigger removed successfully!")
+        _, _ = bot.Send(msg)
+    } else {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "No cascade trigger found with that phrase.")
+        _, _ = bot.Send(msg)
+    }
+
+    return nil
+}
+
 func allowedMessageType(message *tgbotapi.Message) bool {
 	if (message.ReplyToMessage.Game != nil){
 		return false
@@ -526,6 +560,10 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
         return handleAddCascadeCommand(bot, message, db)
     }
 
+    if message.Command() == "removec" {
+        return handleRemoveCascadeCommand(bot, message, db)
+    }
+
 	currentTime, _ := getCurrentTimeForLocation("America/Los Angeles")
 	currentTimeMoscow, _ := getCurrentTimeForLocation("Europe/Moscow")
     currentTimeNewYork, _ := getCurrentTimeForLocation("America/New York")
@@ -788,10 +826,36 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
         globalTriggers = append(globalTriggers, searchPhrase)
     }
 
+    // Retrieve cascade triggers from the database
+    rows, err = db.Query(`
+        SELECT search_phrase, responses
+        FROM cascade_triggers
+        WHERE chat_id = ?
+    `, message.Chat.ID)
+    if err != nil {
+        log.Printf("Error retrieving cascade triggers: %v", err)
+        return err
+    }
+    defer rows.Close()
+
+    cascadeTriggers := make(map[string]string)
+    for rows.Next() {
+        var searchPhrase, responses string
+        err := rows.Scan(&searchPhrase, &responses)
+        if err != nil {
+            log.Printf("Error scanning cascade trigger: %v", err)
+            continue
+        }
+        cascadeTriggers[responses] = searchPhrase
+    }
+
     localTriggersStr := strings.Join(chatSpecificTriggers, ", ")
     globalTriggersJoined := strings.Join(globalTriggers, ", ")
 
-    response := "Local Triggers:\n" + localTriggersStr + "\n\nGlobal Triggers:\n" + globalTriggersJoined
+    response := "Local Triggers:\n" + localTriggersStr + "\n\nGlobal Triggers:\n" + globalTriggersJoined + "\n\nCascade Triggers:\n"
+    for trigger, response := range cascadeTriggers {
+        response += fmt.Sprintf("%s: %s\n", trigger, response)
+    }
 
     msg := tgbotapi.NewMessage(message.Chat.ID, response)
     _, _ = bot.Send(msg)
