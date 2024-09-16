@@ -34,27 +34,30 @@ type CascadeTrigger struct {
 
 func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool, bool, error) {
     var normalCount, cascadeCount int
-    
+    // Convert searchPhrase to lowercase for consistent comparison
+    searchPhrase = strings.ToLower(searchPhrase)
+
     err := db.QueryRow(`
         SELECT COUNT(*) FROM triggers 
-        WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+        WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?) AND is_global = ?
     `, chatID, searchPhrase, false).Scan(&normalCount)
-    
+
     if err != nil {
         return false, false, err
     }
-    
+
     err = db.QueryRow(`
         SELECT COUNT(*) FROM cascade_triggers 
-        WHERE chat_id = ? AND search_phrase = ?
+        WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?)
     `, chatID, searchPhrase).Scan(&cascadeCount)
-    
+
     if err != nil {
         return false, false, err
     }
-    
+
     return normalCount > 0, cascadeCount > 0, nil
 }
+
 
 
 // Add this function to handle the /addc command
@@ -65,14 +68,15 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         return nil
     }
 
-    if message.ReplyToMessage.Text == ""{
+    if message.ReplyToMessage.Text == "" {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a text message. Media is not supported with cascade triggers.")
         _, _ = bot.Send(msg)
         return nil
     }
 
-    triggerPhrase := message.ReplyToMessage.Text
-    newResponse := message.CommandArguments()
+    // Convert triggerPhrase and newResponse to lowercase
+    triggerPhrase := strings.ToLower(message.ReplyToMessage.Text)
+    newResponse := strings.ToLower(message.CommandArguments())
 
     // Check if any type of trigger already exists
     normalExists, _, err := checkTriggerExistence(db, message.Chat.ID, newResponse)
@@ -93,7 +97,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         return nil
     }
 
-    // Insert new cascade trigger
+    // Insert new cascade trigger with lowercase search_phrase and responses
     _, err = db.Exec(`
         INSERT INTO cascade_triggers (chat_id, search_phrase, responses)
         VALUES (?, ?, ?)
@@ -110,6 +114,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     _, _ = bot.Send(msg)
     return nil
 }
+
 
 func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Check if the message is a reply
@@ -181,18 +186,28 @@ func messageContains(messageText, targetString string) bool {
     return strings.Contains(lowercaseMessage, lowercaseTarget)
 }
 
+func messageMatches(messageText, targetString string) bool {
+    // Normalize both strings to NFC form and convert to lowercase
+    normalizedMessage := strings.ToLower(norm.NFC.String(messageText))
+    normalizedTarget := strings.ToLower(norm.NFC.String(targetString))
+
+    return normalizedMessage == normalizedTarget
+}
+
+
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     if message.From.ID == 89886125 {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Дима саси жопу")
         bot.Send(msg)
         return nil
     }
-    removeSearchPhrase := message.CommandArguments()
+    // Convert removeSearchPhrase to lowercase
+    removeSearchPhrase := strings.ToLower(message.CommandArguments())
 
-    // Delete the trigger from the database
+    // Delete the trigger from the database using case-insensitive comparison
     result, err := db.Exec(`
         DELETE FROM triggers
-        WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+        WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?) AND is_global = ?
     `, message.Chat.ID, removeSearchPhrase, false)
     if err != nil {
         log.Printf("Error deleting trigger: %v", err)
@@ -211,6 +226,7 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sq
     return nil
 }
 
+
 func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Check if the message comes from the allowed user
     if message.From.ID != int64(193117018) {
@@ -219,12 +235,13 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
         return nil
     }
 
-    removeSearchPhrase := message.CommandArguments()
+    // Convert removeSearchPhrase to lowercase
+    removeSearchPhrase := strings.ToLower(message.CommandArguments())
 
-    // Delete the global trigger from the database
+    // Delete the global trigger from the database using case-insensitive comparison
     result, err := db.Exec(`
         DELETE FROM triggers
-        WHERE search_phrase = ? AND is_global = ?
+        WHERE LOWER(search_phrase) = LOWER(?) AND is_global = ?
     `, removeSearchPhrase, true)
     if err != nil {
         log.Printf("Error deleting global trigger: %v", err)
@@ -244,6 +261,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 }
 
 
+
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 
     if message.From.ID == 89886125 {
@@ -252,7 +270,8 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
         return nil
     }
 
-    newSearchPhrase := message.CommandArguments()
+    // Convert newSearchPhrase to lowercase
+    newSearchPhrase := strings.ToLower(message.CommandArguments())
 
     // Check if any type of trigger already exists
     _, cascadeExists, err := checkTriggerExistence(db, message.Chat.ID, newSearchPhrase)
@@ -271,7 +290,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
     var count int
     err = db.QueryRow(`
         SELECT COUNT(*) FROM triggers
-        WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+        WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?) AND is_global = ?
     `, message.Chat.ID, newSearchPhrase, false).Scan(&count)
     if err != nil {
         log.Printf("Error checking trigger existence: %v", err)
@@ -287,13 +306,12 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
     }
     newMyResponse.SearchPhrase = newSearchPhrase
 
-
     if count > 0 {
-        // Update the trigger in the database
+        // Update the trigger in the database with lowercase search_phrase
         _, err = db.Exec(`
             UPDATE triggers 
             SET response = ?, file_type = ?, file_id = ?, file_name = ? 
-            WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
+            WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?) AND is_global = ?
         `, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, message.Chat.ID, newMyResponse.SearchPhrase, false)
         if err != nil {
             log.Printf("Error updating trigger: %v", err)
@@ -306,7 +324,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
         return nil
     }
 
-    // Insert the trigger into the database
+    // Insert the trigger into the database with lowercase search_phrase
     _, err = db.Exec(`
         INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, is_global)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -321,6 +339,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
 
     return nil
 }
+
 
 func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Check if the message comes from the allowed user
@@ -840,15 +859,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 
 	return nil
 }
-
-func messageMatches(messageText, targetString string) bool {
-	// Normalize both strings to NFC form and convert to lowercase
-	normalizedMessage := strings.ToLower(norm.NFC.String(messageText))
-	normalizedTarget := strings.ToLower(norm.NFC.String(targetString))
-
-	return normalizedMessage == normalizedTarget
-}
-
 
 func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     log.Println("Handling /triggers command")
