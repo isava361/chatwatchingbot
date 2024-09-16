@@ -802,10 +802,10 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 
     // Process cascade triggers (Case-Insensitive)
     rows, err = db.Query(`
-        SELECT responses
-        FROM cascade_triggers
-        WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?)
-    `, message.Chat.ID, message.Text)
+    SELECT responses
+    FROM cascade_triggers
+    WHERE chat_id = ? AND search_phrase COLLATE NOCASE = ?
+`, message.Chat.ID, message.Text)
 
 
     if err != nil {
