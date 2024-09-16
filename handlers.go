@@ -800,13 +800,13 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		}
 	}
 
-    // Process cascade triggers
-    // Process cascade triggers
+    // Process cascade triggers (SQLite Case-Insensitive)
     rows, err = db.Query(`
         SELECT responses
         FROM cascade_triggers
-        WHERE chat_id = ? AND search_phrase = ?
+        WHERE chat_id = ? AND search_phrase = ? COLLATE NOCASE
     `, message.Chat.ID, message.Text)
+
 
     if err != nil {
         log.Printf("Error querying cascade triggers: %v", err)
