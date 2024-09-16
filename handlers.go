@@ -76,7 +76,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 
     // Convert triggerPhrase and newResponse to lowercase
     triggerPhrase := strings.ToLower(message.ReplyToMessage.Text)
-    newResponse := strings.ToLower(message.CommandArguments())
+    newResponse := message.CommandArguments()
 
     // Check if any type of trigger already exists
     normalExists, _, err := checkTriggerExistence(db, message.Chat.ID, newResponse)
