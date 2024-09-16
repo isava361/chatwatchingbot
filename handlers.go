@@ -805,7 +805,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
     SELECT responses
     FROM cascade_triggers
     WHERE chat_id = ? AND search_phrase COLLATE NOCASE = ?
-`, message.Chat.ID, message.Text)
+    `, message.Chat.ID, message.Text)
 
 
     if err != nil {
