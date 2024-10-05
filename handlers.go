@@ -47,7 +47,7 @@ func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool,
     }
 
     err = db.QueryRow(`
-        SELECT COUNT(*) FROM cascade_triggers 
+        SELECT COUNT(*) FROM cascade_triggers2 
         WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?)
     `, chatID, searchPhrase).Scan(&cascadeCount)
 
@@ -62,109 +62,267 @@ func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool,
 
 // Add this function to handle the /addc command
 func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    // Проверка, что команда была отправлена в ответ на сообщение
     if message.ReplyToMessage == nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message with the trigger phrase.")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение с фразой-триггером при добавлении каскадного триггера.")
         _, _ = bot.Send(msg)
         return nil
     }
 
-    if message.ReplyToMessage.Text == "" {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a text message. Media is not supported with cascade triggers.")
+    // Извлечение фразы-триггера из исходного сообщения
+    triggerPhrase := ""
+    if message.ReplyToMessage.Text != "" {
+        triggerPhrase = strings.ToLower(message.ReplyToMessage.Text)
+    } else if message.ReplyToMessage.Caption != "" {
+        triggerPhrase = strings.ToLower(message.ReplyToMessage.Caption)
+    } else {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Исходное сообщение должно содержать текст или подпись к медиа.")
         _, _ = bot.Send(msg)
         return nil
     }
 
-    // Convert triggerPhrase and newResponse to lowercase
-    triggerPhrase := strings.ToLower(message.ReplyToMessage.Text)
-    newResponse := message.CommandArguments()
+    // Извлечение аргументов команды как строки ответов, разделённых ';'
+    newResponsesArg := message.CommandArguments()
+    if newResponsesArg == "" {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте ответы после команды, разделяя их ';'.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
 
-    // Check if any type of trigger already exists
-    normalExists, _, err := checkTriggerExistence(db, message.Chat.ID, newResponse)
+    // Проверка существования обычного триггера с такой же фразой
+    normalExists, _, err := checkTriggerExistence(db, message.Chat.ID, triggerPhrase)
     if err != nil {
         log.Printf("Error checking trigger existence: %v", err)
         return err
     }
 
     if normalExists {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "A normal trigger with this phrase already exists.")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Обычный триггер с этой фразой уже существует. Невозможно создать каскадный триггер с такой же фразой.")
         _, _ = bot.Send(msg)
         return nil
     }
 
-    if newResponse == "" {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Please provide a response after the command.")
-        _, _ = bot.Send(msg)
-        return nil
-    }
-
-    // Insert new cascade trigger with lowercase search_phrase and responses
-    _, err = db.Exec(`
-        INSERT INTO cascade_triggers (chat_id, search_phrase, responses)
-        VALUES (?, ?, ?)
-    `, message.Chat.ID, newResponse, triggerPhrase)
-
+    // Вставка нового каскадного триггера
+    result, err := db.Exec(`
+        INSERT INTO cascade_triggers2 (chat_id, search_phrase)
+        VALUES (?, ?)
+    `, message.Chat.ID, triggerPhrase)
     if err != nil {
         log.Printf("Error inserting cascade trigger: %v", err)
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Failed to add cascade trigger.")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Не удалось добавить каскадный триггер.")
         _, _ = bot.Send(msg)
         return err
     }
 
-    msg := tgbotapi.NewMessage(message.Chat.ID, "Cascade trigger added successfully!")
+    cascadeTriggerID, err := result.LastInsertId()
+    if err != nil {
+        log.Printf("Error getting last insert ID: %v", err)
+        return err
+    }
+
+    // Обработка нескольких ответов, разделённых ';'
+    responses := strings.Split(newResponsesArg, ";")
+    for _, resp := range responses {
+        resp = strings.TrimSpace(resp)
+        if resp == "" {
+            continue
+        }
+
+        // Создание MyResponse из каждого ответа
+        myResponse, err := createMyResponseFromCascade(bot, message, resp)
+        if err != nil {
+            log.Printf("Error creating MyResponse for cascade: %v", err)
+            continue
+        }
+
+        // Вставка ответа в таблицу cascade_trigger_responses
+        _, err = db.Exec(`
+            INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name)
+            VALUES (?, ?, ?, ?, ?)
+        `, cascadeTriggerID, myResponse.Response, myResponse.FileType, myResponse.FileID, myResponse.FileName)
+
+        if err != nil {
+            log.Printf("Error inserting cascade trigger response: %v", err)
+            continue
+        }
+    }
+
+    msg := tgbotapi.NewMessage(message.Chat.ID, "Каскадный триггер добавлен успешно!")
     _, _ = bot.Send(msg)
     return nil
 }
 
+func createMyResponseFromCascade(bot *tgbotapi.BotAPI, message *tgbotapi.Message, responseArg string) (MyResponse, error) {
+    var myResponse MyResponse
 
-func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-    // Check if the message is a reply
-    if message.ReplyToMessage == nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a bot's message with /removec to remove the cascade trigger.")
-        _, _ = bot.Send(msg)
-        return nil
-    }
+    // Проверяем, содержит ли ответ медиа, используя специальный формат
+    // Формат: <тип медиа>:<file_id>:<текст>
+    parts := strings.SplitN(responseArg, ":", 3)
+    if len(parts) >= 2 {
+        mediaType := strings.ToLower(strings.TrimSpace(parts[0]))
+        fileID := strings.TrimSpace(parts[1])
+        caption := ""
+        if len(parts) == 3 {
+            caption = strings.TrimSpace(parts[2])
+        }
 
-    // Check if the replied message is from the bot
-    if message.ReplyToMessage.From.UserName != bot.Self.UserName {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to a message from the bot to remove the cascade trigger.")
-        _, _ = bot.Send(msg)
-        return nil
-    }
+        myResponse.Response = caption
 
-    // Get the trigger phrase from the replied message
-    triggerPhrase := message.ReplyToMessage.Text
-
-    // Remove the cascade trigger from the database
-    result, err := db.Exec(`
-        DELETE FROM cascade_triggers
-        WHERE chat_id = ? AND responses = ?
-    `, message.Chat.ID, triggerPhrase)
-    
-    if err != nil {
-        log.Printf("Error removing cascade trigger: %v", err)
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Failed to remove cascade trigger. Please try again.")
-        _, _ = bot.Send(msg)
-        return err
-    }
-
-    rowsAffected, err := result.RowsAffected()
-    if err != nil {
-        log.Printf("Error getting rows affected: %v", err)
-        msg := tgbotapi.NewMessage(message.Chat.ID, "An error occurred while removing the cascade trigger.")
-        _, _ = bot.Send(msg)
-        return err
-    }
-
-    if rowsAffected > 0 {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Cascade trigger response removed successfully!")
-        _, _ = bot.Send(msg)
+        switch mediaType {
+        case "photo":
+            myResponse.FileType = FilePhoto
+            myResponse.FileID = fileID
+        case "gif":
+            myResponse.FileType = FileGIF
+            myResponse.FileID = fileID
+        case "sticker":
+            myResponse.FileType = FileSticker
+            myResponse.FileID = fileID
+        case "voice":
+            myResponse.FileType = FileVoice
+            myResponse.FileID = fileID
+        case "video":
+            myResponse.FileType = FileVideo
+            myResponse.FileID = fileID
+        case "document":
+            myResponse.FileType = FileDocument
+            myResponse.FileID = fileID
+        case "videonote":
+            myResponse.FileType = FileVideoNote
+            myResponse.FileID = fileID
+        case "audio":
+            myResponse.FileType = FileAudio
+            myResponse.FileID = fileID
+        default:
+            // Если тип медиа не распознан, считаем это текстовым ответом
+            myResponse.Response = responseArg
+        }
     } else {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "No cascade trigger found with this response.")
-        _, _ = bot.Send(msg)
+        // Если нет медиа, считаем это текстовым ответом
+        myResponse.Response = responseArg
+    }
+
+    return myResponse, nil
+}
+
+func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    lowerMessageText := strings.ToLower(message.Text)
+
+    // Получение каскадных триггеров для данного чата, соответствующих полученному сообщению
+    rows, err := db.Query(`
+        SELECT ct.id, ct.search_phrase, ctr.response, ctr.file_type, ctr.file_id, ctr.file_name
+        FROM cascade_triggers2 ct
+        JOIN cascade_trigger_responses ctr ON ct.id = ctr.cascade_trigger_id
+        WHERE ct.chat_id = ? AND ct.search_phrase = ?
+    `, message.Chat.ID, lowerMessageText)
+
+    if err != nil {
+        log.Printf("Error querying cascade triggers: %v", err)
+        return err
+    }
+    defer rows.Close()
+
+    var responses []MyResponse
+    for rows.Next() {
+        var response MyResponse
+        var fileType, fileID, fileName sql.NullString
+        err := rows.Scan(&response.ID, &response.SearchPhrase, &response.Response, &fileType, &fileID, &fileName)
+        if err != nil {
+            log.Printf("Error scanning cascade trigger response: %v", err)
+            continue
+        }
+        response.FileType = FileType(fileType.String)
+        response.FileID = fileID.String
+        response.FileName = fileName.String
+        responses = append(responses, response)
+    }
+
+    if len(responses) > 0 {
+        for _, resp := range responses {
+            chattableResponse, err := buildChattableResponse(message, resp)
+            if err != nil {
+                log.Printf("Error building chattable response for cascade trigger: %v", err)
+                continue
+            }
+
+            _, err = bot.Send(chattableResponse)
+            if err != nil {
+                log.Printf("Error sending cascade trigger response: %v", err)
+                continue
+            }
+        }
     }
 
     return nil
 }
+
+func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+    // Проверка, что сообщение является ответом
+    if message.ReplyToMessage == nil {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение бота с командой /removec для удаления каскадного триггера.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
+
+    // Проверка, что ответное сообщение от бота
+    if message.ReplyToMessage.From.UserName != bot.Self.UserName {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение от бота для удаления каскадного триггера.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
+
+    // Получение фразы-триггера из ответного сообщения
+    triggerPhrase := strings.ToLower(message.ReplyToMessage.Text)
+    if triggerPhrase == "" {
+        triggerPhrase = strings.ToLower(message.ReplyToMessage.Caption)
+    }
+
+    // Поиск ID каскадного триггера
+    var triggerID int64
+    err := db.QueryRow(`
+        SELECT id FROM cascade_triggers2
+        WHERE chat_id = ? AND search_phrase = ?
+    `, message.Chat.ID, triggerPhrase).Scan(&triggerID)
+
+    if err != nil {
+        if err == sql.ErrNoRows {
+            msg := tgbotapi.NewMessage(message.Chat.ID, "Каскадный триггер с данной фразой не найден.")
+            _, _ = bot.Send(msg)
+            return nil
+        }
+        log.Printf("Error querying cascade trigger ID: %v", err)
+        return err
+    }
+
+    // Удаление ответов каскадного триггера
+    _, err = db.Exec(`
+        DELETE FROM cascade_trigger_responses
+        WHERE cascade_trigger_id = ?
+    `, triggerID)
+    if err != nil {
+        log.Printf("Error deleting cascade trigger responses: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Не удалось удалить ответы каскадного триггера.")
+        _, _ = bot.Send(msg)
+        return err
+    }
+
+    // Удаление самого каскадного триггера
+    _, err = db.Exec(`
+        DELETE FROM cascade_triggers2
+        WHERE id = ?
+    `, triggerID)
+    if err != nil {
+        log.Printf("Error deleting cascade trigger: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Не удалось удалить каскадный триггер.")
+        _, _ = bot.Send(msg)
+        return err
+    }
+
+    msg := tgbotapi.NewMessage(message.Chat.ID, "Каскадный триггер удален успешно!")
+    _, _ = bot.Send(msg)
+    return nil
+}
+
 
 
 func allowedMessageType(message *tgbotapi.Message) bool {
@@ -801,36 +959,10 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	}
 
     // Process cascade triggers (Case-Insensitive)
-    lowerMessageText := strings.ToLower(message.Text)
-    rows, err = db.Query(`
-    SELECT responses
-    FROM cascade_triggers
-    WHERE chat_id = ? AND search_phrase COLLATE NOCASE = ?
-    `, message.Chat.ID, lowerMessageText)
-
-
+    err := handleCascadeTriggers(bot, message, db)
     if err != nil {
-        log.Printf("Error querying cascade triggers: %v", err)
+        log.Printf("Error handling cascade triggers: %v", err)
         return err
-    }
-    defer rows.Close()
-
-    var responses []string
-    for rows.Next() {
-        var response string
-        if err := rows.Scan(&response); err != nil {
-            log.Printf("Error scanning cascade trigger response: %v", err)
-            continue
-        }
-        responses = append(responses, response)
-    }
-
-    if len(responses) > 0 {
-        for _, response := range responses {
-            msg := tgbotapi.NewMessage(message.Chat.ID, response)
-            _, _ = bot.Send(msg)
-        }
-        return nil // Return after processing cascade triggers
     }
 
 	if message.From.ID == 578801 {
@@ -913,7 +1045,7 @@ func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
     // Retrieve cascade trigger phrases from the database
     rows, err = db.Query(`
         SELECT DISTINCT search_phrase
-        FROM cascade_triggers
+        FROM cascade_triggers2
         WHERE chat_id = ?
     `, message.Chat.ID)
     if err != nil {
