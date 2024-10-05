@@ -959,7 +959,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	}
 
     // Process cascade triggers (Case-Insensitive)
-    err := handleCascadeTriggers(bot, message, db)
+    err = handleCascadeTriggers(bot, message, db)
     if err != nil {
         log.Printf("Error handling cascade triggers: %v", err)
         return err
