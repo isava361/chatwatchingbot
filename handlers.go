@@ -273,32 +273,21 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
 }
 
 
+// Обновлённая функция handleRemoveCascadeCommand
 func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-    // Проверка, что сообщение является ответом
-    if message.ReplyToMessage == nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение бота с командой /removec для удаления каскадного триггера.")
-        _, _ = bot.Send(msg)
-        return nil
-    }
-
-    // Проверка, что ответное сообщение от бота
-    if message.ReplyToMessage.From.UserName != bot.Self.UserName {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение от бота для удаления каскадного триггера.")
-        _, _ = bot.Send(msg)
-        return nil
-    }
-
-    // Получение фразы-триггера из ответного сообщения
-    triggerPhrase := strings.ToLower(message.ReplyToMessage.Text)
+    // Извлечение ключевой фразы из аргументов команды
+    triggerPhrase := strings.ToLower(strings.TrimSpace(message.CommandArguments()))
     if triggerPhrase == "" {
-        triggerPhrase = strings.ToLower(message.ReplyToMessage.Caption)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте ключевую фразу после команды /removec.\nПример: /removec тест")
+        _, _ = bot.Send(msg)
+        return nil
     }
 
     // Поиск ID каскадного триггера
     var triggerID int64
     err := db.QueryRow(`
         SELECT id FROM cascade_triggers2
-        WHERE chat_id = ? AND search_phrase = ?
+        WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?)
     `, message.Chat.ID, triggerPhrase).Scan(&triggerID)
 
     if err != nil {
@@ -308,6 +297,8 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
             return nil
         }
         log.Printf("Error querying cascade trigger ID: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Произошла ошибка при попытке удалить каскадный триггер.")
+        _, _ = bot.Send(msg)
         return err
     }
 
@@ -335,10 +326,11 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
         return err
     }
 
-    msg := tgbotapi.NewMessage(message.Chat.ID, "Каскадный триггер удален успешно!")
+    msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Каскадный триггер с фразой '%s' удалён успешно!", triggerPhrase))
     _, _ = bot.Send(msg)
     return nil
 }
+
 
 
 
