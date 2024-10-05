@@ -61,17 +61,17 @@ func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool,
 
 
 // Add this function to handle the /addc command
-// Исправленная функция handleAddCascadeCommand
+// Обновлённая функция handleAddCascadeCommand
 func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Проверка, что команда была отправлена в ответ на сообщение
     if message.ReplyToMessage == nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение с фразой, которую хотите использовать в качестве ответа при добавлении каскадного триггера.")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение, которое хотите использовать в качестве ответа при добавлении каскадного триггера.")
         _, _ = bot.Send(msg)
         return nil
     }
 
     // Извлечение ключевой фразы из аргументов команды
-    triggerPhrase := strings.ToLower(message.CommandArguments())
+    triggerPhrase := strings.ToLower(strings.TrimSpace(message.CommandArguments()))
     if triggerPhrase == "" {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте ключевую фразу после команды /addc.")
         _, _ = bot.Send(msg)
@@ -79,16 +79,14 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     }
 
     // Извлечение ответов из исходного сообщения
+    // Ответ может содержать текст, подпись или только медиа без подписи
     responsesArg := ""
     if message.ReplyToMessage.Text != "" {
         responsesArg = strings.ToLower(message.ReplyToMessage.Text)
     } else if message.ReplyToMessage.Caption != "" {
         responsesArg = strings.ToLower(message.ReplyToMessage.Caption)
-    } else {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Исходное сообщение должно содержать текст или подпись к медиа.")
-        _, _ = bot.Send(msg)
-        return nil
     }
+    // Если ни текст, ни подпись отсутствуют, responsesArg останется пустым
 
     // Проверка существования обычного триггера с такой же фразой
     normalExists, _, err := checkTriggerExistence(db, message.Chat.ID, triggerPhrase)
@@ -138,11 +136,8 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     responses := strings.Split(responsesArg, ";")
     for _, resp := range responses {
         resp = strings.TrimSpace(resp)
-        if resp == "" {
-            continue
-        }
-
-        // Создание MyResponse из каждого ответа
+        // В данном случае resp может быть пустым, если исходное сообщение содержит только медиа без текста и подписи
+        // Поэтому создадим ответ на основе исходного сообщения
         myResponse, err := createMyResponseFromCascade(bot, message.ReplyToMessage)
         if err != nil {
             log.Printf("Error creating MyResponse for cascade: %v", err)
@@ -166,21 +161,18 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     return nil
 }
 
+// Обновлённая функция createMyResponseFromCascade
 func createMyResponseFromCascade(bot *tgbotapi.BotAPI, repliedMessage *tgbotapi.Message) (MyResponse, error) {
     var myResponse MyResponse
 
-    // Проверяем, содержит ли ответ медиа, используя специальный формат
-    // Формат: <тип медиа>:<file_id>:<текст>
-    // Если вы хотите поддерживать только один тип медиа из ответа, можно убрать этот формат
-    // В данном случае предполагается, что ответ — это само сообщение, на которое вы отвечаете
-
+    // Извлечение текста или подписи, если они есть
     if repliedMessage.Text != "" {
         myResponse.Response = repliedMessage.Text
     } else if repliedMessage.Caption != "" {
         myResponse.Response = repliedMessage.Caption
     }
 
-    // Определяем тип медиа и извлекаем file_id, если есть
+    // Определение типа медиа и извлечение file_id, если медиа присутствует
     switch {
     case len(repliedMessage.Photo) > 0:
         myResponse.FileType = FilePhoto
@@ -213,20 +205,26 @@ func createMyResponseFromCascade(bot *tgbotapi.BotAPI, repliedMessage *tgbotapi.
     return myResponse, nil
 }
 
-
+// Обновлённая функция handleCascadeTriggers
 func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-    // Определяем, является ли сообщение текстовым или содержит подпись к медиа
+    // Определяем содержимое сообщения: текст или подпись к медиа
     var messageContent string
     if message.Text != "" {
         messageContent = strings.ToLower(message.Text)
     } else if message.Caption != "" {
         messageContent = strings.ToLower(message.Caption)
+    } else if len(message.Photo) > 0 || message.Animation != nil || message.Voice != nil ||
+        message.Sticker != nil || message.Video != nil || message.Document != nil ||
+        message.Audio != nil || message.VideoNote != nil {
+        // Если сообщение содержит медиа без текста и подписи, используем пустую строку как content
+        messageContent = ""
     } else {
-        // Если нет текста или подписи, то триггер не срабатывает
+        // Если нет текста, подписи и медиа, то триггер не срабатывает
         return nil
     }
 
     // Получение каскадных триггеров для данного чата, соответствующих полученному сообщению
+    // Если messageContent пустая, ищем триггеры с пустой search_phrase (если такие есть)
     rows, err := db.Query(`
         SELECT ct.id, ct.search_phrase, ctr.response, ctr.file_type, ctr.file_id, ctr.file_name
         FROM cascade_triggers2 ct
