@@ -95,31 +95,7 @@ func main() {
 		log.Fatalf("Error creating triggers table: %v", err)
 	}
 
-	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS cascade_triggers2 (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		chat_id INTEGER,
-		search_phrase TEXT
-	)
-	`)
-	if err != nil {
-	log.Fatalf("Error creating cascade_triggers2 table: %v", err)
-	}
-
-	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS cascade_trigger_responses (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		cascade_trigger_id INTEGER,
-		response TEXT,
-		file_type TEXT,
-		file_id TEXT,
-		file_name TEXT,
-		FOREIGN KEY(cascade_trigger_id) REFERENCES cascade_triggers2(id)
-	)
-	`)
-	if err != nil {
-	log.Fatalf("Error creating cascade_trigger_responses table: %v", err)
-	}
+	createCascadeTables (db)
 
 
 	_, err = db.Exec(`
@@ -181,4 +157,32 @@ func main() {
 			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 		}
 	}
+}
+
+func createCascadeTables(db *sql.DB) {
+    _, err := db.Exec(`
+        CREATE TABLE IF NOT EXISTS cascade_triggers2 (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER,
+            search_phrase TEXT
+        )
+    `)
+    if err != nil {
+        log.Fatalf("Error creating cascade_triggers table: %v", err)
+    }
+
+    _, err = db.Exec(`
+        CREATE TABLE IF NOT EXISTS cascade_trigger_responses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cascade_trigger_id INTEGER,
+            response TEXT,
+            file_type TEXT,
+            file_id TEXT,
+            file_name TEXT,
+            FOREIGN KEY(cascade_trigger_id) REFERENCES cascade_triggers(id)
+        )
+    `)
+    if err != nil {
+        log.Fatalf("Error creating cascade_trigger_responses table: %v", err)
+    }
 }

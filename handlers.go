@@ -61,30 +61,31 @@ func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool,
 
 
 // Add this function to handle the /addc command
+// Исправленная функция handleAddCascadeCommand
 func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Проверка, что команда была отправлена в ответ на сообщение
     if message.ReplyToMessage == nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение с фразой-триггером при добавлении каскадного триггера.")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение с фразой, которую хотите использовать в качестве ответа при добавлении каскадного триггера.")
         _, _ = bot.Send(msg)
         return nil
     }
 
-    // Извлечение фразы-триггера из исходного сообщения
-    triggerPhrase := ""
+    // Извлечение ключевой фразы из аргументов команды
+    triggerPhrase := strings.ToLower(message.CommandArguments())
+    if triggerPhrase == "" {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте ключевую фразу после команды /addc.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
+
+    // Извлечение ответов из исходного сообщения
+    responsesArg := ""
     if message.ReplyToMessage.Text != "" {
-        triggerPhrase = strings.ToLower(message.ReplyToMessage.Text)
+        responsesArg = strings.ToLower(message.ReplyToMessage.Text)
     } else if message.ReplyToMessage.Caption != "" {
-        triggerPhrase = strings.ToLower(message.ReplyToMessage.Caption)
+        responsesArg = strings.ToLower(message.ReplyToMessage.Caption)
     } else {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Исходное сообщение должно содержать текст или подпись к медиа.")
-        _, _ = bot.Send(msg)
-        return nil
-    }
-
-    // Извлечение аргументов команды как строки ответов, разделённых ';'
-    newResponsesArg := message.CommandArguments()
-    if newResponsesArg == "" {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте ответы после команды, разделяя их ';'.")
         _, _ = bot.Send(msg)
         return nil
     }
@@ -98,6 +99,19 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 
     if normalExists {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Обычный триггер с этой фразой уже существует. Невозможно создать каскадный триггер с такой же фразой.")
+        _, _ = bot.Send(msg)
+        return nil
+    }
+
+    // Проверка существования каскадного триггера с такой же фразой
+    cascadeExists, _, err := checkTriggerExistence(db, message.Chat.ID, triggerPhrase)
+    if err != nil {
+        log.Printf("Error checking cascade trigger existence: %v", err)
+        return err
+    }
+
+    if cascadeExists {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Каскадный триггер с этой фразой уже существует. Невозможно создать ещё один.")
         _, _ = bot.Send(msg)
         return nil
     }
@@ -121,7 +135,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     }
 
     // Обработка нескольких ответов, разделённых ';'
-    responses := strings.Split(newResponsesArg, ";")
+    responses := strings.Split(responsesArg, ";")
     for _, resp := range responses {
         resp = strings.TrimSpace(resp)
         if resp == "" {
@@ -129,7 +143,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         }
 
         // Создание MyResponse из каждого ответа
-        myResponse, err := createMyResponseFromCascade(bot, message, resp)
+        myResponse, err := createMyResponseFromCascade(bot, message.ReplyToMessage)
         if err != nil {
             log.Printf("Error creating MyResponse for cascade: %v", err)
             continue
@@ -152,61 +166,65 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     return nil
 }
 
-func createMyResponseFromCascade(bot *tgbotapi.BotAPI, message *tgbotapi.Message, responseArg string) (MyResponse, error) {
+func createMyResponseFromCascade(bot *tgbotapi.BotAPI, repliedMessage *tgbotapi.Message) (MyResponse, error) {
     var myResponse MyResponse
 
     // Проверяем, содержит ли ответ медиа, используя специальный формат
     // Формат: <тип медиа>:<file_id>:<текст>
-    parts := strings.SplitN(responseArg, ":", 3)
-    if len(parts) >= 2 {
-        mediaType := strings.ToLower(strings.TrimSpace(parts[0]))
-        fileID := strings.TrimSpace(parts[1])
-        caption := ""
-        if len(parts) == 3 {
-            caption = strings.TrimSpace(parts[2])
-        }
+    // Если вы хотите поддерживать только один тип медиа из ответа, можно убрать этот формат
+    // В данном случае предполагается, что ответ — это само сообщение, на которое вы отвечаете
 
-        myResponse.Response = caption
+    if repliedMessage.Text != "" {
+        myResponse.Response = repliedMessage.Text
+    } else if repliedMessage.Caption != "" {
+        myResponse.Response = repliedMessage.Caption
+    }
 
-        switch mediaType {
-        case "photo":
-            myResponse.FileType = FilePhoto
-            myResponse.FileID = fileID
-        case "gif":
-            myResponse.FileType = FileGIF
-            myResponse.FileID = fileID
-        case "sticker":
-            myResponse.FileType = FileSticker
-            myResponse.FileID = fileID
-        case "voice":
-            myResponse.FileType = FileVoice
-            myResponse.FileID = fileID
-        case "video":
-            myResponse.FileType = FileVideo
-            myResponse.FileID = fileID
-        case "document":
-            myResponse.FileType = FileDocument
-            myResponse.FileID = fileID
-        case "videonote":
-            myResponse.FileType = FileVideoNote
-            myResponse.FileID = fileID
-        case "audio":
-            myResponse.FileType = FileAudio
-            myResponse.FileID = fileID
-        default:
-            // Если тип медиа не распознан, считаем это текстовым ответом
-            myResponse.Response = responseArg
-        }
-    } else {
-        // Если нет медиа, считаем это текстовым ответом
-        myResponse.Response = responseArg
+    // Определяем тип медиа и извлекаем file_id, если есть
+    switch {
+    case len(repliedMessage.Photo) > 0:
+        myResponse.FileType = FilePhoto
+        myResponse.FileID = repliedMessage.Photo[len(repliedMessage.Photo)-1].FileID
+    case repliedMessage.Animation != nil:
+        myResponse.FileType = FileGIF
+        myResponse.FileID = repliedMessage.Animation.FileID
+    case repliedMessage.Voice != nil:
+        myResponse.FileType = FileVoice
+        myResponse.FileID = repliedMessage.Voice.FileID
+    case repliedMessage.Sticker != nil:
+        myResponse.FileType = FileSticker
+        myResponse.FileID = repliedMessage.Sticker.FileID
+    case repliedMessage.Video != nil:
+        myResponse.FileType = FileVideo
+        myResponse.FileID = repliedMessage.Video.FileID
+    case repliedMessage.Document != nil:
+        myResponse.FileType = FileDocument
+        myResponse.FileID = repliedMessage.Document.FileID
+    case repliedMessage.Audio != nil:
+        myResponse.FileType = FileAudio
+        myResponse.FileID = repliedMessage.Audio.FileID
+    case repliedMessage.VideoNote != nil:
+        myResponse.FileType = FileVideoNote
+        myResponse.FileID = repliedMessage.VideoNote.FileID
+    default:
+        myResponse.FileType = ""
     }
 
     return myResponse, nil
 }
 
+
 func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-    lowerMessageText := strings.ToLower(message.Text)
+    // Определяем, является ли сообщение текстовым или содержит подпись к медиа
+    var messageContent string
+    if message.Text != "" {
+        messageContent = strings.ToLower(message.Text)
+    } else if message.Caption != "" {
+        messageContent = strings.ToLower(message.Caption)
+    } else {
+        // Если нет текста или подписи, то триггер не срабатывает
+        return nil
+    }
 
     // Получение каскадных триггеров для данного чата, соответствующих полученному сообщению
     rows, err := db.Query(`
@@ -214,7 +232,7 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
         FROM cascade_triggers2 ct
         JOIN cascade_trigger_responses ctr ON ct.id = ctr.cascade_trigger_id
         WHERE ct.chat_id = ? AND ct.search_phrase = ?
-    `, message.Chat.ID, lowerMessageText)
+    `, message.Chat.ID, messageContent)
 
     if err != nil {
         log.Printf("Error querying cascade triggers: %v", err)
@@ -255,6 +273,7 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
 
     return nil
 }
+
 
 func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Проверка, что сообщение является ответом
