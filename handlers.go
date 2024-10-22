@@ -769,7 +769,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	receivedMessage := message.Text
 
 
-    if message.From.ID == 89886125 {
+    if message.From.ID == 89886125 || message.From.ID == 37796149 {
         return nil
     }
     
