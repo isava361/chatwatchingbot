@@ -768,6 +768,13 @@ type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *sql.DB) error
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	receivedMessage := message.Text
 
+
+    if message.From.ID == 89886125 {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Дима саси жопу")
+        bot.Send(msg)
+        return nil
+    }
+    
 	if message.NewChatMembers != nil {
 		if err := handleNewMember(bot, message); err != nil {
 			log.Printf("Error handling new member: %v", err)
