@@ -286,7 +286,7 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
     }
 
     // Извлечение ключевой фразы из аргументов команды
-    triggerPhrase := strings.ToLower(strings.TrimSpace(message.CommandArguments()))
+    triggerPhrase := strings.TrimSpace(message.CommandArguments())
     if triggerPhrase == "" {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте ключевую фразу после команды /removec.\nПример: /removec Привет")
         _, _ = bot.Send(msg)
@@ -296,9 +296,9 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
     // Извлечение содержимого сообщения, на которое отвечают
     var responseContent string
     if message.ReplyToMessage.Text != "" {
-        responseContent = strings.ToLower(strings.TrimSpace(message.ReplyToMessage.Text))
+        responseContent = strings.TrimSpace(message.ReplyToMessage.Text)
     } else if message.ReplyToMessage.Caption != "" {
-        responseContent = strings.ToLower(strings.TrimSpace(message.ReplyToMessage.Caption))
+        responseContent = strings.TrimSpace(message.ReplyToMessage.Caption)
     } else {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Сообщение, на которое вы отвечаете, не содержит текста или подписи.")
         _, _ = bot.Send(msg)
@@ -307,7 +307,7 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
 
     log.Printf("Попытка удалить ответ '%s' из каскадного триггера '%s' в чате %d", responseContent, triggerPhrase, message.Chat.ID)
 
-    // Поиск ID каскадного триггера по фразе
+    // Поиск ID каскадного триггера по фразе (без изменения регистра)
     var triggerID int64
     err := db.QueryRow(`
         SELECT id FROM cascade_triggers2
@@ -328,7 +328,7 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
 
     log.Printf("Найден triggerID: %d для фразы '%s'", triggerID, triggerPhrase)
 
-    // Поиск ID ответа, который нужно удалить
+    // Поиск ID ответа, который нужно удалить (без изменения регистра)
     var responseID int64
     err = db.QueryRow(`
         SELECT id FROM cascade_trigger_responses
@@ -398,6 +398,7 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
 
     return nil
 }
+
 
 
 
