@@ -161,26 +161,27 @@ func main() {
 
 func createCascadeTables(db *sql.DB) {
     _, err := db.Exec(`
-        CREATE TABLE IF NOT EXISTS cascade_triggers2 (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id INTEGER,
-            search_phrase TEXT
-        )
+		CREATE TABLE IF NOT EXISTS cascade_triggers2 (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			chat_id INTEGER NOT NULL,
+			search_phrase TEXT NOT NULL,
+			UNIQUE(chat_id, search_phrase)
+		);	
     `)
     if err != nil {
         log.Fatalf("Error creating cascade_triggers table: %v", err)
     }
 
     _, err = db.Exec(`
-        CREATE TABLE IF NOT EXISTS cascade_trigger_responses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cascade_trigger_id INTEGER,
-            response TEXT,
-            file_type TEXT,
-            file_id TEXT,
-            file_name TEXT,
-            FOREIGN KEY(cascade_trigger_id) REFERENCES cascade_triggers(id)
-        )
+		CREATE TABLE IF NOT EXISTS cascade_trigger_responses (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			cascade_trigger_id INTEGER NOT NULL,
+			response TEXT,
+			file_type TEXT,
+			file_id TEXT,
+			file_name TEXT,
+			FOREIGN KEY(cascade_trigger_id) REFERENCES cascade_triggers2(id) ON DELETE CASCADE
+		);	
     `)
     if err != nil {
         log.Fatalf("Error creating cascade_trigger_responses table: %v", err)
