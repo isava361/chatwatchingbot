@@ -770,8 +770,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 
 
     if message.From.ID == 89886125 {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Дима саси жопу")
-        bot.Send(msg)
         return nil
     }
     
