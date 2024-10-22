@@ -61,6 +61,7 @@ func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool,
 
 
 // Обновлённая функция handleAddCascadeCommand
+// Обновленная функция handleAddCascadeCommand
 func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Проверка, что команда была отправлена в ответ на сообщение
     if message.ReplyToMessage == nil {
@@ -158,7 +159,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     }
 
     // Обработка медиа-ответов
-    // Перебор различных типов медиа и добавление их как отдельных ответов
     mediaAdded := false
     mediaTypes := []struct {
         FileType string
@@ -281,8 +281,8 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         }
 
         // Если у медиа есть подпись, устанавливаем её как Response
-        if message.ReplyToMessage.Caption != "" && media.FileType == FilePhoto {
-            myResponse.Response = message.ReplyToMessage.Caption
+        if message.ReplyToMessage.Caption != "" && (media.FileType == string(FilePhoto) || media.FileType == string(FileVideo)) {
+            myResponse.Response = strings.TrimSpace(message.ReplyToMessage.Caption)
         }
 
         // Вставка ответа в таблицу
@@ -308,6 +308,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     _, _ = bot.Send(msg)
     return nil
 }
+
 
 
 
