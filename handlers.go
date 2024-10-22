@@ -303,14 +303,13 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
     responseToDelete := strings.ToLower(strings.Join(args[1:], " "))
 
     // 4. Извлечение текста или подписи из сообщения, на которое отвечает пользователь
-    var repliedContent string
     if message.ReplyToMessage.Text != "" {
-        repliedContent = strings.ToLower(message.ReplyToMessage.Text)
+        repliedContent := strings.ToLower(message.ReplyToMessage.Text)
     } else if message.ReplyToMessage.Caption != "" {
-        repliedContent = strings.ToLower(message.ReplyToMessage.Caption)
+        repliedContent := strings.ToLower(message.ReplyToMessage.Caption)
     } else {
         // Если сообщение содержит медиа без текста и подписи
-        repliedContent = ""
+        repliedContent := ""
     }
 
     // 5. Поиск ID каскадного триггера по фразе
