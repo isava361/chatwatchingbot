@@ -273,7 +273,7 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
 }
 
 
-// Обновлённая функция handleRemoveCascadeCommand
+// Обновленная функция handleRemoveCascadeCommand
 func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Проверка, что команда была отправлена в ответ на сообщение бота
     if message.ReplyToMessage == nil || message.ReplyToMessage.From == nil || !message.ReplyToMessage.From.IsBot {
@@ -345,10 +345,6 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
     _, _ = bot.Send(msg)
     return nil
 }
-
-
-
-
 
 
 
