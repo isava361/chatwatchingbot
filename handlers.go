@@ -273,46 +273,36 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
 }
 
 
-// Обновленная функция handleRemoveCascadeCommand
-// Обновленная функция handleRemoveCascadeCommand
+// Обновлённая функция handleRemoveCascadeCommand
 func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-    // 1. Проверка, что команда была отправлена в ответ на сообщение
+    // Проверка, что команда была отправлена в ответ на сообщение
     if message.ReplyToMessage == nil {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение от бота, которое хотите удалить, и используйте команду /removec с указанием триггерной фразы и ответа для удаления.\nПример: /removec Привет ТЕБЯ")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение, которое хотите удалить из каскадного триггера, и используйте команду /removec с указанием фразы триггера.\nПример: /removec Привет")
         _, _ = bot.Send(msg)
         return nil
     }
 
-    // 2. Проверка, что сообщение, на которое отвечают, отправлено ботом
-    if message.ReplyToMessage.From == nil || !message.ReplyToMessage.From.IsBot {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, используйте эту команду в ответ на сообщение от бота.")
+    // Извлечение ключевой фразы из аргументов команды
+    triggerPhrase := strings.ToLower(strings.TrimSpace(message.CommandArguments()))
+    if triggerPhrase == "" {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте ключевую фразу после команды /removec.\nПример: /removec Привет")
         _, _ = bot.Send(msg)
         return nil
     }
 
-    // 3. Извлечение ключевой фразы и ответа из аргументов команды
-    args := strings.Fields(message.CommandArguments())
-    if len(args) < 2 {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте триггерную фразу и ответ для удаления.\nПример: /removec Привет ТЕБЯ")
-        _, _ = bot.Send(msg)
-        return nil
-    }
-
-    // Объединение всех аргументов кроме первого для поддержки многословных триггерных фраз и ответов
-    triggerPhrase := strings.ToLower(args[0])
-    responseToDelete := strings.ToLower(strings.Join(args[1:], " "))
-
-    // 4. Извлечение текста или подписи из сообщения, на которое отвечает пользователь
+    // Извлечение содержимого сообщения, на которое отвечают
+    var responseContent string
     if message.ReplyToMessage.Text != "" {
-        repliedContent := strings.ToLower(message.ReplyToMessage.Text)
+        responseContent = strings.ToLower(strings.TrimSpace(message.ReplyToMessage.Text))
     } else if message.ReplyToMessage.Caption != "" {
-        repliedContent := strings.ToLower(message.ReplyToMessage.Caption)
+        responseContent = strings.ToLower(strings.TrimSpace(message.ReplyToMessage.Caption))
     } else {
-        // Если сообщение содержит медиа без текста и подписи
-        repliedContent := ""
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Сообщение, на которое вы отвечаете, не содержит текста или подписи.")
+        _, _ = bot.Send(msg)
+        return nil
     }
 
-    // 5. Поиск ID каскадного триггера по фразе
+    // Поиск ID каскадного триггера по фразе
     var triggerID int64
     err := db.QueryRow(`
         SELECT id FROM cascade_triggers2
@@ -321,64 +311,61 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
 
     if err != nil {
         if err == sql.ErrNoRows {
-            msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Каскадный триггер с фразой '%s' не найден.", triggerPhrase))
+            msg := tgbotapi.NewMessage(message.Chat.ID, "Каскадный триггер с данной фразой не найден.")
             _, _ = bot.Send(msg)
             return nil
         }
-        log.Printf("Ошибка при поиске триггера: %v", err)
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Произошла ошибка при попытке удалить каскадный триггер.")
+        log.Printf("Ошибка при поиске ID каскадного триггера: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Произошла ошибка при попытке удалить ответ каскадного триггера.")
         _, _ = bot.Send(msg)
         return err
     }
 
-    // 6. Поиск ID ответа, который нужно удалить
+    // Поиск ID ответа, который нужно удалить
     var responseID int64
     err = db.QueryRow(`
         SELECT id FROM cascade_trigger_responses
         WHERE cascade_trigger_id = ? AND LOWER(response) = LOWER(?)
         LIMIT 1
-    `, triggerID, responseToDelete).Scan(&responseID)
+    `, triggerID, responseContent).Scan(&responseID)
 
     if err != nil {
         if err == sql.ErrNoRows {
-            msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Ответ '%s' для триггера '%s' не найден.", responseToDelete, triggerPhrase))
+            msg := tgbotapi.NewMessage(message.Chat.ID, "Ответ с данным содержимым не найден в указанном каскадном триггере.")
             _, _ = bot.Send(msg)
             return nil
         }
-        log.Printf("Ошибка при поиске ответа триггера: %v", err)
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Произошла ошибка при попытке удалить ответ триггера.")
+        log.Printf("Ошибка при поиске ID ответа: %v", err)
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Произошла ошибка при попытке удалить ответ каскадного триггера.")
         _, _ = bot.Send(msg)
         return err
     }
 
-    // 7. Удаление найденного ответа
+    // Удаление конкретного ответа из каскадного триггера
     _, err = db.Exec(`
         DELETE FROM cascade_trigger_responses
         WHERE id = ?
     `, responseID)
     if err != nil {
-        log.Printf("Ошибка при удалении ответа триггера: %v", err)
+        log.Printf("Ошибка при удалении ответа каскадного триггера: %v", err)
         msg := tgbotapi.NewMessage(message.Chat.ID, "Не удалось удалить ответ каскадного триггера.")
         _, _ = bot.Send(msg)
         return err
     }
 
-    // 8. Проверка, остались ли еще ответы для этого триггера
-    var remaining int
+    // Проверка, остались ли ещё ответы в триггере
+    var remainingResponses int
     err = db.QueryRow(`
         SELECT COUNT(*) FROM cascade_trigger_responses
         WHERE cascade_trigger_id = ?
-    `, triggerID).Scan(&remaining)
-
+    `, triggerID).Scan(&remainingResponses)
     if err != nil {
-        log.Printf("Ошибка при подсчете оставшихся ответов триггера: %v", err)
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Произошла ошибка при проверке оставшихся ответов триггера.")
-        _, _ = bot.Send(msg)
+        log.Printf("Ошибка при проверке оставшихся ответов: %v", err)
         return err
     }
 
-    // 9. Если ответы отсутствуют, удалить сам триггер
-    if remaining == 0 {
+    // Если ответов больше нет, удалить сам триггер
+    if remainingResponses == 0 {
         _, err = db.Exec(`
             DELETE FROM cascade_triggers2
             WHERE id = ?
@@ -389,15 +376,18 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
             _, _ = bot.Send(msg)
             return err
         }
-        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Каскадный триггер с фразой '%s' удалён успешно!", triggerPhrase))
+        msgText := fmt.Sprintf("Ответ '%s' удалён из каскадного триггера '%s'.\nКаскадный триггер удалён, так как больше не содержит ответов.", responseContent, triggerPhrase)
+        msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
         _, _ = bot.Send(msg)
     } else {
-        msg := tgbotapi.NewMessage(message.Chat.ID, fmt.Sprintf("Ответ '%s' для триггера '%s' удалён успешно!", responseToDelete, triggerPhrase))
+        msgText := fmt.Sprintf("Ответ '%s' удалён из каскадного триггера '%s'.", responseContent, triggerPhrase)
+        msg := tgbotapi.NewMessage(message.Chat.ID, msgText)
         _, _ = bot.Send(msg)
     }
 
     return nil
 }
+
 
 
 
