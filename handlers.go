@@ -70,33 +70,18 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     }
 
     // Извлечение ключевой фразы из аргументов команды
-    triggerPhrase := strings.ToLower(strings.TrimSpace(message.CommandArguments()))
+    triggerPhrase := strings.TrimSpace(message.CommandArguments())
     if triggerPhrase == "" {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте ключевую фразу после команды /addc.")
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте ключевую фразу после команды /addc.\nПример: /addc Привет")
         _, _ = bot.Send(msg)
         return nil
     }
-
-    // Извлечение ответов из исходного сообщения
-    var responsesArg string
-    if message.ReplyToMessage.Text != "" {
-        responsesArg = strings.TrimSpace(message.ReplyToMessage.Text)
-    } else if message.ReplyToMessage.Caption != "" {
-        responsesArg = strings.TrimSpace(message.ReplyToMessage.Caption)
-    } else {
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Сообщение, на которое вы отвечаете, не содержит текста или подписи.")
-        _, _ = bot.Send(msg)
-        return nil
-    }
-
-    // Разделение ответов по переносу строки "\n"
-    responses := strings.Split(responsesArg, "\n")
 
     // Проверка существования каскадного триггера с такой же фразой
     var existingTriggerID int64
     err := db.QueryRow(`
         SELECT id FROM cascade_triggers2
-        WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?)
+        WHERE chat_id = ? AND search_phrase = ?
     `, message.Chat.ID, triggerPhrase).Scan(&existingTriggerID)
 
     if err != nil && err != sql.ErrNoRows {
@@ -129,39 +114,201 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         triggerID = existingTriggerID
     }
 
-    // Вставка каждого ответа в таблицу cascade_trigger_responses
-    for _, resp := range responses {
+    // Извлечение текстовых ответов из исходного сообщения
+    var (
+        responseText string
+        hasText      bool
+    )
+    if message.ReplyToMessage.Text != "" {
+        responseText = strings.TrimSpace(message.ReplyToMessage.Text)
+        hasText = true
+    } else if message.ReplyToMessage.Caption != "" {
+        responseText = strings.TrimSpace(message.ReplyToMessage.Caption)
+        hasText = true
+    }
+
+    // Разделение текстовых ответов по переносу строки "\n"
+    var textResponses []string
+    if hasText {
+        textResponses = strings.Split(responseText, "\n")
+    }
+
+    // Добавление текстовых ответов
+    for _, resp := range textResponses {
         resp = strings.TrimSpace(resp)
         if resp == "" {
             continue // Пропуск пустых ответов
         }
 
-        // Создание MyResponse из ответа
-        myResponse, err := createMyResponseFromCascade(bot, message.ReplyToMessage)
-        if err != nil {
-            log.Printf("Ошибка при создании MyResponse для каскадного триггера: %v", err)
-            continue
+        // Создание MyResponse с только текстом
+        myResponse := MyResponse{
+            SearchPhrase: triggerPhrase,
+            Response:     resp,
         }
 
-        // Переопределение текста ответа
-        myResponse.Response = resp
+        // Вставка ответа в таблицу
+        _, err = db.Exec(`
+            INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name)
+            VALUES (?, ?, ?, ?, ?)
+        `, triggerID, myResponse.Response, "", "", "")
+        if err != nil {
+            log.Printf("Ошибка при добавлении текстового ответа в каскадный триггер: %v", err)
+            continue
+        }
+    }
+
+    // Обработка медиа-ответов
+    // Перебор различных типов медиа и добавление их как отдельных ответов
+    mediaAdded := false
+    mediaTypes := []struct {
+        FileType string
+        FileID   string
+        FileName string
+    }{}
+
+    // Фото
+    for _, photo := range message.ReplyToMessage.Photo {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FilePhoto),
+            FileID:   photo.FileID,
+            FileName: "",
+        })
+    }
+
+    // Анимации (GIF)
+    if message.ReplyToMessage.Animation != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileGIF),
+            FileID:   message.ReplyToMessage.Animation.FileID,
+            FileName: "",
+        })
+    }
+
+    // Голосовые сообщения
+    if message.ReplyToMessage.Voice != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileVoice),
+            FileID:   message.ReplyToMessage.Voice.FileID,
+            FileName: "",
+        })
+    }
+
+    // Стикеры
+    if message.ReplyToMessage.Sticker != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileSticker),
+            FileID:   message.ReplyToMessage.Sticker.FileID,
+            FileName: "",
+        })
+    }
+
+    // Видео
+    if message.ReplyToMessage.Video != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileVideo),
+            FileID:   message.ReplyToMessage.Video.FileID,
+            FileName: "",
+        })
+    }
+
+    // Документы
+    if message.ReplyToMessage.Document != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileDocument),
+            FileID:   message.ReplyToMessage.Document.FileID,
+            FileName: message.ReplyToMessage.Document.FileName,
+        })
+    }
+
+    // Аудио
+    if message.ReplyToMessage.Audio != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileAudio),
+            FileID:   message.ReplyToMessage.Audio.FileID,
+            FileName: message.ReplyToMessage.Audio.FileName,
+        })
+    }
+
+    // Видеозаметки
+    if message.ReplyToMessage.VideoNote != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileVideoNote),
+            FileID:   message.ReplyToMessage.VideoNote.FileID,
+            FileName: "",
+        })
+    }
+
+    // Добавление медиа-ответов
+    for _, media := range mediaTypes {
+        myResponse := MyResponse{
+            SearchPhrase: triggerPhrase,
+            Response:     "", // По умолчанию пусто, можно добавить обработку подписей
+            FileType:     FileType(media.FileType),
+            FileID:       media.FileID,
+            FileName:     media.FileName,
+        }
+
+        // Если у медиа есть подпись, устанавливаем её как Response
+        if message.ReplyToMessage.Caption != "" && media.FileType == FilePhoto {
+            myResponse.Response = message.ReplyToMessage.Caption
+        }
 
         // Вставка ответа в таблицу
         _, err = db.Exec(`
             INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name)
             VALUES (?, ?, ?, ?, ?)
         `, triggerID, myResponse.Response, myResponse.FileType, myResponse.FileID, myResponse.FileName)
-
         if err != nil {
-            log.Printf("Ошибка при добавлении ответа в каскадный триггер: %v", err)
+            log.Printf("Ошибка при добавлении медиа-ответа в каскадный триггер: %v", err)
             continue
         }
+
+        mediaAdded = true
+    }
+
+    if !hasText && !mediaAdded {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Сообщение, на которое вы отвечаете, не содержит текста, подписи или поддерживаемых медиа.")
+        _, _ = bot.Send(msg)
+        return nil
     }
 
     msg := tgbotapi.NewMessage(message.Chat.ID, "Каскадный триггер добавлен успешно!")
     _, _ = bot.Send(msg)
     return nil
 }
+
 
 
 // Обновлённая функция createMyResponseFromCascade
