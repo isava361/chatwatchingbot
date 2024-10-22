@@ -401,6 +401,7 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
 
 
 
+
 func allowedMessageType(message *tgbotapi.Message) bool {
 	if (message.ReplyToMessage.Game != nil){
 		return false
