@@ -406,7 +406,7 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
 
     if len(responses) > 0 {
         for _, resp := range responses {
-            chattableResponse, err := buildChattableResponse(message, resp)
+            chattableResponse, err := buildCascadeChattableResponse(message, resp)
             if err != nil {
                 log.Printf("Error building chattable response for cascade trigger: %v", err)
                 continue
@@ -944,6 +944,42 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 	}
 }
 
+func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
+	if myResponse.FileType == FilePhoto {
+		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+        photoMsg.Caption = myResponse.Response
+		return photoMsg, nil
+	} else if myResponse.FileType == FileGIF {
+		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		gifMsg.Caption = myResponse.Response
+		return gifMsg, nil
+	} else if myResponse.FileType == FileVoice {
+		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		return voiceMsg, nil
+	} else if myResponse.FileType == FileSticker {
+    	stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	return stickerMsg, nil
+    } else if myResponse.FileType == FileVideo {
+    	videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		videoMsg.Caption = myResponse.Response
+    	return videoMsg, nil
+    } else if myResponse.FileType == FileDocument {
+    	documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		documentMsg.Caption = myResponse.Response
+    	return documentMsg, nil
+    } else if myResponse.FileType == FileVideoNote {
+    	videonoteMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	return videonoteMsg, nil
+    } else if myResponse.FileType == FileAudio {
+    	audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		audioMsg.Caption = myResponse.Response
+    	return audioMsg, nil
+    } else {
+		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
+		return textMsg, nil
+	}
+}
+
 func handleChatIDCommand (bot *tgbotapi.BotAPI, message *tgbotapi.Message){
 	chatid := "This chat ID is: " + strconv.FormatInt(message.Chat.ID, 10)
 	msg := tgbotapi.NewMessage(message.Chat.ID, chatid)
@@ -958,9 +994,9 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	receivedMessage := message.Text
 
 
-    if message.From.ID == 89886125 {
-        return nil
-    }
+//    if message.From.ID == 89886125 {
+//        return nil
+//    }
     
 	if message.NewChatMembers != nil {
 		if err := handleNewMember(bot, message); err != nil {
