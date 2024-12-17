@@ -1403,32 +1403,30 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
     }
 
     // Example of handling specific user ID with random responses
-    if message.From.ID == 578801 {
-        rand.Seed(time.Now().UnixNano())
+	if message.From.ID == 578801 {
+		rand.Seed(time.Now().UnixNano())
 
-        var vasyaMsg *tgbotapi.MessageConfig
-        if message.Photo == nil &&
-            message.Animation == nil &&
-            message.Sticker == nil &&
-            message.Voice == nil &&
-            message.Video == nil &&
-            message.Document == nil &&
-            message.VideoNote == nil &&
-            message.Audio == nil {
-            if rand.Float32() < 0.01 {
-                vasyaMsg = tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
-            }
-        } else {
-            if rand.Float32() < 0.01 {
-                vasyaMsg = tgbotapi.NewMessage(message.Chat.ID, "хуйню прислал")
-            }
-        }
-
-        if vasyaMsg != nil {
-            vasyaMsg.ReplyToMessageID = message.MessageID
-            bot.Send(vasyaMsg)
-        }
-    }
+		if message.Photo == nil && 
+		   message.Animation == nil && 
+		   message.Sticker == nil && 
+		   message.Voice == nil && 
+		   message.Video == nil && 
+		   message.Document == nil && 
+		   message.VideoNote == nil && 
+		   message.Audio == nil {
+			if rand.Float32() < 0.01 {
+				vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
+				vasyaMsg.ReplyToMessageID = message.MessageID
+				bot.Send(vasyaMsg)
+			}
+		} else {
+			if rand.Float32() < 0.01 {
+				vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню прислал")
+				vasyaMsg.ReplyToMessageID = message.MessageID
+				bot.Send(vasyaMsg)
+			}
+		}
+	}
 
     return nil
 }
