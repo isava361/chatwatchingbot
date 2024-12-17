@@ -951,13 +951,6 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 
 // Updated function to build chattable responses with Entities as a slice
 func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
-    // Deserialize entities if they exist
-    var entities []tgbotapi.MessageEntity
-    err := json.Unmarshal([]byte(myResponse.Entities), &entities)
-    if err != nil {
-        log.Printf("Error unmarshalling entities: %v", err)
-        // Proceed without entities if there's an error
-    }
 
     // Reconstruct formatted text using entities
     formattedText := myResponse.Response
@@ -968,14 +961,12 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         photoMsg.ReplyToMessageID = message.MessageID
         photoMsg.Caption = formattedText
-        photoMsg.Entities = myResponse.Entities
         return photoMsg, nil
 
     case FileGIF:
         gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         gifMsg.ReplyToMessageID = message.MessageID
         gifMsg.Caption = formattedText
-        gifMsg.Entities = myResponse.Entities
         return gifMsg, nil
 
     case FileVoice:
@@ -992,14 +983,12 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         videoMsg.ReplyToMessageID = message.MessageID
         videoMsg.Caption = formattedText
-        videoMsg.Entities = myResponse.Entities
         return videoMsg, nil
 
     case FileDocument:
         documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         documentMsg.ReplyToMessageID = message.MessageID
         documentMsg.Caption = formattedText
-        documetnMsg.Entities = myResponse.Entities
         return documentMsg, nil
 
     case FileVideoNote:
@@ -1011,7 +1000,6 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         audioMsg.ReplyToMessageID = message.MessageID
         audioMsg.Caption = formattedText
-        audioMsg.Entities = myResponse.Entities
         return audioMsg, nil
 
     default:
@@ -1044,13 +1032,11 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
     case FilePhoto:
         photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         photoMsg.Caption = formattedText
-        photoMsg.Entities = myResponse.Entities
         return photoMsg, nil
 
     case FileGIF:
         gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         gifMsg.Caption = formattedText
-        gifMsg.Entities = myResponse.Entities
         return gifMsg, nil
 
     case FileVoice:
@@ -1064,13 +1050,11 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
     case FileVideo:
         videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         videoMsg.Caption = formattedText
-        videoMsg.Entities = myResponse.Entities
         return videoMsg, nil
 
     case FileDocument:
         documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         documentMsg.Caption = formattedText
-        documentMsg.Entities = myResponse.Entities
         return documentMsg, nil
 
     case FileVideoNote:
@@ -1081,7 +1065,6 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
     case FileAudio:
         audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         audioMsg.Caption = formattedText
-        audioMsg.Entities = myResponse.Entities
         return audioMsg, nil
 
     default:
