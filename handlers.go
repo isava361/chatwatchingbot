@@ -19,6 +19,7 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "errors"
 "sort"
 "golang.org/x/text/unicode/norm"
+"unicode/utf8"
 )
 
 // SampleSize represents the sample sizes for different risk categories.
@@ -738,6 +739,12 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 }
 
 func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
+    response := myResponse.Response
+    if !utf8.ValidString(response) {
+        response = strings.ToValidUTF8(response, "")
+    }
+    myResponse.Response = response
+    
     parseMode := myResponse.ParseMode // use stored parse mode, typically "HTML"
 
     switch myResponse.FileType {
@@ -795,6 +802,12 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 
 
 func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
+    response := myResponse.Response
+    if !utf8.ValidString(response) {
+        response = strings.ToValidUTF8(response, "")
+    }
+    myResponse.Response = response
+    
     parseMode := myResponse.ParseMode
 
     switch myResponse.FileType {
