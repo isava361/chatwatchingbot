@@ -26,6 +26,7 @@ type MyResponse struct {
     FileType     FileType `json:"fileType,omitempty"`
     FileID       string   `json:"fileID,omitempty"`
     FileName     string   `json:"filename,omitempty"`
+	Entities     string   `json:"entities,omitempty"`
 }
 
 
@@ -76,7 +77,8 @@ func main() {
         file_type TEXT,
         file_id TEXT,
         file_name TEXT,
-        is_global BOOLEAN
+        is_global BOOLEAN,
+		entities TEXT
     	)
 	`)
 	if err != nil {
@@ -180,6 +182,7 @@ func createCascadeTables(db *sql.DB) {
 			file_type TEXT,
 			file_id TEXT,
 			file_name TEXT,
+			entities TEXT,
 			FOREIGN KEY(cascade_trigger_id) REFERENCES cascade_triggers2(id) ON DELETE CASCADE
 		);	
     `)
