@@ -853,12 +853,6 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
     return nil
 }
 
-
-import (
-    "encoding/json"
-    "log"
-)
-
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
     var myResponse MyResponse
 
