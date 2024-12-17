@@ -62,14 +62,14 @@ func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool,
 
 // Обновленная функция handleAddCascadeCommand
 func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-    // Проверка, что команда была отправлена в ответ на сообщение
+    // Check that the command was sent in reply to a message
     if message.ReplyToMessage == nil {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение, которое хотите использовать в качестве ответа при добавлении каскадного триггера.\nПример: /addc Привет")
         _, _ = bot.Send(msg)
         return nil
     }
 
-    // Извлечение ключевой фразы из аргументов команды
+    // Extract the trigger phrase
     triggerPhrase := strings.TrimSpace(message.CommandArguments())
     if triggerPhrase == "" {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте ключевую фразу после команды /addc.\nПример: /addc Привет")
@@ -77,7 +77,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         return nil
     }
 
-    // Проверка существования каскадного триггера с такой же фразой
+    // Check if cascade trigger already exists
     var existingTriggerID int64
     err := db.QueryRow(`
         SELECT id FROM cascade_triggers2
@@ -91,6 +91,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 
     var triggerID int64
     if err == sql.ErrNoRows {
+        // Insert a new cascade trigger
         result, err := db.Exec(`
             INSERT INTO cascade_triggers2 (chat_id, search_phrase)
             VALUES (?, ?)
@@ -111,7 +112,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         triggerID = existingTriggerID
     }
 
-    // Create a response from the replied message with formatting
+    // Create a response from the replied message
     myResponse, err := createMyResponse(bot, message)
     if err != nil {
         log.Printf("Error creating MyResponse: %v", err)
@@ -121,6 +122,12 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     }
     myResponse.SearchPhrase = triggerPhrase
 
+    // Validate UTF-8 before inserting
+    if !utf8.ValidString(myResponse.Response) {
+        myResponse.Response = strings.ToValidUTF8(myResponse.Response, "")
+    }
+
+    // Insert the cascade response
     _, err = db.Exec(`
         INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name, parse_mode)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -136,6 +143,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     _, _ = bot.Send(msg)
     return nil
 }
+
 
 
 
@@ -554,6 +562,11 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
     }
     newMyResponse.SearchPhrase = newSearchPhrase
 
+    // Validate UTF-8 before inserting/updating
+    if !utf8.ValidString(newMyResponse.Response) {
+        newMyResponse.Response = strings.ToValidUTF8(newMyResponse.Response, "")
+    }
+
     if count > 0 {
         _, err = db.Exec(`
             UPDATE triggers 
@@ -584,6 +597,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
 
     return nil
 }
+
 
 
 
@@ -744,7 +758,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         response = strings.ToValidUTF8(response, "")
     }
     myResponse.Response = response
-    
+
     parseMode := myResponse.ParseMode // use stored parse mode, typically "HTML"
 
     switch myResponse.FileType {
