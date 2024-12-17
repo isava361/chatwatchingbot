@@ -26,6 +26,7 @@ type MyResponse struct {
     FileType     FileType `json:"fileType,omitempty"`
     FileID       string   `json:"fileID,omitempty"`
     FileName     string   `json:"filename,omitempty"`
+	ParseMode    string // Add this field
 }
 
 
