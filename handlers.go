@@ -2055,3 +2055,35 @@ func handleRoll4(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
 
     return nil
 }
+
+func applyEntitiesToText(text string, entities []tgbotapi.MessageEntity) string {
+    // Sort entities by offset in descending order
+    sort.Slice(entities, func(i, j int) bool {
+        return entities[i].Offset > entities[j].Offset
+    })
+
+    for _, entity := range entities {
+        start := entity.Offset
+        end := entity.Offset + entity.Length
+
+        switch entity.Type {
+        case "bold":
+            text = text[:start] + "**" + text[start:end] + "**" + text[end:]
+        case "italic":
+            text = text[:start] + "*" + text[start:end] + "*" + text[end:]
+        case "code":
+            text = text[:start] + "`" + text[start:end] + "`" + text[end:]
+        case "pre":
+            text = text[:start] + "```" + text[start:end] + "```" + text[end:]
+        case "url":
+            url := entity.URL
+            linkText := text[start:end]
+            text = text[:start] + "[" + linkText + "](" + url + ")" + text[end:]
+        // Add more cases as needed
+        default:
+            // Unsupported entity type; skip formatting
+        }
+    }
+
+    return text
+}
