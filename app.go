@@ -151,7 +151,7 @@ func main() {
 			}
 
 			log.Printf("Message received")
-			log.Printf("Entities: %+v", message.ReplyToMessage.Entities)
+			log.Printf("Entities: %+v", m.ReplyToMessage.Entities)
 			err := handleMessage(bot, m, db)
 			if err != nil {
 				log.Printf("[%s] %s,   err: %s", update.Message.From.UserName, update.Message.Text, err.Error())
