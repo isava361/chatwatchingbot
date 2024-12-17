@@ -1009,7 +1009,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         return documentMsg, nil
 
     case FileVideoNote:
-        videoNoteMsg := tgbotapi.NewVideoNote(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+        videoNoteMsg := tgbotapi.NewVideoNote(message.Chat.ID, 60, tgbotapi.FileID(myResponse.FileID))
         videoNoteMsg.ReplyToMessageID = message.MessageID
         return videoNoteMsg, nil
 
@@ -1098,7 +1098,7 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
         return documentMsg, nil
 
     case FileVideoNote:
-        videoNoteMsg := tgbotapi.NewVideoNote(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+        videoNoteMsg := tgbotapi.NewVideoNote(message.Chat.ID, 60, tgbotapi.FileID(myResponse.FileID))
         videoNoteMsg.ReplyToMessageID = message.MessageID
         return videoNoteMsg, nil
 
