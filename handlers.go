@@ -62,6 +62,7 @@ func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool,
 
 
 // Обновлённая функция handleAddCascadeCommand
+// Updated function to handle adding cascade triggers with entities as a slice
 func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Ensure the command is a reply to a message
     if message.ReplyToMessage == nil {
@@ -86,8 +87,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         message.Chat.ID, triggerPhrase).Scan(&existingTriggerID)
 
     if err != nil && err != sql.ErrNoRows {
-        log.Printf("Error checking trigger existence: %v", err)
-        return err
+        return false, false, err
     }
 
     var triggerID int64
@@ -128,18 +128,12 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         hasText = true
     }
 
-    // Serialize entities to JSON if they exist
-    var entitiesJSON string
+    // Assign entities directly if they exist
+    var entities []tgbotapi.MessageEntity
     if len(message.ReplyToMessage.Entities) > 0 {
-        entitiesBytes, err := json.Marshal(message.ReplyToMessage.Entities)
-        if err != nil {
-            log.Printf("Error marshalling entities: %v", err)
-            entitiesJSON = ""
-        } else {
-            entitiesJSON = string(entitiesBytes)
-        }
+        entities = message.ReplyToMessage.Entities
     } else {
-        entitiesJSON = ""
+        entities = []tgbotapi.MessageEntity{}
     }
 
     // Split text responses by newline
@@ -159,14 +153,28 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         myResponse := MyResponse{
             SearchPhrase: triggerPhrase,
             Response:     resp,
-            Entities:     entitiesJSON, // Include entities
+            Entities:     entities, // Assign slice directly
+        }
+
+        // Marshal entities to JSON string for database storage
+        var entitiesJSON string
+        if len(myResponse.Entities) > 0 {
+            bytes, err := json.Marshal(myResponse.Entities)
+            if err != nil {
+                log.Printf("Error marshalling entities: %v", err)
+                entitiesJSON = ""
+            } else {
+                entitiesJSON = string(bytes)
+            }
+        } else {
+            entitiesJSON = ""
         }
 
         // Insert response into the cascade_trigger_responses table
         _, err = db.Exec(
             `INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name, entities)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            triggerID, myResponse.Response, "", "", "", myResponse.Entities)
+            triggerID, myResponse.Response, "", "", "", entitiesJSON)
         if err != nil {
             log.Printf("Error adding text response to cascade trigger: %v", err)
             continue
@@ -293,7 +301,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
             FileType:     FileType(media.FileType),
             FileID:       media.FileID,
             FileName:     media.FileName,
-            Entities:     entitiesJSON, // Include entities
+            Entities:     entities, // Assign slice directly
         }
 
         // If media has a caption, set it as the response
@@ -301,11 +309,25 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
             myResponse.Response = strings.TrimSpace(message.ReplyToMessage.Caption)
         }
 
+        // Marshal entities to JSON string for database storage
+        var entitiesJSONMedia string
+        if len(myResponse.Entities) > 0 {
+            bytes, err := json.Marshal(myResponse.Entities)
+            if err != nil {
+                log.Printf("Error marshalling entities: %v", err)
+                entitiesJSONMedia = ""
+            } else {
+                entitiesJSONMedia = string(bytes)
+            }
+        } else {
+            entitiesJSONMedia = ""
+        }
+
         // Insert into the database
         _, err = db.Exec(
             `INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name, entities)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            triggerID, myResponse.Response, myResponse.FileType, myResponse.FileID, myResponse.FileName, myResponse.Entities)
+            triggerID, myResponse.Response, myResponse.FileType, myResponse.FileID, myResponse.FileName, entitiesJSONMedia)
         if err != nil {
             log.Printf("Error adding media response to cascade trigger: %v", err)
             continue
@@ -326,22 +348,26 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 }
 
 
-
-
-
-
 // Обновлённая функция createMyResponseFromCascade
+// Updated function to create MyResponse from cascade triggers with Entities as a slice
 func createMyResponseFromCascade(bot *tgbotapi.BotAPI, repliedMessage *tgbotapi.Message) (MyResponse, error) {
     var myResponse MyResponse
 
-    // Извлечение текста или подписи, если они есть
+    // Extract text or caption
     if repliedMessage.Text != "" {
         myResponse.Response = repliedMessage.Text
     } else if repliedMessage.Caption != "" {
         myResponse.Response = repliedMessage.Caption
     }
 
-    // Определение типа медиа и извлечение file_id, если медиа присутствует
+    // Assign entities directly if they exist
+    if len(repliedMessage.Entities) > 0 {
+        myResponse.Entities = repliedMessage.Entities
+    } else {
+        myResponse.Entities = []tgbotapi.MessageEntity{}
+    }
+
+    // Determine media type and set FileType and FileID
     switch {
     case len(repliedMessage.Photo) > 0:
         myResponse.FileType = FilePhoto
@@ -374,7 +400,8 @@ func createMyResponseFromCascade(bot *tgbotapi.BotAPI, repliedMessage *tgbotapi.
     return myResponse, nil
 }
 
-// Обновлённая функция handleCascadeTriggers
+
+// Updated function to handle cascade triggers with Entities as a slice
 func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Determine the content of the message: text or caption
     var messageContent string
@@ -419,7 +446,18 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
         response.FileType = FileType(fileType)
         response.FileID = fileID
         response.FileName = fileName
-        response.Entities = entities
+
+        // Unmarshal entities string to slice
+        if entities != "" {
+            err := json.Unmarshal([]byte(entities), &response.Entities)
+            if err != nil {
+                log.Printf("Error unmarshalling entities: %v", err)
+                response.Entities = []tgbotapi.MessageEntity{}
+            }
+        } else {
+            response.Entities = []tgbotapi.MessageEntity{}
+        }
+
         responses = append(responses, response)
     }
 
@@ -706,6 +744,7 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 
 
 
+// Updated function to handle adding triggers with Entities as a slice
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 
     if message.From.ID == 89886125 {
@@ -750,13 +789,27 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
     }
     newMyResponse.SearchPhrase = newSearchPhrase
 
+    // Marshal Entities to JSON string for database storage
+    var entitiesJSON string
+    if len(newMyResponse.Entities) > 0 {
+        bytes, err := json.Marshal(newMyResponse.Entities)
+        if err != nil {
+            log.Printf("Error marshalling entities: %v", err)
+            entitiesJSON = ""
+        } else {
+            entitiesJSON = string(bytes)
+        }
+    } else {
+        entitiesJSON = ""
+    }
+
     if count > 0 {
         // Update the trigger in the database with lowercase search_phrase and entities
         _, err = db.Exec(
             `UPDATE triggers 
              SET response = ?, file_type = ?, file_id = ?, file_name = ?, entities = ?
              WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?) AND is_global = ?`,
-            newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, newMyResponse.Entities,
+            newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, entitiesJSON,
             message.Chat.ID, newMyResponse.SearchPhrase, false)
         if err != nil {
             log.Printf("Error updating trigger: %v", err)
@@ -773,7 +826,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
     _, err = db.Exec(
         `INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, entities, is_global)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        message.Chat.ID, newMyResponse.SearchPhrase, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, newMyResponse.Entities, false)
+        message.Chat.ID, newMyResponse.SearchPhrase, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, entitiesJSON, false)
     if err != nil {
         log.Printf("Error inserting trigger: %v", err)
         return err
@@ -786,9 +839,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
 }
 
 
-
-
-
+// Updated function to handle adding global triggers with Entities as a slice
 func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     // Check if the message comes from the allowed user
     if message.From.ID != int64(193117018) {
@@ -819,13 +870,27 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
     }
     newMyResponse.SearchPhrase = newSearchPhrase
 
+    // Marshal Entities to JSON string for database storage
+    var entitiesJSON string
+    if len(newMyResponse.Entities) > 0 {
+        bytes, err := json.Marshal(newMyResponse.Entities)
+        if err != nil {
+            log.Printf("Error marshalling entities: %v", err)
+            entitiesJSON = ""
+        } else {
+            entitiesJSON = string(bytes)
+        }
+    } else {
+        entitiesJSON = ""
+    }
+
     if count > 0 {
         // Update the global trigger into the database
         _, err = db.Exec(`
             UPDATE triggers 
-            SET response = ?, file_type = ?, file_id = ?, file_name = ? 
+            SET response = ?, file_type = ?, file_id = ?, file_name = ?, entities = ?
             WHERE chat_id = ? AND search_phrase = ? AND is_global = ?
-        `, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, 0, newMyResponse.SearchPhrase, true)
+        `, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, entitiesJSON, 0, newMyResponse.SearchPhrase, true)
         if err != nil {
             log.Printf("Error updating global trigger: %v", err)
             return err
@@ -839,9 +904,9 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
 
     // Insert the global trigger into the database
     _, err = db.Exec(`
-        INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, is_global)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, 0, newMyResponse.SearchPhrase, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, true)
+        INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, entities, is_global)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, 0, newMyResponse.SearchPhrase, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, entitiesJSON, true)
     if err != nil {
         log.Printf("Error inserting global trigger: %v", err)
         return err
@@ -853,6 +918,8 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
     return nil
 }
 
+
+// Updated function to create MyResponse with Entities as a slice
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
     var myResponse MyResponse
 
@@ -863,16 +930,11 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
         myResponse.Response = message.ReplyToMessage.Text
     }
 
-    // Serialize entities to JSON if they exist
+    // Assign entities directly if they exist
     if len(message.ReplyToMessage.Entities) > 0 {
-        entitiesJSON, err := json.Marshal(message.ReplyToMessage.Entities)
-        if err != nil {
-            log.Printf("Error marshalling entities: %v", err)
-            return myResponse, err
-        }
-        myResponse.Entities = string(entitiesJSON)
+        myResponse.Entities = message.ReplyToMessage.Entities
     } else {
-        myResponse.Entities = ""
+        myResponse.Entities = []tgbotapi.MessageEntity{}
     }
 
     // Handle media types as before
@@ -920,6 +982,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
 
 
+
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
     // If the response is empty and the file type is one of gif or photo, do not send anything
     if myResponse.Response == "" && (myResponse.FileType == FileGIF || myResponse.FileType == FilePhoto) {
@@ -943,22 +1006,10 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 
 
 
+// Updated function to build chattable responses with Entities as a slice
 func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
-    // Deserialize entities if they exist
-    var entities []tgbotapi.MessageEntity
-    if myResponse.Entities != "" {
-        err := json.Unmarshal([]byte(myResponse.Entities), &entities)
-        if err != nil {
-            log.Printf("Error unmarshalling entities: %v", err)
-            // Proceed without entities if there's an error
-        }
-    }
-
     // Reconstruct formatted text using entities
     formattedText := myResponse.Response
-//    if len(entities) > 0 {
-//        formattedText = applyEntitiesToText(myResponse.Response, entities)
-//    }
 
     // Depending on the file type, construct the appropriate message
     switch myResponse.FileType {
@@ -966,8 +1017,9 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         photoMsg.ReplyToMessageID = message.MessageID
         photoMsg.Caption = formattedText
-        if len(entities) > 0 {
-            photoMsg.ParseMode = "Markdown" // or "HTML" based on your preference
+        if len(myResponse.Entities) > 0 {
+            photoMsg.Entities = myResponse.Entities
+            // Do not set ParseMode if using Entities
         }
         return photoMsg, nil
 
@@ -975,8 +1027,8 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         gifMsg.ReplyToMessageID = message.MessageID
         gifMsg.Caption = formattedText
-        if len(entities) > 0 {
-            gifMsg.ParseMode = "Markdown"
+        if len(myResponse.Entities) > 0 {
+            gifMsg.Entities = myResponse.Entities
         }
         return gifMsg, nil
 
@@ -994,8 +1046,8 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         videoMsg.ReplyToMessageID = message.MessageID
         videoMsg.Caption = formattedText
-        if len(entities) > 0 {
-            videoMsg.ParseMode = "Markdown"
+        if len(myResponse.Entities) > 0 {
+            videoMsg.Entities = myResponse.Entities
         }
         return videoMsg, nil
 
@@ -1003,8 +1055,8 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         documentMsg.ReplyToMessageID = message.MessageID
         documentMsg.Caption = formattedText
-        if len(entities) > 0 {
-            documentMsg.ParseMode = "Markdown"
+        if len(myResponse.Entities) > 0 {
+            documentMsg.Entities = myResponse.Entities
         }
         return documentMsg, nil
 
@@ -1017,14 +1069,14 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         audioMsg.ReplyToMessageID = message.MessageID
         audioMsg.Caption = formattedText
-        if len(entities) > 0 {
-            audioMsg.ParseMode = "Markdown"
+        if len(myResponse.Entities) > 0 {
+            audioMsg.Entities = myResponse.Entities
         }
         return audioMsg, nil
 
     default:
         // For text messages
-        if len(entities) > 0 {
+        if len(myResponse.Entities) > 0 {
             textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
             textMsg.ReplyToMessageID = message.MessageID
             textMsg.Entities = myResponse.Entities
@@ -1038,38 +1090,28 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 
 
 
-func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
-    // Deserialize entities if they exist
-    var entities []tgbotapi.MessageEntity
-    if myResponse.Entities != "" {
-        err := json.Unmarshal([]byte(myResponse.Entities), &entities)
-        if err != nil {
-            log.Printf("Error unmarshalling entities: %v", err)
-            // Proceed without entities if there's an error
-        }
-    }
 
+// Updated function to build chattable responses for cascade triggers with Entities as a slice
+func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
     // Reconstruct formatted text using entities
     formattedText := myResponse.Response
-    if len(entities) > 0 {
-        formattedText = applyEntitiesToText(myResponse.Response, entities)
-    }
 
     // Depending on the file type, construct the appropriate message
     switch myResponse.FileType {
     case FilePhoto:
         photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         photoMsg.Caption = formattedText
-        if len(entities) > 0 {
-            photoMsg.ParseMode = "Markdown" // or "HTML"
+        if len(myResponse.Entities) > 0 {
+            photoMsg.Entities = myResponse.Entities
+            // Do not set ParseMode if using Entities
         }
         return photoMsg, nil
 
     case FileGIF:
         gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         gifMsg.Caption = formattedText
-        if len(entities) > 0 {
-            gifMsg.ParseMode = "Markdown"
+        if len(myResponse.Entities) > 0 {
+            gifMsg.Entities = myResponse.Entities
         }
         return gifMsg, nil
 
@@ -1084,16 +1126,16 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
     case FileVideo:
         videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         videoMsg.Caption = formattedText
-        if len(entities) > 0 {
-            videoMsg.ParseMode = "Markdown"
+        if len(myResponse.Entities) > 0 {
+            videoMsg.Entities = myResponse.Entities
         }
         return videoMsg, nil
 
     case FileDocument:
         documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         documentMsg.Caption = formattedText
-        if len(entities) > 0 {
-            documentMsg.ParseMode = "Markdown"
+        if len(myResponse.Entities) > 0 {
+            documentMsg.Entities = myResponse.Entities
         }
         return documentMsg, nil
 
@@ -1105,22 +1147,23 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
     case FileAudio:
         audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         audioMsg.Caption = formattedText
-        if len(entities) > 0 {
-            audioMsg.ParseMode = "Markdown"
+        if len(myResponse.Entities) > 0 {
+            audioMsg.Entities = myResponse.Entities
         }
         return audioMsg, nil
 
     default:
         // For text messages
-        if len(entities) > 0 {
+        if len(myResponse.Entities) > 0 {
             textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
-            textMsg.ParseMode = "Markdown" // or "HTML"
+            textMsg.Entities = myResponse.Entities
             return textMsg, nil
         }
         textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
         return textMsg, nil
     }
 }
+
 
 
 
@@ -1134,99 +1177,95 @@ func handleChatIDCommand (bot *tgbotapi.BotAPI, message *tgbotapi.Message){
 type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *sql.DB) error
 
 
+// Updated handleMessage function with proper Entities handling during trigger retrieval
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-	receivedMessage := message.Text
+    receivedMessage := message.Text
 
+    if message.NewChatMembers != nil {
+        if err := handleNewMember(bot, message); err != nil {
+            log.Printf("Error handling new member: %v", err)
+        }
+    }
 
-//    if message.From.ID == 89886125 {
-//        return nil
-//    }
-    
-	if message.NewChatMembers != nil {
-		if err := handleNewMember(bot, message); err != nil {
-			log.Printf("Error handling new member: %v", err)
-		}
-	}
+    if err := handleTerpetMessage(bot, message, db); err != nil {
+        return err
+    }
 
-	if err := handleTerpetMessage(bot, message, db); err != nil {
-		return err
-	}
+    if message.Command() == "topterpil" {
+        if err := handleTopTerpilCommand(bot, message, db); err != nil {
+            return err
+        }
+    }
 
-	if message.Command() == "topterpil" {
-		if err := handleTopTerpilCommand(bot, message, db); err != nil {
-			return err
-		}
-	}
+    if message.Command() == "getlink" {
+        handleGetLinkCommand(bot, message, db)
+        return nil
+    }
 
-	if message.Command() == "getlink" {
-		handleGetLinkCommand(bot, message, db)
-		return nil
-	}
+    if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
+        return nil
+    }
 
-	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
-		return nil
-	}
+    commandHandlers := map[string]commandHandlerFunc{
+        "add":          handleAddCommand,
+        "remove":       handleRemoveCommand,
+        "addglobal":    handleAddGlobalCommand,
+        "triggers":     handleTriggersCommand,
+        "removeglobal": handleRemoveGlobalCommand,
+    }
 
-	commandHandlers := map[string]commandHandlerFunc{
-		"add":         handleAddCommand,
-		"remove":      handleRemoveCommand,
-		"addglobal":   handleAddGlobalCommand,
-		"triggers":    handleTriggersCommand,
-		"removeglobal": handleRemoveGlobalCommand,
-	}
+    command := message.Command()
+    if handler, ok := commandHandlers[command]; ok {
+        allowedCommands := map[string]bool{
+            "removeglobal": true,
+            "triggers":     true,
+            "remove":       true,
+        }
 
-	command := message.Command()
-	if handler, ok := commandHandlers[command]; ok {
-		allowedCommands := map[string]bool{
-			"removeglobal": true,
-			"triggers":     true,
-			"remove":       true,
-		}
+        if allowed, _ := allowedCommands[command]; allowed || message.ReplyToMessage != nil {
+            return handler(bot, message, db)
+        }
+    }
 
-		if allowed, _ := allowedCommands[command]; allowed || message.ReplyToMessage != nil {
-			return handler(bot, message, db)
-		}
-	}
+    if command == "chatid" {
+        handleChatIDCommand(bot, message)
+        return nil
+    }
 
-	if command == "chatid" {
-		handleChatIDCommand(bot, message)
-		return nil
-	}
+    if command == "generateqr" {
+        handleGenerateQR(bot, message)
+        return nil
+    }
 
-	if command == "generateqr" {
-		handleGenerateQR(bot, message)
-		return nil
-	}
+    if command == "generatebar" {
+        handleGenerateBarcode(bot, message)
+        return nil
+    }
 
-	if command == "generatebar" {
-		handleGenerateBarcode(bot, message)
-		return nil
-	}
+    if command == "addlocation" {
+        timeAdd(bot, message, db)
+        return nil
+    }
 
-	if command == "addlocation" {
-		timeAdd(bot, message, db)
-		return nil
-	}
+    if command == "removelocation" {
+        timeRemove(bot, message, db)
+        return nil
+    }
 
-	if command == "removelocation" {
-		timeRemove(bot, message, db)
-		return nil
-	}
+    if command == "alias" {
+        addOrUpdateAlias(bot, message, db)
+        return nil
+    }
 
-	if command == "alias" {
-		addOrUpdateAlias(bot, message, db)
-		return nil
-	}
+    if command == "resetmessage" {
+        resetMessage(bot, message, db)
+        return nil
+    }
 
-	if command == "resetmessage" {
-		resetMessage(bot, message, db)
-		return nil
-	}
-
-	if command == "samplesize" {
-		handleSampleSize(bot, message)
-		return nil
-	}
+    if command == "samplesize" {
+        handleSampleSize(bot, message)
+        return nil
+    }
 
     if message.Command() == "roll" {
         return handleRoll(bot, message)
@@ -1264,149 +1303,131 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
         return handleRemoveCascadeCommand(bot, message, db)
     }
 
-	currentTime, _ := getCurrentTimeForLocation("America/Los Angeles")
-	currentTimeMoscow, _ := getCurrentTimeForLocation("Europe/Moscow")
+    currentTime, _ := getCurrentTimeForLocation("America/Los Angeles")
+    currentTimeMoscow, _ := getCurrentTimeForLocation("Europe/Moscow")
     currentTimeNewYork, _ := getCurrentTimeForLocation("America/New York")
 
-	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) && messageMatches(receivedMessage, "@Porky8888") && isTimeBetween(currentTime, 2, 7) {
-		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
-		photoMsg.ReplyToMessageID = message.MessageID
-		if isTimeBetween(currentTime, 2, 4) {
-			photoMsg.Caption = fmt.Sprintf("Машталер в %v ночи", currentTime.Hour())
-		} else {
-			photoMsg.Caption = fmt.Sprintf("Машталер в %v утра", currentTime.Hour())
-		}
-		bot.Send(photoMsg)
-		return nil
-	}
+    // ... existing time-based message handling ...
 
-	if message.Chat.ID == -1001970411651 && messageMatches(receivedMessage, "@vincenitycarter") && isTimeBetween19And8(currentTimeMoscow) {
-		rand.Seed(time.Now().UnixNano())
+    // Retrieve chat-specific triggers from the database
+    rows, err := db.Query(`
+        SELECT id, search_phrase, response, file_type, file_id, file_name, entities
+        FROM triggers
+        WHERE chat_id = ? AND is_global = ?
+    `, message.Chat.ID, false)
+    if err != nil {
+        log.Printf("Error retrieving chat-specific triggers: %v", err)
+        return err
+    }
+    defer rows.Close()
 
-		fileID := "AgACAgQAAx0Cc2pGjQACAX9ltZ3416cTOKI_-1Jp1wXzAVCLygACG74xGwkasVEOQZYuKQ4abQEAAwIAA3kAAzQE"
-		if rand.Float32() < 0.5 {
-			fileID = "AgACAgIAAx0Cc2pGjQACAnVmeHhbXkkqgeg_DNEW1dChwB3BYQACuNoxG2g9yUsZaxbgiGFD_wEAAwIAA3kAAzUE"
-		}
+    chatSpecificTriggers := []*MyResponse{}
+    for rows.Next() {
+        var trigger MyResponse
+        var response, fileType, fileID, fileName, entities string
+        err := rows.Scan(
+            &trigger.ID,
+            &trigger.SearchPhrase,
+            &response,
+            &fileType,
+            &fileID,
+            &fileName,
+            &entities,
+        )
+        if err != nil {
+            log.Printf("Error scanning chat-specific trigger: %v", err)
+            continue
+        }
+        trigger.Response = response
+        trigger.FileType = FileType(fileType)
+        trigger.FileID = fileID
+        trigger.FileName = fileName
 
-		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(fileID))
-		photoMsg.ReplyToMessageID = message.MessageID
-		photoMsg.Caption = fmt.Sprintf("Сегодня, в %v, Яков Андреев был найден спящим в своей квартире. Приносим соболезнования всем его тиммейтам", currentTimeMoscow.Format("15:04"))
-		bot.Send(photoMsg)
-		return nil
-	}
+        // Unmarshal entities string to slice
+        if entities != "" {
+            err := json.Unmarshal([]byte(entities), &trigger.Entities)
+            if err != nil {
+                log.Printf("Error unmarshalling entities: %v", err)
+                trigger.Entities = []tgbotapi.MessageEntity{}
+            }
+        } else {
+            trigger.Entities = []tgbotapi.MessageEntity{}
+        }
 
-    if message.Chat.ID == -1002245157577 && messageMatches(receivedMessage, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2,7) {
-		rand.Seed(time.Now().UnixNano())
+        chatSpecificTriggers = append(chatSpecificTriggers, &trigger)
+    }
 
-		fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
-		if rand.Float32() < 0.5 {
-			fileID = "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
-		}
+    chatSpecificTriggerFound := false
+    for _, trigger := range chatSpecificTriggers {
+        if messageMatches(receivedMessage, trigger.SearchPhrase) {
+            err := processResponse(bot, message, *trigger)
+            if err != nil {
+                return err
+            }
+            chatSpecificTriggerFound = true
+            break
+        }
+    }
 
-		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(fileID))
-		photoMsg.ReplyToMessageID = message.MessageID
-        if isTimeBetween(currentTimeNewYork, 2, 4) {
-			photoMsg.Caption = fmt.Sprintf("Кел в %v ночи", currentTimeNewYork.Hour())
-		} else {
-			photoMsg.Caption = fmt.Sprintf("Кел в %v утра", currentTimeNewYork.Hour())
-		}
-        bot.Send(photoMsg)
-		return nil
-	}
+    if !chatSpecificTriggerFound {
+        // Retrieve global triggers from the database
+        rows, err := db.Query(`
+            SELECT id, search_phrase, response, file_type, file_id, file_name, entities
+            FROM triggers
+            WHERE is_global = ?
+        `, true)
+        if err != nil {
+            log.Printf("Error retrieving global triggers: %v", err)
+            return err
+        }
+        defer rows.Close()
 
-	// Retrieve chat-specific triggers from the database
-	rows, err := db.Query(`
-		SELECT id, search_phrase, response, file_type, file_id, file_name
-		FROM triggers
-		WHERE chat_id = ? AND is_global = ?
-	`, message.Chat.ID, false)
-	if err != nil {
-		log.Printf("Error retrieving chat-specific triggers: %v", err)
-		return err
-	}
-	defer rows.Close()
+        globalTriggers := []*MyResponse{}
+        for rows.Next() {
+            var trigger MyResponse
+            var response, fileType, fileID, fileName, entities string
+            err := rows.Scan(
+                &trigger.ID,
+                &trigger.SearchPhrase,
+                &response,
+                &fileType,
+                &fileID,
+                &fileName,
+                &entities,
+            )
+            if err != nil {
+                log.Printf("Error scanning global trigger: %v", err)
+                continue
+            }
+            trigger.Response = response
+            trigger.FileType = FileType(fileType)
+            trigger.FileID = fileID
+            trigger.FileName = fileName
 
-	chatSpecificTriggers := []*MyResponse{}
-	for rows.Next() {
-		var trigger MyResponse
-		var response, fileType, fileID, fileName sql.NullString
-		err := rows.Scan(
-			&trigger.ID,
-			&trigger.SearchPhrase,
-			&response,
-			&fileType,
-			&fileID,
-			&fileName,
-		)
-		if err != nil {
-			log.Printf("Error scanning chat-specific trigger: %v", err)
-			continue
-		}
-		trigger.Response = response.String
-		trigger.FileType = FileType(fileType.String)
-		trigger.FileID = fileID.String
-		trigger.FileName = fileName.String
-		chatSpecificTriggers = append(chatSpecificTriggers, &trigger)
-	}
+            // Unmarshal entities string to slice
+            if entities != "" {
+                err := json.Unmarshal([]byte(entities), &trigger.Entities)
+                if err != nil {
+                    log.Printf("Error unmarshalling entities: %v", err)
+                    trigger.Entities = []tgbotapi.MessageEntity{}
+                }
+            } else {
+                trigger.Entities = []tgbotapi.MessageEntity{}
+            }
 
-	chatSpecificTriggerFound := false
-	for _, trigger := range chatSpecificTriggers {
-		if messageMatches(receivedMessage, trigger.SearchPhrase) {
-			err := processResponse(bot, message, *trigger)
-			if err != nil {
-				return err
-			}
-			chatSpecificTriggerFound = true
-			break
-		}
-	}
+            globalTriggers = append(globalTriggers, &trigger)
+        }
 
-	if !chatSpecificTriggerFound {
-		// Retrieve global triggers from the database
-		rows, err := db.Query(`
-			SELECT id, search_phrase, response, file_type, file_id, file_name
-			FROM triggers
-			WHERE is_global = ?
-		`, true)
-		if err != nil {
-			log.Printf("Error retrieving global triggers: %v", err)
-			return err
-		}
-		defer rows.Close()
-
-		globalTriggers := []*MyResponse{}
-		for rows.Next() {
-			var trigger MyResponse
-			var response, fileType, fileID, fileName sql.NullString
-			err := rows.Scan(
-				&trigger.ID,
-				&trigger.SearchPhrase,
-				&response,
-				&fileType,
-				&fileID,
-				&fileName,
-			)
-			if err != nil {
-				log.Printf("Error scanning global trigger: %v", err)
-				continue
-			}
-			trigger.Response = response.String
-			trigger.FileType = FileType(fileType.String)
-			trigger.FileID = fileID.String
-			trigger.FileName = fileName.String
-			globalTriggers = append(globalTriggers, &trigger)
-		}
-
-		for _, trigger := range globalTriggers {
-			if messageMatches(receivedMessage, trigger.SearchPhrase) {
-				err := processResponse(bot, message, *trigger)
-				if err != nil {
-					return err
-				}
-				break
-			}
-		}
-	}
+        for _, trigger := range globalTriggers {
+            if messageMatches(receivedMessage, trigger.SearchPhrase) {
+                err := processResponse(bot, message, *trigger)
+                if err != nil {
+                    return err
+                }
+                break
+            }
+        }
+    }
 
     // Process cascade triggers (Case-Insensitive)
     err = handleCascadeTriggers(bot, message, db)
@@ -1415,33 +1436,11 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
         return err
     }
 
-	if message.From.ID == 578801 {
-		rand.Seed(time.Now().UnixNano())
+    // ... existing user-specific message handling ...
 
-		if message.Photo == nil && 
-		   message.Animation == nil && 
-		   message.Sticker == nil && 
-		   message.Voice == nil && 
-		   message.Video == nil && 
-		   message.Document == nil && 
-		   message.VideoNote == nil && 
-		   message.Audio == nil {
-			if rand.Float32() < 0.01 {
-				vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
-				vasyaMsg.ReplyToMessageID = message.MessageID
-				bot.Send(vasyaMsg)
-			}
-		} else {
-			if rand.Float32() < 0.01 {
-				vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню прислал")
-				vasyaMsg.ReplyToMessageID = message.MessageID
-				bot.Send(vasyaMsg)
-			}
-		}
-	}
-
-	return nil
+    return nil
 }
+
 
 func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
     log.Println("Handling /triggers command")
