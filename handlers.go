@@ -956,9 +956,9 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 
     // Reconstruct formatted text using entities
     formattedText := myResponse.Response
-    if len(entities) > 0 {
-        formattedText = applyEntitiesToText(myResponse.Response, entities)
-    }
+//    if len(entities) > 0 {
+//        formattedText = applyEntitiesToText(myResponse.Response, entities)
+//    }
 
     // Depending on the file type, construct the appropriate message
     switch myResponse.FileType {
@@ -1027,7 +1027,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         if len(entities) > 0 {
             textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
             textMsg.ReplyToMessageID = message.MessageID
-            textMsg.ParseMode = "Markdown" // or "HTML"
+            textMsg.entities = myResponse.Entities
             return textMsg, nil
         }
         textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
