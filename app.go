@@ -26,7 +26,7 @@ type MyResponse struct {
     FileType     FileType `json:"fileType,omitempty"`
     FileID       string   `json:"fileID,omitempty"`
     FileName     string   `json:"filename,omitempty"`
-	Entities     string   `json:"entities,omitempty"`
+	Entities     []tgbotapi.MessageEntity   `json:"entities,omitempty"`
 }
 
 
