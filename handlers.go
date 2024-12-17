@@ -431,13 +431,20 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
 
     // Retrieve cascade triggers for the given chat that match the message content
     // If messageContent is empty, look for triggers with an empty search_phrase (if any)
-    rows, err := db.Query(
-        `SELECT ct.id, ct.search_phrase, ctr.response, ctr.file_type, ctr.file_id, ctr.file_name, ctr.entities
-         FROM cascade_triggers2 ct
-         JOIN cascade_trigger_responses ctr ON ct.id = ctr.cascade_trigger_id
-         WHERE ct.chat_id = ? AND LOWER(ct.search_phrase) = LOWER(?)`,
-        message.Chat.ID, messageContent)
-
+    query := `
+        SELECT 
+            ct.id, 
+            ct.search_phrase, 
+            ctr.response, 
+            ctr.file_type, 
+            ctr.file_id, 
+            ctr.file_name, 
+            ctr.entities
+        FROM cascade_triggers2 ct
+        JOIN cascade_trigger_responses ctr ON ct.id = ctr.cascade_trigger_id
+        WHERE ct.chat_id = ? AND LOWER(ct.search_phrase) = LOWER(?)
+    `
+    rows, err := db.Query(query, message.Chat.ID, messageContent)
     if err != nil {
         log.Printf("Error querying cascade triggers: %v", err)
         return err
@@ -447,19 +454,30 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
     var responses []MyResponse
     for rows.Next() {
         var response MyResponse
-        var fileType, fileID, fileName, entities string
-        err := rows.Scan(&response.ID, &response.SearchPhrase, &response.Response, &fileType, &fileID, &fileName, &entities)
+        var fileType, fileID, fileName string
+        var entities sql.NullString
+
+        err := rows.Scan(
+            &response.ID, 
+            &response.SearchPhrase, 
+            &response.Response, 
+            &fileType, 
+            &fileID, 
+            &fileName, 
+            &entities,
+        )
         if err != nil {
             log.Printf("Error scanning cascade trigger response: %v", err)
             continue
         }
+
         response.FileType = FileType(fileType)
         response.FileID = fileID
         response.FileName = fileName
 
-        // Unmarshal entities string to slice
-        if entities != "" {
-            err := json.Unmarshal([]byte(entities), &response.Entities)
+        // Handle the entities field, which might be NULL
+        if entities.Valid && entities.String != "" {
+            err := json.Unmarshal([]byte(entities.String), &response.Entities)
             if err != nil {
                 log.Printf("Error unmarshalling entities: %v", err)
                 response.Entities = []tgbotapi.MessageEntity{}
@@ -469,6 +487,11 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
         }
 
         responses = append(responses, response)
+    }
+
+    if err := rows.Err(); err != nil {
+        log.Printf("Error iterating over cascade triggers: %v", err)
+        return err
     }
 
     if len(responses) > 0 {
