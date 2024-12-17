@@ -359,16 +359,11 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
         myResponse.Response = message.ReplyToMessage.Text
     }
 
-    // Serialize entities to JSON if they exist
+    // Assign entities directly without JSON serialization
     if len(message.ReplyToMessage.Entities) > 0 {
-        entitiesJSONBytes, err := json.Marshal(message.ReplyToMessage.Entities)
-        if err != nil {
-            log.Printf("Error marshalling entities: %v", err)
-            return myResponse, err
-        }
-        myResponse.Entities = string(entitiesJSONBytes)
+        myResponse.Entities = message.ReplyToMessage.Entities
     } else {
-        myResponse.Entities = ""
+        myResponse.Entities = []tgbotapi.MessageEntity{}
     }
 
     // Handle media types as before
@@ -412,6 +407,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
     return myResponse, nil
 }
+
 
 
 
