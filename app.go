@@ -76,7 +76,8 @@ func main() {
         file_type TEXT,
         file_id TEXT,
         file_name TEXT,
-        is_global BOOLEAN
+        is_global BOOLEAN,
+		parse_mode TEXT
     	)
 	`)
 	if err != nil {
@@ -88,7 +89,8 @@ func main() {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		chat_id INTEGER,
 		search_phrase TEXT,
-		responses TEXT
+		responses TEXT,
+		parse_mode TEXT
 	)
 	`)
 	if err != nil {
