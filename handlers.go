@@ -1774,13 +1774,10 @@ func handleRoll4(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
 }
 
 func entitiesToHTML(text string, entities []tgbotapi.MessageEntity) string {
-    // Sort entities by offset ascending
     sort.Slice(entities, func(i, j int) bool {
         return entities[i].Offset < entities[j].Offset
     })
 
-    // We'll rebuild the string applying tags from the end.
-    // This ensures indices remain valid as we insert tags.
     result := text
     for i := len(entities) - 1; i >= 0; i-- {
         e := entities[i]
@@ -1806,8 +1803,9 @@ func entitiesToHTML(text string, entities []tgbotapi.MessageEntity) string {
         case "pre":
             segment = fmt.Sprintf("<pre>%s</pre>", segment)
         case "text_link":
-            if e.URL != nil {
-                segment = fmt.Sprintf("<a href='%s'>%s</a>", *e.URL, segment)
+            // e.URL is a string, not a pointer
+            if e.URL != "" {
+                segment = fmt.Sprintf("<a href='%s'>%s</a>", e.URL, segment)
             }
         case "text_mention":
             if e.User != nil {
