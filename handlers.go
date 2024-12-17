@@ -1062,7 +1062,7 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
 
     default:
         textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
-        textMsg.Entities = entities // Assign the slice, not the string
+        textMsg.Entities = myResponse.Entities 
         return textMsg, nil
     }
 }
