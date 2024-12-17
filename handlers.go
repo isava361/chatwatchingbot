@@ -348,7 +348,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 }
 
 
-// Обновлённая функция createMyResponseFromCascade
+
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
     var myResponse MyResponse
 
@@ -1106,278 +1106,294 @@ type commandHandlerFunc func(*tgbotapi.BotAPI, *tgbotapi.Message, *sql.DB) error
 
 // Updated handleMessage function with proper Entities handling during trigger retrieval
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-	receivedMessage := message.Text
+    receivedMessage := message.Text
 
+    // Uncomment the following lines to ignore messages from a specific user
+    // if message.From.ID == 89886125 {
+    //     return nil
+    // }
 
-//    if message.From.ID == 89886125 {
-//        return nil
-//    }
-    
-	if message.NewChatMembers != nil {
-		if err := handleNewMember(bot, message); err != nil {
-			log.Printf("Error handling new member: %v", err)
-		}
-	}
+    // Handle new chat members
+    if message.NewChatMembers != nil {
+        if err := handleNewMember(bot, message); err != nil {
+            log.Printf("Error handling new member: %v", err)
+        }
+    }
 
-	if err := handleTerpetMessage(bot, message, db); err != nil {
-		return err
-	}
+    // Handle terpet messages
+    if err := handleTerpetMessage(bot, message, db); err != nil {
+        return err
+    }
 
-	if message.Command() == "topterpil" {
-		if err := handleTopTerpilCommand(bot, message, db); err != nil {
-			return err
-		}
-	}
-
-	if message.Command() == "getlink" {
-		handleGetLinkCommand(bot, message, db)
-		return nil
-	}
-
-	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
-		return nil
-	}
-
-	commandHandlers := map[string]commandHandlerFunc{
-		"add":         handleAddCommand,
-		"remove":      handleRemoveCommand,
-		"addglobal":   handleAddGlobalCommand,
-		"triggers":    handleTriggersCommand,
-		"removeglobal": handleRemoveGlobalCommand,
-	}
-
-	command := message.Command()
-	if handler, ok := commandHandlers[command]; ok {
-		allowedCommands := map[string]bool{
-			"removeglobal": true,
-			"triggers":     true,
-			"remove":       true,
-		}
-
-		if allowed, _ := allowedCommands[command]; allowed || message.ReplyToMessage != nil {
-			return handler(bot, message, db)
-		}
-	}
-
-	if command == "chatid" {
-		handleChatIDCommand(bot, message)
-		return nil
-	}
-
-	if command == "generateqr" {
-		handleGenerateQR(bot, message)
-		return nil
-	}
-
-	if command == "generatebar" {
-		handleGenerateBarcode(bot, message)
-		return nil
-	}
-
-	if command == "addlocation" {
-		timeAdd(bot, message, db)
-		return nil
-	}
-
-	if command == "removelocation" {
-		timeRemove(bot, message, db)
-		return nil
-	}
-
-	if command == "alias" {
-		addOrUpdateAlias(bot, message, db)
-		return nil
-	}
-
-	if command == "resetmessage" {
-		resetMessage(bot, message, db)
-		return nil
-	}
-
-	if command == "samplesize" {
-		handleSampleSize(bot, message)
-		return nil
-	}
-
-    if message.Command() == "roll" {
+    // Handle specific commands
+    switch message.Command() {
+    case "topterpil":
+        if err := handleTopTerpilCommand(bot, message, db); err != nil {
+            return err
+        }
+    case "getlink":
+        handleGetLinkCommand(bot, message, db)
+        return nil
+    case "chatid":
+        handleChatIDCommand(bot, message)
+        return nil
+    case "generateqr":
+        handleGenerateQR(bot, message)
+        return nil
+    case "generatebar":
+        handleGenerateBarcode(bot, message)
+        return nil
+    case "addlocation":
+        timeAdd(bot, message, db)
+        return nil
+    case "removelocation":
+        timeRemove(bot, message, db)
+        return nil
+    case "alias":
+        addOrUpdateAlias(bot, message, db)
+        return nil
+    case "resetmessage":
+        resetMessage(bot, message, db)
+        return nil
+    case "samplesize":
+        handleSampleSize(bot, message)
+        return nil
+    case "roll":
         return handleRoll(bot, message)
-    }
-
-    if message.Command() == "roll20" {
+    case "roll20":
         return handleRoll20(bot, message)
-    }
-
-    if message.Command() == "roll12" {
+    case "roll12":
         return handleRoll12(bot, message)
-    }
-
-    if message.Command() == "roll10" {
+    case "roll10":
         return handleRoll10(bot, message)
-    }
-
-    if message.Command() == "roll8" {
+    case "roll8":
         return handleRoll8(bot, message)
-    }
-
-    if message.Command() == "roll6" {
+    case "roll6":
         return handleRoll6(bot, message)
-    }
-
-    if message.Command() == "roll4" {
+    case "roll4":
         return handleRoll4(bot, message)
-    }
-
-    if message.Command() == "addc" {
+    case "addc":
         return handleAddCascadeCommand(bot, message, db)
-    }
-
-    if message.Command() == "removec" {
+    case "removec":
         return handleRemoveCascadeCommand(bot, message, db)
     }
 
-	currentTime, _ := getCurrentTimeForLocation("America/Los Angeles")
-	currentTimeMoscow, _ := getCurrentTimeForLocation("Europe/Moscow")
-    currentTimeNewYork, _ := getCurrentTimeForLocation("America/New York")
+    // Handle specific chat IDs with time-based actions
+    currentTime, _ := getCurrentTimeForLocation("America/Los_Angeles")
+    currentTimeMoscow, _ := getCurrentTimeForLocation("Europe/Moscow")
+    currentTimeNewYork, _ := getCurrentTimeForLocation("America/New_York")
 
-	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) && messageMatches(receivedMessage, "@Porky8888") && isTimeBetween(currentTime, 2, 7) {
-		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
-		photoMsg.ReplyToMessageID = message.MessageID
-		if isTimeBetween(currentTime, 2, 4) {
-			photoMsg.Caption = fmt.Sprintf("Машталер в %v ночи", currentTime.Hour())
-		} else {
-			photoMsg.Caption = fmt.Sprintf("Машталер в %v утра", currentTime.Hour())
-		}
-		bot.Send(photoMsg)
-		return nil
-	}
+    // Example of handling specific chat IDs and message matches
+    if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) &&
+        messageMatches(receivedMessage, "@Porky8888") &&
+        isTimeBetween(currentTime, 2, 7) {
 
-	if message.Chat.ID == -1001970411651 && messageMatches(receivedMessage, "@vincenitycarter") && isTimeBetween19And8(currentTimeMoscow) {
-		rand.Seed(time.Now().UnixNano())
+        photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
+        photoMsg.ReplyToMessageID = message.MessageID
 
-		fileID := "AgACAgQAAx0Cc2pGjQACAX9ltZ3416cTOKI_-1Jp1wXzAVCLygACG74xGwkasVEOQZYuKQ4abQEAAwIAA3kAAzQE"
-		if rand.Float32() < 0.5 {
-			fileID = "AgACAgIAAx0Cc2pGjQACAnVmeHhbXkkqgeg_DNEW1dChwB3BYQACuNoxG2g9yUsZaxbgiGFD_wEAAwIAA3kAAzUE"
-		}
-
-		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(fileID))
-		photoMsg.ReplyToMessageID = message.MessageID
-		photoMsg.Caption = fmt.Sprintf("Сегодня, в %v, Яков Андреев был найден спящим в своей квартире. Приносим соболезнования всем его тиммейтам", currentTimeMoscow.Format("15:04"))
-		bot.Send(photoMsg)
-		return nil
-	}
-
-    if message.Chat.ID == -1002245157577 && messageMatches(receivedMessage, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2,7) {
-		rand.Seed(time.Now().UnixNano())
-
-		fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
-		if rand.Float32() < 0.5 {
-			fileID = "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
-		}
-
-		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(fileID))
-		photoMsg.ReplyToMessageID = message.MessageID
-        if isTimeBetween(currentTimeNewYork, 2, 4) {
-			photoMsg.Caption = fmt.Sprintf("Кел в %v ночи", currentTimeNewYork.Hour())
-		} else {
-			photoMsg.Caption = fmt.Sprintf("Кел в %v утра", currentTimeNewYork.Hour())
-		}
+        if isTimeBetween(currentTime, 2, 4) {
+            photoMsg.Caption = fmt.Sprintf("Машталер в %v ночи", currentTime.Hour())
+        } else {
+            photoMsg.Caption = fmt.Sprintf("Машталер в %v утра", currentTime.Hour())
+        }
         bot.Send(photoMsg)
-		return nil
-	}
+        return nil
+    }
 
-	// Retrieve chat-specific triggers from the database
-	rows, err := db.Query(`
-		SELECT id, search_phrase, response, file_type, file_id, file_name
-		FROM triggers
-		WHERE chat_id = ? AND is_global = ?
-	`, message.Chat.ID, false)
-	if err != nil {
-		log.Printf("Error retrieving chat-specific triggers: %v", err)
-		return err
-	}
-	defer rows.Close()
+    if message.Chat.ID == -1001970411651 &&
+        messageMatches(receivedMessage, "@vincenitycarter") &&
+        isTimeBetween19And8(currentTimeMoscow) {
 
-	chatSpecificTriggers := []*MyResponse{}
-	for rows.Next() {
-		var trigger MyResponse
-		var response, fileType, fileID, fileName sql.NullString
-		err := rows.Scan(
-			&trigger.ID,
-			&trigger.SearchPhrase,
-			&response,
-			&fileType,
-			&fileID,
-			&fileName,
-		)
-		if err != nil {
-			log.Printf("Error scanning chat-specific trigger: %v", err)
-			continue
-		}
-		trigger.Response = response.String
-		trigger.FileType = FileType(fileType.String)
-		trigger.FileID = fileID.String
-		trigger.FileName = fileName.String
-		chatSpecificTriggers = append(chatSpecificTriggers, &trigger)
-	}
+        rand.Seed(time.Now().UnixNano())
 
-	chatSpecificTriggerFound := false
-	for _, trigger := range chatSpecificTriggers {
-		if messageMatches(receivedMessage, trigger.SearchPhrase) {
-			err := processResponse(bot, message, *trigger)
-			if err != nil {
-				return err
-			}
-			chatSpecificTriggerFound = true
-			break
-		}
-	}
+        fileID := "AgACAgQAAx0Cc2pGjQACAX9ltZ3416cTOKI_-1Jp1wXzAVCLygACG74xGwkasVEOQZYuKQ4abQEAAwIAA3kAAzQE"
+        if rand.Float32() < 0.5 {
+            fileID = "AgACAgIAAx0Cc2pGjQACAnVmeHhbXkkqgeg_DNEW1dChwB3BYQACuNoxG2g9yUsZaxbgiGFD_wEAAwIAA3kAAzUE"
+        }
 
-	if !chatSpecificTriggerFound {
-		// Retrieve global triggers from the database
-		rows, err := db.Query(`
-			SELECT id, search_phrase, response, file_type, file_id, file_name
-			FROM triggers
-			WHERE is_global = ?
-		`, true)
-		if err != nil {
-			log.Printf("Error retrieving global triggers: %v", err)
-			return err
-		}
-		defer rows.Close()
+        photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(fileID))
+        photoMsg.ReplyToMessageID = message.MessageID
+        photoMsg.Caption = fmt.Sprintf("Сегодня, в %v, Яков Андреев был найден спящим в своей квартире. Приносим соболезнования всем его тиммейтам", currentTimeMoscow.Format("15:04"))
+        bot.Send(photoMsg)
+        return nil
+    }
 
-		globalTriggers := []*MyResponse{}
-		for rows.Next() {
-			var trigger MyResponse
-			var response, fileType, fileID, fileName sql.NullString
-			err := rows.Scan(
-				&trigger.ID,
-				&trigger.SearchPhrase,
-				&response,
-				&fileType,
-				&fileID,
-				&fileName,
-			)
-			if err != nil {
-				log.Printf("Error scanning global trigger: %v", err)
-				continue
-			}
-			trigger.Response = response.String
-			trigger.FileType = FileType(fileType.String)
-			trigger.FileID = fileID.String
-			trigger.FileName = fileName.String
-			globalTriggers = append(globalTriggers, &trigger)
-		}
+    if message.Chat.ID == -1002245157577 &&
+        messageMatches(receivedMessage, "@KelThuzad") &&
+        isTimeBetween(currentTimeNewYork, 2, 7) {
 
-		for _, trigger := range globalTriggers {
-			if messageMatches(receivedMessage, trigger.SearchPhrase) {
-				err := processResponse(bot, message, *trigger)
-				if err != nil {
-					return err
-				}
-				break
-			}
-		}
-	}
+        rand.Seed(time.Now().UnixNano())
+
+        fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
+        if rand.Float32() < 0.5 {
+            fileID = "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
+        }
+
+        photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(fileID))
+        photoMsg.ReplyToMessageID = message.MessageID
+
+        if isTimeBetween(currentTimeNewYork, 2, 4) {
+            photoMsg.Caption = fmt.Sprintf("Кел в %v ночи", currentTimeNewYork.Hour())
+        } else {
+            photoMsg.Caption = fmt.Sprintf("Кел в %v утра", currentTimeNewYork.Hour())
+        }
+        bot.Send(photoMsg)
+        return nil
+    }
+
+    // Retrieve chat-specific triggers from the database
+    chatSpecificQuery := `
+        SELECT 
+            id, 
+            search_phrase, 
+            response, 
+            file_type, 
+            file_id, 
+            file_name,
+            entities
+        FROM triggers
+        WHERE chat_id = ? AND is_global = ?
+    `
+    chatRows, err := db.Query(chatSpecificQuery, message.Chat.ID, false)
+    if err != nil {
+        log.Printf("Error retrieving chat-specific triggers: %v", err)
+        return err
+    }
+    defer chatRows.Close()
+
+    var chatSpecificTriggers []*MyResponse
+    for chatRows.Next() {
+        var trigger MyResponse
+        var response, fileType, fileID, fileName sql.NullString
+        var entities sql.NullString
+
+        err := chatRows.Scan(
+            &trigger.ID,
+            &trigger.SearchPhrase,
+            &response,
+            &fileType,
+            &fileID,
+            &fileName,
+            &entities,
+        )
+        if err != nil {
+            log.Printf("Error scanning chat-specific trigger: %v", err)
+            continue
+        }
+
+        trigger.Response = response.String
+        trigger.FileType = FileType(fileType.String)
+        trigger.FileID = fileID.String
+        trigger.FileName = fileName.String
+
+        // Handle the entities field
+        if entities.Valid && entities.String != "" {
+            err := json.Unmarshal([]byte(entities.String), &trigger.Entities)
+            if err != nil {
+                log.Printf("Error unmarshalling entities for chat-specific trigger ID %d: %v", trigger.ID, err)
+                trigger.Entities = []tgbotapi.MessageEntity{}
+            }
+        } else {
+            trigger.Entities = []tgbotapi.MessageEntity{}
+        }
+
+        chatSpecificTriggers = append(chatSpecificTriggers, &trigger)
+    }
+
+    if err := chatRows.Err(); err != nil {
+        log.Printf("Error iterating over chat-specific triggers: %v", err)
+        return err
+    }
+
+    // Process chat-specific triggers
+    chatSpecificTriggerFound := false
+    for _, trigger := range chatSpecificTriggers {
+        if messageMatches(receivedMessage, trigger.SearchPhrase) {
+            err := processResponse(bot, message, *trigger)
+            if err != nil {
+                return err
+            }
+            chatSpecificTriggerFound = true
+            break
+        }
+    }
+
+    if !chatSpecificTriggerFound {
+        // Retrieve global triggers from the database
+        globalQuery := `
+            SELECT 
+                id, 
+                search_phrase, 
+                response, 
+                file_type, 
+                file_id, 
+                file_name,
+                entities
+            FROM triggers
+            WHERE is_global = ?
+        `
+        globalRows, err := db.Query(globalQuery, true)
+        if err != nil {
+            log.Printf("Error retrieving global triggers: %v", err)
+            return err
+        }
+        defer globalRows.Close()
+
+        var globalTriggers []*MyResponse
+        for globalRows.Next() {
+            var trigger MyResponse
+            var response, fileType, fileID, fileName sql.NullString
+            var entities sql.NullString
+
+            err := globalRows.Scan(
+                &trigger.ID,
+                &trigger.SearchPhrase,
+                &response,
+                &fileType,
+                &fileID,
+                &fileName,
+                &entities,
+            )
+            if err != nil {
+                log.Printf("Error scanning global trigger: %v", err)
+                continue
+            }
+
+            trigger.Response = response.String
+            trigger.FileType = FileType(fileType.String)
+            trigger.FileID = fileID.String
+            trigger.FileName = fileName.String
+
+            // Handle the entities field
+            if entities.Valid && entities.String != "" {
+                err := json.Unmarshal([]byte(entities.String), &trigger.Entities)
+                if err != nil {
+                    log.Printf("Error unmarshalling entities for global trigger ID %d: %v", trigger.ID, err)
+                    trigger.Entities = []tgbotapi.MessageEntity{}
+                }
+            } else {
+                trigger.Entities = []tgbotapi.MessageEntity{}
+            }
+
+            globalTriggers = append(globalTriggers, &trigger)
+        }
+
+        if err := globalRows.Err(); err != nil {
+            log.Printf("Error iterating over global triggers: %v", err)
+            return err
+        }
+
+        // Process global triggers
+        for _, trigger := range globalTriggers {
+            if messageMatches(receivedMessage, trigger.SearchPhrase) {
+                err := processResponse(bot, message, *trigger)
+                if err != nil {
+                    return err
+                }
+                break
+            }
+        }
+    }
 
     // Process cascade triggers (Case-Insensitive)
     err = handleCascadeTriggers(bot, message, db)
@@ -1386,32 +1402,35 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
         return err
     }
 
-	if message.From.ID == 578801 {
-		rand.Seed(time.Now().UnixNano())
+    // Example of handling specific user ID with random responses
+    if message.From.ID == 578801 {
+        rand.Seed(time.Now().UnixNano())
 
-		if message.Photo == nil && 
-		   message.Animation == nil && 
-		   message.Sticker == nil && 
-		   message.Voice == nil && 
-		   message.Video == nil && 
-		   message.Document == nil && 
-		   message.VideoNote == nil && 
-		   message.Audio == nil {
-			if rand.Float32() < 0.01 {
-				vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
-				vasyaMsg.ReplyToMessageID = message.MessageID
-				bot.Send(vasyaMsg)
-			}
-		} else {
-			if rand.Float32() < 0.01 {
-				vasyaMsg := tgbotapi.NewMessage(message.Chat.ID, "хуйню прислал")
-				vasyaMsg.ReplyToMessageID = message.MessageID
-				bot.Send(vasyaMsg)
-			}
-		}
-	}
+        var vasyaMsg *tgbotapi.MessageConfig
+        if message.Photo == nil &&
+            message.Animation == nil &&
+            message.Sticker == nil &&
+            message.Voice == nil &&
+            message.Video == nil &&
+            message.Document == nil &&
+            message.VideoNote == nil &&
+            message.Audio == nil {
+            if rand.Float32() < 0.01 {
+                vasyaMsg = tgbotapi.NewMessage(message.Chat.ID, "хуйню написал")
+            }
+        } else {
+            if rand.Float32() < 0.01 {
+                vasyaMsg = tgbotapi.NewMessage(message.Chat.ID, "хуйню прислал")
+            }
+        }
 
-	return nil
+        if vasyaMsg != nil {
+            vasyaMsg.ReplyToMessageID = message.MessageID
+            bot.Send(vasyaMsg)
+        }
+    }
+
+    return nil
 }
 
 
