@@ -26,7 +26,6 @@ type MyResponse struct {
     FileType     FileType `json:"fileType,omitempty"`
     FileID       string   `json:"fileID,omitempty"`
     FileName     string   `json:"filename,omitempty"`
-	ParseMode    string // Add this field
 }
 
 
@@ -77,8 +76,7 @@ func main() {
         file_type TEXT,
         file_id TEXT,
         file_name TEXT,
-        is_global BOOLEAN,
-		parse_mode TEXT
+        is_global BOOLEAN
     	)
 	`)
 	if err != nil {
@@ -90,8 +88,7 @@ func main() {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		chat_id INTEGER,
 		search_phrase TEXT,
-		responses TEXT,
-		parse_mode TEXT
+		responses TEXT
 	)
 	`)
 	if err != nil {
@@ -151,7 +148,6 @@ func main() {
 			}
 
 			log.Printf("Message received")
-			log.Printf("Entities: %+v", m.ReplyToMessage.Entities)
 			err := handleMessage(bot, m, db)
 			if err != nil {
 				log.Printf("[%s] %s,   err: %s", update.Message.From.UserName, update.Message.Text, err.Error())

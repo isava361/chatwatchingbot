@@ -19,7 +19,6 @@ tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 "errors"
 "sort"
 "golang.org/x/text/unicode/norm"
-"unicode/utf8"
 )
 
 // SampleSize represents the sample sizes for different risk categories.
@@ -60,16 +59,18 @@ func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool,
 }
 
 
+
+// Обновлённая функция handleAddCascadeCommand
 // Обновленная функция handleAddCascadeCommand
 func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-    // Check that the command was sent in reply to a message
+    // Проверка, что команда была отправлена в ответ на сообщение
     if message.ReplyToMessage == nil {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение, которое хотите использовать в качестве ответа при добавлении каскадного триггера.\nПример: /addc Привет")
         _, _ = bot.Send(msg)
         return nil
     }
 
-    // Extract the trigger phrase
+    // Извлечение ключевой фразы из аргументов команды
     triggerPhrase := strings.TrimSpace(message.CommandArguments())
     if triggerPhrase == "" {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, предоставьте ключевую фразу после команды /addc.\nПример: /addc Привет")
@@ -77,7 +78,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         return nil
     }
 
-    // Check if cascade trigger already exists
+    // Проверка существования каскадного триггера с такой же фразой
     var existingTriggerID int64
     err := db.QueryRow(`
         SELECT id FROM cascade_triggers2
@@ -90,61 +91,223 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
     }
 
     var triggerID int64
+
     if err == sql.ErrNoRows {
-        // Insert a new cascade trigger
+        // Вставка нового каскадного триггера
         result, err := db.Exec(`
             INSERT INTO cascade_triggers2 (chat_id, search_phrase)
             VALUES (?, ?)
         `, message.Chat.ID, triggerPhrase)
         if err != nil {
-            log.Printf("Error adding cascade trigger: %v", err)
-            msg := tgbotapi.NewMessage(message.Chat.ID, "Failed to add cascade trigger.")
+            log.Printf("Ошибка при добавлении нового каскадного триггера: %v", err)
+            msg := tgbotapi.NewMessage(message.Chat.ID, "Не удалось добавить каскадный триггер.")
             _, _ = bot.Send(msg)
             return err
         }
 
         triggerID, err = result.LastInsertId()
         if err != nil {
-            log.Printf("Error getting LastInsertId: %v", err)
+            log.Printf("Ошибка при получении LastInsertId: %v", err)
             return err
         }
     } else {
+        // Триггер уже существует, используем его ID
         triggerID = existingTriggerID
     }
 
-    // Create a response from the replied message
-    myResponse, err := createMyResponse(bot, message)
-    if err != nil {
-        log.Printf("Error creating MyResponse: %v", err)
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Не получилось добавить каскадный триггер")
-        bot.Send(msg)
-        return err
-    }
-    myResponse.SearchPhrase = triggerPhrase
-
-    // Validate UTF-8 before inserting
-    if !utf8.ValidString(myResponse.Response) {
-        myResponse.Response = strings.ToValidUTF8(myResponse.Response, "")
+    // Извлечение текстовых ответов из исходного сообщения
+    var (
+        responseText string
+        hasText      bool
+    )
+    if message.ReplyToMessage.Text != "" {
+        responseText = strings.TrimSpace(message.ReplyToMessage.Text)
+        hasText = true
+    } else if message.ReplyToMessage.Caption != "" {
+        responseText = strings.TrimSpace(message.ReplyToMessage.Caption)
+        hasText = true
     }
 
-    // Insert the cascade response
-    _, err = db.Exec(`
-        INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name, parse_mode)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `, triggerID, myResponse.Response, myResponse.FileType, myResponse.FileID, myResponse.FileName, myResponse.ParseMode)
-    if err != nil {
-        log.Printf("Error adding cascade response: %v", err)
-        msg := tgbotapi.NewMessage(message.Chat.ID, "Не получилось добавить каскадный триггер.")
+    // Разделение текстовых ответов по переносу строки "\n"
+    var textResponses []string
+    if hasText {
+        textResponses = strings.Split(responseText, "\n")
+    }
+
+    // Добавление текстовых ответов
+    for _, resp := range textResponses {
+        resp = strings.TrimSpace(resp)
+        if resp == "" {
+            continue // Пропуск пустых ответов
+        }
+
+        // Создание MyResponse с только текстом
+        myResponse := MyResponse{
+            SearchPhrase: triggerPhrase,
+            Response:     resp,
+        }
+
+        // Вставка ответа в таблицу
+        _, err = db.Exec(`
+            INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name)
+            VALUES (?, ?, ?, ?, ?)
+        `, triggerID, myResponse.Response, "", "", "")
+        if err != nil {
+            log.Printf("Ошибка при добавлении текстового ответа в каскадный триггер: %v", err)
+            continue
+        }
+    }
+
+    // Обработка медиа-ответов
+    mediaAdded := false
+    mediaTypes := []struct {
+        FileType string
+        FileID   string
+        FileName string
+    }{}
+
+    // Фото
+    for _, photo := range message.ReplyToMessage.Photo {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FilePhoto),
+            FileID:   photo.FileID,
+            FileName: "",
+        })
+    }
+
+    // Анимации (GIF)
+    if message.ReplyToMessage.Animation != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileGIF),
+            FileID:   message.ReplyToMessage.Animation.FileID,
+            FileName: "",
+        })
+    }
+
+    // Голосовые сообщения
+    if message.ReplyToMessage.Voice != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileVoice),
+            FileID:   message.ReplyToMessage.Voice.FileID,
+            FileName: "",
+        })
+    }
+
+    // Стикеры
+    if message.ReplyToMessage.Sticker != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileSticker),
+            FileID:   message.ReplyToMessage.Sticker.FileID,
+            FileName: "",
+        })
+    }
+
+    // Видео
+    if message.ReplyToMessage.Video != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileVideo),
+            FileID:   message.ReplyToMessage.Video.FileID,
+            FileName: "",
+        })
+    }
+
+    // Документы
+    if message.ReplyToMessage.Document != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileDocument),
+            FileID:   message.ReplyToMessage.Document.FileID,
+            FileName: message.ReplyToMessage.Document.FileName,
+        })
+    }
+
+    // Аудио
+    if message.ReplyToMessage.Audio != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileAudio),
+            FileID:   message.ReplyToMessage.Audio.FileID,
+            FileName: message.ReplyToMessage.Audio.FileName,
+        })
+    }
+
+    // Видеозаметки
+    if message.ReplyToMessage.VideoNote != nil {
+        mediaTypes = append(mediaTypes, struct {
+            FileType string
+            FileID   string
+            FileName string
+        }{
+            FileType: string(FileVideoNote),
+            FileID:   message.ReplyToMessage.VideoNote.FileID,
+            FileName: "",
+        })
+    }
+
+    // Добавление медиа-ответов
+    for _, media := range mediaTypes {
+        myResponse := MyResponse{
+            SearchPhrase: triggerPhrase,
+            Response:     "", // По умолчанию пусто, можно добавить обработку подписей
+            FileType:     FileType(media.FileType),
+            FileID:       media.FileID,
+            FileName:     media.FileName,
+        }
+
+        // Если у медиа есть подпись, устанавливаем её как Response
+        if message.ReplyToMessage.Caption != "" && (media.FileType == string(FilePhoto) || media.FileType == string(FileVideo)) {
+            myResponse.Response = strings.TrimSpace(message.ReplyToMessage.Caption)
+        }
+
+        // Вставка ответа в таблицу
+        _, err = db.Exec(`
+            INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name)
+            VALUES (?, ?, ?, ?, ?)
+        `, triggerID, myResponse.Response, myResponse.FileType, myResponse.FileID, myResponse.FileName)
+        if err != nil {
+            log.Printf("Ошибка при добавлении медиа-ответа в каскадный триггер: %v", err)
+            continue
+        }
+
+        mediaAdded = true
+    }
+
+    if !hasText && !mediaAdded {
+        msg := tgbotapi.NewMessage(message.Chat.ID, "Сообщение, на которое вы отвечаете, не содержит текста, подписи или поддерживаемых медиа.")
         _, _ = bot.Send(msg)
-        return err
+        return nil
     }
 
-    msg := tgbotapi.NewMessage(message.Chat.ID, "Каскадный триггер успешно добавлен!")
+    msg := tgbotapi.NewMessage(message.Chat.ID, "Каскадный триггер добавлен успешно!")
     _, _ = bot.Send(msg)
     return nil
 }
-
-
 
 
 
@@ -523,14 +686,17 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 
 
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+
     if message.From.ID == 89886125 {
         msg := tgbotapi.NewMessage(message.Chat.ID, "Дима саси жопу")
         bot.Send(msg)
         return nil
     }
 
+    // Convert newSearchPhrase to lowercase
     newSearchPhrase := strings.ToLower(message.CommandArguments())
 
+    // Check if any type of trigger already exists
     _, cascadeExists, err := checkTriggerExistence(db, message.Chat.ID, newSearchPhrase)
     if err != nil {
         log.Printf("Error checking trigger existence: %v", err)
@@ -543,6 +709,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
         return nil
     }
 
+    // Check if the trigger already exists for the specific chat
     var count int
     err = db.QueryRow(`
         SELECT COUNT(*) FROM triggers
@@ -562,31 +729,29 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
     }
     newMyResponse.SearchPhrase = newSearchPhrase
 
-    // Validate UTF-8 before inserting/updating
-    if !utf8.ValidString(newMyResponse.Response) {
-        newMyResponse.Response = strings.ToValidUTF8(newMyResponse.Response, "")
-    }
-
     if count > 0 {
+        // Update the trigger in the database with lowercase search_phrase
         _, err = db.Exec(`
             UPDATE triggers 
-            SET response = ?, file_type = ?, file_id = ?, file_name = ?, parse_mode = ?
+            SET response = ?, file_type = ?, file_id = ?, file_name = ? 
             WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?) AND is_global = ?
-        `, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, newMyResponse.ParseMode, message.Chat.ID, newMyResponse.SearchPhrase, false)
+        `, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, message.Chat.ID, newMyResponse.SearchPhrase, false)
         if err != nil {
             log.Printf("Error updating trigger: %v", err)
             return err
         }
-
+    
         msg := tgbotapi.NewMessage(message.Chat.ID, "Response updated!")
         _, _ = bot.Send(msg)
+    
         return nil
     }
 
+    // Insert the trigger into the database with lowercase search_phrase
     _, err = db.Exec(`
-        INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, is_global, parse_mode)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, message.Chat.ID, newMyResponse.SearchPhrase, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, false, newMyResponse.ParseMode)
+        INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, is_global)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, message.Chat.ID, newMyResponse.SearchPhrase, newMyResponse.Response, newMyResponse.FileType, newMyResponse.FileID, newMyResponse.FileName, false)
     if err != nil {
         log.Printf("Error inserting trigger: %v", err)
         return err
@@ -597,8 +762,6 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
 
     return nil
 }
-
-
 
 
 func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
@@ -668,69 +831,53 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
 
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
 	var myResponse MyResponse
-	var rawText string
-	var entities []tgbotapi.MessageEntity
 
-	// Decide where to get the text from
 	if message.ReplyToMessage.Caption != "" {
-		rawText = message.ReplyToMessage.Caption
-		entities = message.ReplyToMessage.CaptionEntities
+		myResponse.Response = message.ReplyToMessage.Caption
 	} else {
-		rawText = message.ReplyToMessage.Text
-		entities = message.ReplyToMessage.Entities
+		myResponse.Response = message.ReplyToMessage.Text
 	}
 
-	// Convert text + entities to HTML
-	formattedText := rawText
-	if len(entities) > 0 {
-		formattedText = entitiesToHTML(rawText, entities)
-	}
-
-	myResponse.Response = formattedText
-	myResponse.ParseMode = "HTML" // We are using HTML formatting
-
-	// Identify file type (if any)
-	if len(message.ReplyToMessage.Photo) > 0 {
+	if len(message.ReplyToMessage.Photo) > 0 { // photo proccess
 		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
 		myResponse.FileType = FilePhoto
 		myResponse.FileID = photoFileID
-	} else if message.ReplyToMessage.Animation != nil {
+	} else if message.ReplyToMessage.Animation != nil { // gif proccess
 		gifFileID := message.ReplyToMessage.Animation.FileID
 		myResponse.FileType = FileGIF
 		myResponse.FileID = gifFileID
-	} else if message.ReplyToMessage.Voice != nil {
+	} else if message.ReplyToMessage.Voice != nil { // voice proccess
 		voiceFileID := message.ReplyToMessage.Voice.FileID
 		myResponse.FileType = FileVoice
 		myResponse.FileID = voiceFileID
-	} else if message.ReplyToMessage.Sticker != nil {
-		stickerFileID := message.ReplyToMessage.Sticker.FileID
-		myResponse.FileType = FileSticker
-		myResponse.FileID = stickerFileID
-	} else if message.ReplyToMessage.Video != nil {
-		videoFileID := message.ReplyToMessage.Video.FileID
-		myResponse.FileType = FileVideo
-		myResponse.FileID = videoFileID
-	} else if message.ReplyToMessage.Document != nil {
-		documentFileID := message.ReplyToMessage.Document.FileID
-		myResponse.FileType = FileDocument
-		myResponse.FileID = documentFileID
-		myResponse.FileName = message.ReplyToMessage.Document.FileName
-	} else if message.ReplyToMessage.Audio != nil {
-		audioFileID := message.ReplyToMessage.Audio.FileID
-		myResponse.FileType = FileAudio
-		myResponse.FileID = audioFileID
-		myResponse.FileName = message.ReplyToMessage.Audio.FileName
-	} else if message.ReplyToMessage.VideoNote != nil {
-		videonoteFileID := message.ReplyToMessage.VideoNote.FileID
-		myResponse.FileType = FileVideoNote
-		myResponse.FileID = videonoteFileID
-	} else if !allowedMessageType(message) {
+	} else if message.ReplyToMessage.Sticker != nil { // Sticker proccess
+    	stickerFileID := message.ReplyToMessage.Sticker.FileID
+    	myResponse.FileType = FileSticker
+    	myResponse.FileID = stickerFileID
+  	} else if message.ReplyToMessage.Video != nil { // Video proccess
+    	videoFileID := message.ReplyToMessage.Video.FileID
+    	myResponse.FileType = FileVideo
+    	myResponse.FileID = videoFileID
+  	} else if message.ReplyToMessage.Document != nil { // Document proccess
+    	documentFileID := message.ReplyToMessage.Document.FileID
+    	myResponse.FileType = FileDocument
+    	myResponse.FileID = documentFileID
+  	} else if message.ReplyToMessage.Audio != nil { // Audio proccess
+    	audioFileID := message.ReplyToMessage.Audio.FileID
+    	myResponse.FileType = FileAudio
+    	myResponse.FileID = audioFileID
+  	} else if message.ReplyToMessage.VideoNote != nil { // Document proccess
+    	videonoteFileID := message.ReplyToMessage.VideoNote.FileID
+    	myResponse.FileType = FileVideoNote
+    	myResponse.FileID = videonoteFileID
+  	} else if !allowedMessageType(message) {
 		return myResponse, fmt.Errorf("Unsupported message type: %v", message)
+	} else {
+		return myResponse, nil
 	}
 
 	return myResponse, nil
 }
-
 
 
 
@@ -753,121 +900,85 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 }
 
 func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
-    response := myResponse.Response
-    if !utf8.ValidString(response) {
-        response = strings.ToValidUTF8(response, "")
-    }
-    myResponse.Response = response
-
-    parseMode := myResponse.ParseMode // use stored parse mode, typically "HTML"
-
-    switch myResponse.FileType {
-    case FilePhoto:
-        photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        photoMsg.Caption = myResponse.Response
-        photoMsg.ParseMode = parseMode
-        photoMsg.ReplyToMessageID = message.MessageID
-        return photoMsg, nil
-    case FileGIF:
-        gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        gifMsg.Caption = myResponse.Response
-        gifMsg.ParseMode = parseMode
-        gifMsg.ReplyToMessageID = message.MessageID
-        return gifMsg, nil
-    case FileVoice:
-        voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        voiceMsg.ParseMode = parseMode
-        voiceMsg.ReplyToMessageID = message.MessageID
-        return voiceMsg, nil
-    case FileSticker:
-        stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        stickerMsg.ReplyToMessageID = message.MessageID
-        return stickerMsg, nil
-    case FileVideo:
-        videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        videoMsg.Caption = myResponse.Response
-        videoMsg.ParseMode = parseMode
-        videoMsg.ReplyToMessageID = message.MessageID
-        return videoMsg, nil
-    case FileDocument:
-        documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        documentMsg.Caption = myResponse.Response
-        documentMsg.ParseMode = parseMode
-        documentMsg.ReplyToMessageID = message.MessageID
-        return documentMsg, nil
-    case FileVideoNote:
-        videonoteMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        videonoteMsg.ParseMode = parseMode
-        videonoteMsg.ReplyToMessageID = message.MessageID
-        return videonoteMsg, nil
-    case FileAudio:
-        audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        audioMsg.Caption = myResponse.Response
-        audioMsg.ParseMode = parseMode
-        audioMsg.ReplyToMessageID = message.MessageID
-        return audioMsg, nil
-    default:
-        textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
-        textMsg.ParseMode = parseMode
-        textMsg.ReplyToMessageID = message.MessageID
-        return textMsg, nil
-    }
+	if myResponse.FileType == FilePhoto {
+		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		photoMsg.ReplyToMessageID = message.MessageID
+		photoMsg.Caption = myResponse.Response
+		return photoMsg, nil
+	} else if myResponse.FileType == FileGIF {
+		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		gifMsg.ReplyToMessageID = message.MessageID
+		gifMsg.Caption = myResponse.Response
+		return gifMsg, nil
+	} else if myResponse.FileType == FileVoice {
+		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		voiceMsg.ReplyToMessageID = message.MessageID
+		return voiceMsg, nil
+	} else if myResponse.FileType == FileSticker {
+    	stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	stickerMsg.ReplyToMessageID = message.MessageID
+    	return stickerMsg, nil
+    } else if myResponse.FileType == FileVideo {
+    	videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	videoMsg.ReplyToMessageID = message.MessageID
+		videoMsg.Caption = myResponse.Response
+    	return videoMsg, nil
+    } else if myResponse.FileType == FileDocument {
+    	documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	documentMsg.ReplyToMessageID = message.MessageID
+		documentMsg.Caption = myResponse.Response
+    	return documentMsg, nil
+    } else if myResponse.FileType == FileVideoNote {
+    	videonoteMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	videonoteMsg.ReplyToMessageID = message.MessageID
+    	return videonoteMsg, nil
+    } else if myResponse.FileType == FileAudio {
+    	audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	audioMsg.ReplyToMessageID = message.MessageID
+		audioMsg.Caption = myResponse.Response
+    	return audioMsg, nil
+    } else {
+		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
+		textMsg.ReplyToMessageID = message.MessageID
+		return textMsg, nil
+	}
 }
-
 
 func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
-    response := myResponse.Response
-    if !utf8.ValidString(response) {
-        response = strings.ToValidUTF8(response, "")
-    }
-    myResponse.Response = response
-    
-    parseMode := myResponse.ParseMode
-
-    switch myResponse.FileType {
-    case FilePhoto:
-        photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+	if myResponse.FileType == FilePhoto {
+		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         photoMsg.Caption = myResponse.Response
-        photoMsg.ParseMode = parseMode
-        return photoMsg, nil
-    case FileGIF:
-        gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        gifMsg.Caption = myResponse.Response
-        gifMsg.ParseMode = parseMode
-        return gifMsg, nil
-    case FileVoice:
-        voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        voiceMsg.ParseMode = parseMode
-        return voiceMsg, nil
-    case FileSticker:
-        stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        return stickerMsg, nil
-    case FileVideo:
-        videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        videoMsg.Caption = myResponse.Response
-        videoMsg.ParseMode = parseMode
-        return videoMsg, nil
-    case FileDocument:
-        documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        documentMsg.Caption = myResponse.Response
-        documentMsg.ParseMode = parseMode
-        return documentMsg, nil
-    case FileVideoNote:
-        videonoteMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        videonoteMsg.ParseMode = parseMode
-        return videonoteMsg, nil
-    case FileAudio:
-        audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-        audioMsg.Caption = myResponse.Response
-        audioMsg.ParseMode = parseMode
-        return audioMsg, nil
-    default:
-        textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
-        textMsg.ParseMode = parseMode
-        return textMsg, nil
-    }
+		return photoMsg, nil
+	} else if myResponse.FileType == FileGIF {
+		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		gifMsg.Caption = myResponse.Response
+		return gifMsg, nil
+	} else if myResponse.FileType == FileVoice {
+		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		return voiceMsg, nil
+	} else if myResponse.FileType == FileSticker {
+    	stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	return stickerMsg, nil
+    } else if myResponse.FileType == FileVideo {
+    	videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		videoMsg.Caption = myResponse.Response
+    	return videoMsg, nil
+    } else if myResponse.FileType == FileDocument {
+    	documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		documentMsg.Caption = myResponse.Response
+    	return documentMsg, nil
+    } else if myResponse.FileType == FileVideoNote {
+    	videonoteMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+    	return videonoteMsg, nil
+    } else if myResponse.FileType == FileAudio {
+    	audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		audioMsg.Caption = myResponse.Response
+    	return audioMsg, nil
+    } else {
+		textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
+		return textMsg, nil
+	}
 }
-
 
 func handleChatIDCommand (bot *tgbotapi.BotAPI, message *tgbotapi.Message){
 	chatid := "This chat ID is: " + strconv.FormatInt(message.Chat.ID, 10)
@@ -1798,50 +1909,4 @@ func handleRoll4(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
     }
 
     return nil
-}
-
-func entitiesToHTML(text string, entities []tgbotapi.MessageEntity) string {
-    sort.Slice(entities, func(i, j int) bool {
-        return entities[i].Offset < entities[j].Offset
-    })
-
-    result := text
-    for i := len(entities) - 1; i >= 0; i-- {
-        e := entities[i]
-        start := e.Offset
-        end := e.Offset + e.Length
-        if end > len(result) {
-            end = len(result)
-        }
-
-        segment := result[start:end]
-
-        switch e.Type {
-        case "bold":
-            segment = fmt.Sprintf("<b>%s</b>", segment)
-        case "italic":
-            segment = fmt.Sprintf("<i>%s</i>", segment)
-        case "underline":
-            segment = fmt.Sprintf("<u>%s</u>", segment)
-        case "strikethrough":
-            segment = fmt.Sprintf("<s>%s</s>", segment)
-        case "code":
-            segment = fmt.Sprintf("<code>%s</code>", segment)
-        case "pre":
-            segment = fmt.Sprintf("<pre>%s</pre>", segment)
-        case "text_link":
-            // e.URL is a string, not a pointer
-            if e.URL != "" {
-                segment = fmt.Sprintf("<a href='%s'>%s</a>", e.URL, segment)
-            }
-        case "text_mention":
-            if e.User != nil {
-                segment = fmt.Sprintf("<a href='tg://user?id=%d'>%s</a>", e.User.ID, segment)
-            }
-        }
-
-        result = result[:start] + segment + result[end:]
-    }
-
-    return result
 }
