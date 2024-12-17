@@ -925,69 +925,6 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
 }
 
 
-// Updated function to create MyResponse with Entities as a slice
-func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
-    var myResponse MyResponse
-
-    // Extract response text or caption
-    if message.ReplyToMessage.Caption != "" {
-        myResponse.Response = message.ReplyToMessage.Caption
-    } else {
-        myResponse.Response = message.ReplyToMessage.Text
-    }
-
-    // Assign entities directly if they exist
-    if len(message.ReplyToMessage.Entities) > 0 {
-        myResponse.Entities = message.ReplyToMessage.Entities
-    } else {
-        myResponse.Entities = []tgbotapi.MessageEntity{}
-    }
-
-    // Handle media types as before
-    if len(message.ReplyToMessage.Photo) > 0 { // Photo process
-        photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
-        myResponse.FileType = FilePhoto
-        myResponse.FileID = photoFileID
-    } else if message.ReplyToMessage.Animation != nil { // GIF process
-        gifFileID := message.ReplyToMessage.Animation.FileID
-        myResponse.FileType = FileGIF
-        myResponse.FileID = gifFileID
-    } else if message.ReplyToMessage.Voice != nil { // Voice process
-        voiceFileID := message.ReplyToMessage.Voice.FileID
-        myResponse.FileType = FileVoice
-        myResponse.FileID = voiceFileID
-    } else if message.ReplyToMessage.Sticker != nil { // Sticker process
-        stickerFileID := message.ReplyToMessage.Sticker.FileID
-        myResponse.FileType = FileSticker
-        myResponse.FileID = stickerFileID
-    } else if message.ReplyToMessage.Video != nil { // Video process
-        videoFileID := message.ReplyToMessage.Video.FileID
-        myResponse.FileType = FileVideo
-        myResponse.FileID = videoFileID
-    } else if message.ReplyToMessage.Document != nil { // Document process
-        documentFileID := message.ReplyToMessage.Document.FileID
-        myResponse.FileType = FileDocument
-        myResponse.FileID = documentFileID
-    } else if message.ReplyToMessage.Audio != nil { // Audio process
-        audioFileID := message.ReplyToMessage.Audio.FileID
-        myResponse.FileType = FileAudio
-        myResponse.FileID = audioFileID
-    } else if message.ReplyToMessage.VideoNote != nil { // VideoNote process
-        videonoteFileID := message.ReplyToMessage.VideoNote.FileID
-        myResponse.FileType = FileVideoNote
-        myResponse.FileID = videonoteFileID
-    } else if !allowedMessageType(message) {
-        return myResponse, fmt.Errorf("Unsupported message type: %v", message)
-    } else {
-        return myResponse, nil
-    }
-
-    return myResponse, nil
-}
-
-
-
-
 
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
     // If the response is empty and the file type is one of gif or photo, do not send anything
