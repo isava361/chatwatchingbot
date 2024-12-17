@@ -1027,7 +1027,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         if len(entities) > 0 {
             textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
             textMsg.ReplyToMessageID = message.MessageID
-            textMsg.entities = myResponse.Entities
+            textMsg.Entities = myResponse.Entities
             return textMsg, nil
         }
         textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
