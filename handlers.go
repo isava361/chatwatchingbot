@@ -1009,7 +1009,6 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         return documentMsg, nil
 
     case FileVideoNote:
-        // Adjust based on your tgbotapi version
         videoNoteMsg := tgbotapi.NewVideoNote(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         videoNoteMsg.ReplyToMessageID = message.MessageID
         return videoNoteMsg, nil
