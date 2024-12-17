@@ -87,7 +87,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
         message.Chat.ID, triggerPhrase).Scan(&existingTriggerID)
 
     if err != nil && err != sql.ErrNoRows {
-        return false, false, err
+        return err
     }
 
     var triggerID int64
@@ -349,56 +349,70 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 
 
 // Обновлённая функция createMyResponseFromCascade
-// Updated function to create MyResponse from cascade triggers with Entities as a slice
-func createMyResponseFromCascade(bot *tgbotapi.BotAPI, repliedMessage *tgbotapi.Message) (MyResponse, error) {
+func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
     var myResponse MyResponse
 
-    // Extract text or caption
-    if repliedMessage.Text != "" {
-        myResponse.Response = repliedMessage.Text
-    } else if repliedMessage.Caption != "" {
-        myResponse.Response = repliedMessage.Caption
-    }
-
-    // Assign entities directly if they exist
-    if len(repliedMessage.Entities) > 0 {
-        myResponse.Entities = repliedMessage.Entities
+    // Extract response text or caption
+    if message.ReplyToMessage.Caption != "" {
+        myResponse.Response = message.ReplyToMessage.Caption
     } else {
-        myResponse.Entities = []tgbotapi.MessageEntity{}
+        myResponse.Response = message.ReplyToMessage.Text
     }
 
-    // Determine media type and set FileType and FileID
-    switch {
-    case len(repliedMessage.Photo) > 0:
+    // Serialize entities to JSON if they exist
+    if len(message.ReplyToMessage.Entities) > 0 {
+        entitiesJSONBytes, err := json.Marshal(message.ReplyToMessage.Entities)
+        if err != nil {
+            log.Printf("Error marshalling entities: %v", err)
+            return myResponse, err
+        }
+        myResponse.Entities = string(entitiesJSONBytes)
+    } else {
+        myResponse.Entities = ""
+    }
+
+    // Handle media types as before
+    if len(message.ReplyToMessage.Photo) > 0 { // Photo process
+        photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
         myResponse.FileType = FilePhoto
-        myResponse.FileID = repliedMessage.Photo[len(repliedMessage.Photo)-1].FileID
-    case repliedMessage.Animation != nil:
+        myResponse.FileID = photoFileID
+    } else if message.ReplyToMessage.Animation != nil { // GIF process
+        gifFileID := message.ReplyToMessage.Animation.FileID
         myResponse.FileType = FileGIF
-        myResponse.FileID = repliedMessage.Animation.FileID
-    case repliedMessage.Voice != nil:
+        myResponse.FileID = gifFileID
+    } else if message.ReplyToMessage.Voice != nil { // Voice process
+        voiceFileID := message.ReplyToMessage.Voice.FileID
         myResponse.FileType = FileVoice
-        myResponse.FileID = repliedMessage.Voice.FileID
-    case repliedMessage.Sticker != nil:
+        myResponse.FileID = voiceFileID
+    } else if message.ReplyToMessage.Sticker != nil { // Sticker process
+        stickerFileID := message.ReplyToMessage.Sticker.FileID
         myResponse.FileType = FileSticker
-        myResponse.FileID = repliedMessage.Sticker.FileID
-    case repliedMessage.Video != nil:
+        myResponse.FileID = stickerFileID
+    } else if message.ReplyToMessage.Video != nil { // Video process
+        videoFileID := message.ReplyToMessage.Video.FileID
         myResponse.FileType = FileVideo
-        myResponse.FileID = repliedMessage.Video.FileID
-    case repliedMessage.Document != nil:
+        myResponse.FileID = videoFileID
+    } else if message.ReplyToMessage.Document != nil { // Document process
+        documentFileID := message.ReplyToMessage.Document.FileID
         myResponse.FileType = FileDocument
-        myResponse.FileID = repliedMessage.Document.FileID
-    case repliedMessage.Audio != nil:
+        myResponse.FileID = documentFileID
+    } else if message.ReplyToMessage.Audio != nil { // Audio process
+        audioFileID := message.ReplyToMessage.Audio.FileID
         myResponse.FileType = FileAudio
-        myResponse.FileID = repliedMessage.Audio.FileID
-    case repliedMessage.VideoNote != nil:
+        myResponse.FileID = audioFileID
+    } else if message.ReplyToMessage.VideoNote != nil { // VideoNote process
+        videonoteFileID := message.ReplyToMessage.VideoNote.FileID
         myResponse.FileType = FileVideoNote
-        myResponse.FileID = repliedMessage.VideoNote.FileID
-    default:
-        myResponse.FileType = ""
+        myResponse.FileID = videonoteFileID
+    } else if !allowedMessageType(message) {
+        return myResponse, fmt.Errorf("Unsupported message type: %v", message)
+    } else {
+        return myResponse, nil
     }
 
     return myResponse, nil
 }
+
 
 
 // Updated function to handle cascade triggers with Entities as a slice
@@ -1008,6 +1022,16 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 
 // Updated function to build chattable responses with Entities as a slice
 func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
+    // Deserialize entities if they exist
+    var entities []tgbotapi.MessageEntity
+    if myResponse.Entities != "" {
+        err := json.Unmarshal([]byte(myResponse.Entities), &entities)
+        if err != nil {
+            log.Printf("Error unmarshalling entities: %v", err)
+            // Proceed without entities if there's an error
+        }
+    }
+
     // Reconstruct formatted text using entities
     formattedText := myResponse.Response
 
@@ -1017,9 +1041,8 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         photoMsg.ReplyToMessageID = message.MessageID
         photoMsg.Caption = formattedText
-        if len(myResponse.Entities) > 0 {
-            photoMsg.Entities = myResponse.Entities
-            // Do not set ParseMode if using Entities
+        if len(entities) > 0 {
+            photoMsg.ParseMode = "Markdown" // Use "HTML" if preferred
         }
         return photoMsg, nil
 
@@ -1027,8 +1050,8 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         gifMsg.ReplyToMessageID = message.MessageID
         gifMsg.Caption = formattedText
-        if len(myResponse.Entities) > 0 {
-            gifMsg.Entities = myResponse.Entities
+        if len(entities) > 0 {
+            gifMsg.ParseMode = "Markdown"
         }
         return gifMsg, nil
 
@@ -1046,8 +1069,8 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         videoMsg.ReplyToMessageID = message.MessageID
         videoMsg.Caption = formattedText
-        if len(myResponse.Entities) > 0 {
-            videoMsg.Entities = myResponse.Entities
+        if len(entities) > 0 {
+            videoMsg.ParseMode = "Markdown"
         }
         return videoMsg, nil
 
@@ -1055,8 +1078,8 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         documentMsg.ReplyToMessageID = message.MessageID
         documentMsg.Caption = formattedText
-        if len(myResponse.Entities) > 0 {
-            documentMsg.Entities = myResponse.Entities
+        if len(entities) > 0 {
+            documentMsg.ParseMode = "Markdown"
         }
         return documentMsg, nil
 
@@ -1069,17 +1092,17 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
         audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         audioMsg.ReplyToMessageID = message.MessageID
         audioMsg.Caption = formattedText
-        if len(myResponse.Entities) > 0 {
-            audioMsg.Entities = myResponse.Entities
+        if len(entities) > 0 {
+            audioMsg.ParseMode = "Markdown"
         }
         return audioMsg, nil
 
     default:
         // For text messages
-        if len(myResponse.Entities) > 0 {
+        if len(entities) > 0 {
             textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
             textMsg.ReplyToMessageID = message.MessageID
-            textMsg.Entities = myResponse.Entities
+            textMsg.Entities = entities // Assign the slice, not the string
             return textMsg, nil
         }
         textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
@@ -1093,25 +1116,37 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 
 // Updated function to build chattable responses for cascade triggers with Entities as a slice
 func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
+    // Deserialize entities if they exist
+    var entities []tgbotapi.MessageEntity
+    if myResponse.Entities != "" {
+        err := json.Unmarshal([]byte(myResponse.Entities), &entities)
+        if err != nil {
+            log.Printf("Error unmarshalling entities: %v", err)
+            // Proceed without entities if there's an error
+        }
+    }
+
     // Reconstruct formatted text using entities
     formattedText := myResponse.Response
+    if len(entities) > 0 {
+        formattedText = applyEntitiesToText(myResponse.Response, entities)
+    }
 
     // Depending on the file type, construct the appropriate message
     switch myResponse.FileType {
     case FilePhoto:
         photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         photoMsg.Caption = formattedText
-        if len(myResponse.Entities) > 0 {
-            photoMsg.Entities = myResponse.Entities
-            // Do not set ParseMode if using Entities
+        if len(entities) > 0 {
+            photoMsg.ParseMode = "Markdown" // Use "HTML" if preferred
         }
         return photoMsg, nil
 
     case FileGIF:
         gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         gifMsg.Caption = formattedText
-        if len(myResponse.Entities) > 0 {
-            gifMsg.Entities = myResponse.Entities
+        if len(entities) > 0 {
+            gifMsg.ParseMode = "Markdown"
         }
         return gifMsg, nil
 
@@ -1126,16 +1161,16 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
     case FileVideo:
         videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         videoMsg.Caption = formattedText
-        if len(myResponse.Entities) > 0 {
-            videoMsg.Entities = myResponse.Entities
+        if len(entities) > 0 {
+            videoMsg.ParseMode = "Markdown"
         }
         return videoMsg, nil
 
     case FileDocument:
         documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         documentMsg.Caption = formattedText
-        if len(myResponse.Entities) > 0 {
-            documentMsg.Entities = myResponse.Entities
+        if len(entities) > 0 {
+            documentMsg.ParseMode = "Markdown"
         }
         return documentMsg, nil
 
@@ -1147,22 +1182,23 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
     case FileAudio:
         audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
         audioMsg.Caption = formattedText
-        if len(myResponse.Entities) > 0 {
-            audioMsg.Entities = myResponse.Entities
+        if len(entities) > 0 {
+            audioMsg.ParseMode = "Markdown"
         }
         return audioMsg, nil
 
     default:
         // For text messages
-        if len(myResponse.Entities) > 0 {
+        if len(entities) > 0 {
             textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
-            textMsg.Entities = myResponse.Entities
+            textMsg.ParseMode = "Markdown" // Use "HTML" if preferred
             return textMsg, nil
         }
         textMsg := tgbotapi.NewMessage(message.Chat.ID, myResponse.Response)
         return textMsg, nil
     }
 }
+
 
 
 
