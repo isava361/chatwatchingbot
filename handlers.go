@@ -1005,7 +1005,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
     default:
         textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
         textMsg.ReplyToMessageID = message.MessageID
-        textMsg.Entities = entities // Assign the slice, not the string
+        textMsg.Entities = myResponse.Entities 
         return textMsg, nil
 
     }
@@ -1016,13 +1016,6 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 
 // Updated function to build chattable responses for cascade triggers with Entities as a slice
 func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
-    // Deserialize entities if they exist
-    var entities []tgbotapi.MessageEntity
-    err := json.Unmarshal([]byte(myResponse.Entities), &entities)
-    if err != nil {
-        log.Printf("Error unmarshalling entities: %v", err)
-        // Proceed without entities if there's an error
-    }
 
     // Reconstruct formatted text using entities
     formattedText := myResponse.Response
