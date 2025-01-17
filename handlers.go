@@ -950,11 +950,6 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
 
 
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
-    // If the response is empty and the file type is one of gif or photo, do not send anything
-    if myResponse.Response == "" && (myResponse.FileType == FileGIF || myResponse.FileType == FilePhoto) {
-        return nil
-    }
-
     // Build the chattable response with entities
     chattableResponse, err := buildChattableResponse(message, myResponse)
     if err != nil {
