@@ -37,8 +37,13 @@ import (
 // type FileType string
 // const (
 //    FilePhoto FileType = "photo"
-//    FileGIF FileType = "gif"
-//    // etc...
+//    FileGIF   FileType = "gif"
+//    FileVoice FileType = "voice"
+//    FileSticker FileType = "sticker"
+//    FileVideo FileType = "video"
+//    FileDocument FileType = "document"
+//    FileVideoNote FileType = "videonote"
+//    FileAudio FileType = "audio"
 // )
 
 // SampleSize represents the sample sizes for different risk categories.
@@ -52,16 +57,14 @@ type CascadeTrigger struct {
 	Responses    []string
 }
 
-// --- INIT: seed random once (issue 2) ---
+// --- Seed the random generator once (Issue 2) ---
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// --- Issue 1: Inconsistent case normalization fixed ---
-// checkTriggerExistence always converts the search phrase to lower-case.
+// --- checkTriggerExistence (Issue 1: normalization) ---
 func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool, bool, error) {
 	var normalCount, cascadeCount int
-	// Convert searchPhrase to lowercase for consistent comparison
 	searchPhrase = strings.ToLower(searchPhrase)
 
 	err := db.QueryRow(`
@@ -83,26 +86,22 @@ func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool,
 	return normalCount > 0, cascadeCount > 0, nil
 }
 
-// --- HANDLE ADD CASCADE COMMAND ---
+// --- handleAddCascadeCommand ---
 func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-	// Ensure the command is a reply to a message
 	if message.ReplyToMessage == nil {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to the message you want to use as a response when adding a cascade trigger.\nExample: /addc Hello")
 		_, _ = bot.Send(msg)
 		return nil
 	}
 
-	// Extract the trigger phrase from the command arguments
 	triggerPhrase := strings.TrimSpace(message.CommandArguments())
 	if triggerPhrase == "" {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Please provide a trigger phrase after the /addc command.\nExample: /addc Hello")
 		_, _ = bot.Send(msg)
 		return nil
 	}
-	// Normalize trigger phrase for consistent comparisons.
 	triggerPhrase = strings.ToLower(triggerPhrase)
 
-	// Check if a cascade trigger with the same phrase already exists
 	var existingTriggerID int64
 	err := db.QueryRow(
 		`SELECT id FROM cascade_triggers2
@@ -114,7 +113,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 
 	var triggerID int64
 	if err == sql.ErrNoRows {
-		// Insert a new cascade trigger
 		result, err := db.Exec(
 			`INSERT INTO cascade_triggers2 (chat_id, search_phrase)
              VALUES (?, ?)`,
@@ -132,11 +130,9 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 			return err
 		}
 	} else {
-		// Trigger already exists, use its ID
 		triggerID = existingTriggerID
 	}
 
-	// Extract response text or caption from the replied message
 	var (
 		responseText string
 		hasText      bool
@@ -149,7 +145,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		hasText = true
 	}
 
-	// Assign entities directly if they exist
 	var entities []tgbotapi.MessageEntity
 	if len(message.ReplyToMessage.Entities) > 0 {
 		entities = message.ReplyToMessage.Entities
@@ -157,27 +152,23 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		entities = []tgbotapi.MessageEntity{}
 	}
 
-	// Split text responses by newline
 	var textResponses []string
 	if hasText {
 		textResponses = strings.Split(responseText, "\n")
 	}
 
-	// Add text responses
 	for _, resp := range textResponses {
 		resp = strings.TrimSpace(resp)
 		if resp == "" {
-			continue // Skip empty responses
+			continue
 		}
 
-		// Create MyResponse with entities
 		myResponse := MyResponse{
 			SearchPhrase: triggerPhrase,
 			Response:     resp,
-			Entities:     entities, // Assign slice directly
+			Entities:     entities,
 		}
 
-		// Marshal entities to JSON string for database storage
 		var entitiesJSON string
 		if len(myResponse.Entities) > 0 {
 			bytes, err := json.Marshal(myResponse.Entities)
@@ -191,7 +182,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 			entitiesJSON = ""
 		}
 
-		// Insert response into the cascade_trigger_responses table
 		_, err = db.Exec(
 			`INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name, entities)
              VALUES (?, ?, ?, ?, ?, ?)`,
@@ -202,7 +192,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		}
 	}
 
-	// Handle media responses
 	mediaAdded := false
 	mediaTypes := []struct {
 		FileType string
@@ -210,7 +199,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		FileName string
 	}{}
 
-	// Photos
 	for _, photo := range message.ReplyToMessage.Photo {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -223,7 +211,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
-	// Animations (GIF)
 	if message.ReplyToMessage.Animation != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -236,7 +223,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
-	// Voice messages
 	if message.ReplyToMessage.Voice != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -249,7 +235,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
-	// Stickers
 	if message.ReplyToMessage.Sticker != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -262,7 +247,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
-	// Videos
 	if message.ReplyToMessage.Video != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -275,7 +259,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
-	// Documents
 	if message.ReplyToMessage.Document != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -288,7 +271,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
-	// Audio
 	if message.ReplyToMessage.Audio != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -301,7 +283,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
-	// VideoNotes
 	if message.ReplyToMessage.VideoNote != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -314,23 +295,20 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
-	// Add media responses
 	for _, media := range mediaTypes {
 		myResponse := MyResponse{
 			SearchPhrase: triggerPhrase,
-			Response:     "", // Default empty, can add captions if needed
+			Response:     "",
 			FileType:     FileType(media.FileType),
 			FileID:       media.FileID,
 			FileName:     media.FileName,
-			Entities:     entities, // Assign slice directly
+			Entities:     entities,
 		}
 
-		// If media has a caption, set it as the response
 		if message.ReplyToMessage.Caption != "" && (myResponse.FileType == FilePhoto || myResponse.FileType == FileVideo) {
 			myResponse.Response = strings.TrimSpace(message.ReplyToMessage.Caption)
 		}
 
-		// Marshal entities to JSON string for database storage
 		var entitiesJSONMedia string
 		if len(myResponse.Entities) > 0 {
 			bytes, err := json.Marshal(myResponse.Entities)
@@ -344,7 +322,6 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 			entitiesJSONMedia = ""
 		}
 
-		// Insert into the database
 		_, err = db.Exec(
 			`INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name, entities)
              VALUES (?, ?, ?, ?, ?, ?)`,
@@ -368,54 +345,51 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 	return nil
 }
 
-// --- createMyResponse: unchanged except normalization ---
+// --- createMyResponse ---
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
 	var myResponse MyResponse
 
-	// Extract response text or caption
 	if message.ReplyToMessage.Caption != "" {
 		myResponse.Response = message.ReplyToMessage.Caption
 	} else {
 		myResponse.Response = message.ReplyToMessage.Text
 	}
 
-	// Assign entities directly without JSON serialization
 	if len(message.ReplyToMessage.Entities) > 0 {
 		myResponse.Entities = message.ReplyToMessage.Entities
 	} else {
 		myResponse.Entities = []tgbotapi.MessageEntity{}
 	}
 
-	// Handle media types as before
-	if len(message.ReplyToMessage.Photo) > 0 { // Photo process
+	if len(message.ReplyToMessage.Photo) > 0 {
 		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
 		myResponse.FileType = FilePhoto
 		myResponse.FileID = photoFileID
-	} else if message.ReplyToMessage.Animation != nil { // GIF process
+	} else if message.ReplyToMessage.Animation != nil {
 		gifFileID := message.ReplyToMessage.Animation.FileID
 		myResponse.FileType = FileGIF
 		myResponse.FileID = gifFileID
-	} else if message.ReplyToMessage.Voice != nil { // Voice process
+	} else if message.ReplyToMessage.Voice != nil {
 		voiceFileID := message.ReplyToMessage.Voice.FileID
 		myResponse.FileType = FileVoice
 		myResponse.FileID = voiceFileID
-	} else if message.ReplyToMessage.Sticker != nil { // Sticker process
+	} else if message.ReplyToMessage.Sticker != nil {
 		stickerFileID := message.ReplyToMessage.Sticker.FileID
 		myResponse.FileType = FileSticker
 		myResponse.FileID = stickerFileID
-	} else if message.ReplyToMessage.Video != nil { // Video process
+	} else if message.ReplyToMessage.Video != nil {
 		videoFileID := message.ReplyToMessage.Video.FileID
 		myResponse.FileType = FileVideo
 		myResponse.FileID = videoFileID
-	} else if message.ReplyToMessage.Document != nil { // Document process
+	} else if message.ReplyToMessage.Document != nil {
 		documentFileID := message.ReplyToMessage.Document.FileID
 		myResponse.FileType = FileDocument
 		myResponse.FileID = documentFileID
-	} else if message.ReplyToMessage.Audio != nil { // Audio process
+	} else if message.ReplyToMessage.Audio != nil {
 		audioFileID := message.ReplyToMessage.Audio.FileID
 		myResponse.FileType = FileAudio
 		myResponse.FileID = audioFileID
-	} else if message.ReplyToMessage.VideoNote != nil { // VideoNote process
+	} else if message.ReplyToMessage.VideoNote != nil {
 		videonoteFileID := message.ReplyToMessage.VideoNote.FileID
 		myResponse.FileType = FileVideoNote
 		myResponse.FileID = videonoteFileID
@@ -430,7 +404,6 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
 // --- handleCascadeTriggers ---
 func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-	// Determine the content of the message: text or caption
 	var messageContent string
 	if message.Text != "" {
 		messageContent = strings.ToLower(message.Text)
@@ -444,7 +417,6 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
 		return nil
 	}
 
-	// Retrieve cascade triggers for the given chat that match the message content
 	query := `
         SELECT 
             ct.id, 
@@ -527,7 +499,6 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
 }
 
 // --- handleRemoveCascadeCommand ---
-// (Modified to use case-insensitive comparison for search_phrase.)
 func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	if message.ReplyToMessage == nil {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение, которое хотите удалить из каскадного триггера, и используйте команду /removec с указанием фразы триггера.\nПример: /removec Привет")
@@ -541,7 +512,6 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
 		_, _ = bot.Send(msg)
 		return nil
 	}
-	// Normalize the trigger phrase.
 	triggerPhrase = strings.ToLower(triggerPhrase)
 
 	var (
@@ -580,7 +550,6 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
 
 	log.Printf("Попытка удалить ответ. Триггер: '%s', Текст ответа: '%s', FileID: '%s', Чат: %d", triggerPhrase, responseText, fileID, message.Chat.ID)
 
-	// Use case-insensitive search for the cascade trigger.
 	var triggerID int64
 	err := db.QueryRow(`
         SELECT id FROM cascade_triggers2
@@ -600,7 +569,6 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
 
 	log.Printf("Найден triggerID: %d для фразы '%s'", triggerID, triggerPhrase)
 
-	// Поиск и удаление ответа в зависимости от типа сообщения
 	if fileID != "" {
 		result, err := db.Exec(`
             DELETE FROM cascade_trigger_responses
@@ -649,7 +617,6 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
 		_, _ = bot.Send(msg)
 	}
 
-	// Проверка, остались ли ещё ответы в триггере
 	var remainingResponses int
 	err = db.QueryRow(`
         SELECT COUNT(*) FROM cascade_trigger_responses
@@ -660,7 +627,6 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
 		return err
 	}
 
-	// Если ответов больше нет, удалить сам триггер
 	if remainingResponses == 0 {
 		_, err = db.Exec(`
             DELETE FROM cascade_triggers2
@@ -681,8 +647,6 @@ func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message,
 }
 
 func allowedMessageType(message *tgbotapi.Message) bool {
-	// Currently, only game messages are explicitly disallowed.
-	// (Additional filtering for unsupported types can be added here.)
 	if message.ReplyToMessage.Game != nil {
 		return false
 	}
@@ -703,9 +667,7 @@ func messageMatches(messageText, targetString string) bool {
 	return normalizedMessage == normalizedTarget
 }
 
-// --- handleRemoveCommand ---
 func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
-	// (Unchanged aside from ensuring lower-case normalization.)
 	if message.From.ID == 89886125 {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Дима саси жопу")
 		bot.Send(msg)
@@ -734,7 +696,6 @@ func handleRemoveCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sq
 	return nil
 }
 
-// --- handleRemoveGlobalCommand ---
 func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	if message.From.ID != int64(193117018) {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to use this command.")
@@ -765,7 +726,6 @@ func handleRemoveGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, 
 	return nil
 }
 
-// --- handleAddCommand ---
 func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 
 	if message.From.ID == 89886125 {
@@ -851,7 +811,6 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
 	return nil
 }
 
-// --- handleAddGlobalCommand ---
 func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	if message.From.ID != int64(193117018) {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "You are not authorized to use this command.")
@@ -859,7 +818,6 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
 		return nil
 	}
 
-	// Normalize search phrase
 	newSearchPhrase := strings.ToLower(message.CommandArguments())
 
 	var count int
@@ -924,7 +882,6 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
 	return nil
 }
 
-// --- processResponse and buildChattableResponse ---
 func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse MyResponse) error {
 	chattableResponse, err := buildChattableResponse(message, myResponse)
 	if err != nil {
@@ -946,44 +903,47 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		photoMsg.ReplyToMessageID = message.MessageID
 		photoMsg.Caption = formattedText
-		photoMsg.Entities = myResponse.Entities
 		return photoMsg, nil
+
 	case FileGIF:
 		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		gifMsg.ReplyToMessageID = message.MessageID
 		gifMsg.Caption = formattedText
-		gifMsg.Entities = myResponse.Entities
 		return gifMsg, nil
+
 	case FileVoice:
 		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		voiceMsg.ReplyToMessageID = message.MessageID
 		return voiceMsg, nil
+
 	case FileSticker:
 		stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		stickerMsg.ReplyToMessageID = message.MessageID
 		return stickerMsg, nil
+
 	case FileVideo:
 		videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		videoMsg.ReplyToMessageID = message.MessageID
 		videoMsg.Caption = formattedText
-		videoMsg.Entities = myResponse.Entities
 		return videoMsg, nil
+
 	case FileDocument:
 		documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		documentMsg.ReplyToMessageID = message.MessageID
 		documentMsg.Caption = formattedText
-		documentMsg.Entities = myResponse.Entities
 		return documentMsg, nil
+
 	case FileVideoNote:
 		videoNoteMsg := tgbotapi.NewVideoNote(message.Chat.ID, 60, tgbotapi.FileID(myResponse.FileID))
 		videoNoteMsg.ReplyToMessageID = message.MessageID
 		return videoNoteMsg, nil
+
 	case FileAudio:
 		audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		audioMsg.ReplyToMessageID = message.MessageID
 		audioMsg.Caption = formattedText
-		audioMsg.Entities = myResponse.Entities
 		return audioMsg, nil
+
 	default:
 		textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
 		textMsg.ReplyToMessageID = message.MessageID
@@ -999,38 +959,41 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
 	case FilePhoto:
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		photoMsg.Caption = formattedText
-		photoMsg.Entities = myResponse.Entities
 		return photoMsg, nil
+
 	case FileGIF:
 		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		gifMsg.Caption = formattedText
-		gifMsg.Entities = myResponse.Entities
 		return gifMsg, nil
+
 	case FileVoice:
 		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		return voiceMsg, nil
+
 	case FileSticker:
 		stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		return stickerMsg, nil
+
 	case FileVideo:
 		videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		videoMsg.Caption = formattedText
-		videoMsg.Entities = myResponse.Entities
 		return videoMsg, nil
+
 	case FileDocument:
 		documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		documentMsg.Caption = formattedText
-		documentMsg.Entities = myResponse.Entities
 		return documentMsg, nil
+
 	case FileVideoNote:
 		videoNoteMsg := tgbotapi.NewVideoNote(message.Chat.ID, 60, tgbotapi.FileID(myResponse.FileID))
 		videoNoteMsg.ReplyToMessageID = message.MessageID
 		return videoNoteMsg, nil
+
 	case FileAudio:
 		audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		audioMsg.Caption = formattedText
-		audioMsg.Entities = myResponse.Entities
 		return audioMsg, nil
+
 	default:
 		textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
 		textMsg.Entities = myResponse.Entities
@@ -1038,14 +1001,13 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
 	}
 }
 
-// --- handleChatIDCommand ---
 func handleChatIDCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message) {
 	chatid := "This chat ID is: " + strconv.FormatInt(message.Chat.ID, 10)
 	msg := tgbotapi.NewMessage(message.Chat.ID, chatid)
 	bot.Send(msg)
 }
 
-// --- Refactored roll-dice helper (issue 9) ---
+// --- Refactored roll-dice helper (Issue 9) ---
 func rollDice(max int, bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
 	result := rand.Intn(max) + 1
 	response := fmt.Sprintf("🎲 You rolled: %d", result)
@@ -1087,9 +1049,7 @@ func handleRoll4(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
 	return rollDice(4, bot, message)
 }
 
-// --- UTF-16 to rune conversion helpers for applyEntitiesToText (issue 3) ---
-
-// utf16ToRuneIndices returns a slice mapping each rune index to its starting UTF-16 code unit offset.
+// --- UTF-16 conversion helpers for applyEntitiesToText (Issue 3) ---
 func utf16ToRuneIndices(text string) []int {
 	runes := []rune(text)
 	mapping := make([]int, len(runes))
@@ -1105,7 +1065,6 @@ func utf16ToRuneIndices(text string) []int {
 	return mapping
 }
 
-// codeUnitToRuneIndex converts a UTF-16 code unit offset into a rune index.
 func codeUnitToRuneIndex(mapping []int, codeUnitOffset int) int {
 	for i, off := range mapping {
 		if off == codeUnitOffset {
@@ -1118,13 +1077,10 @@ func codeUnitToRuneIndex(mapping []int, codeUnitOffset int) int {
 	return len(mapping)
 }
 
-// applyEntitiesToText applies message entities to a given text by converting Telegram’s UTF-16 offsets to rune indices.
 func applyEntitiesToText(text string, entities []tgbotapi.MessageEntity) string {
-	// Convert text to runes and get UTF-16 mapping.
 	runes := []rune(text)
 	mapping := utf16ToRuneIndices(text)
 
-	// Prepare a slice of entities with computed rune indices.
 	type entityWithRuneIndices struct {
 		entity tgbotapi.MessageEntity
 		start  int
@@ -1137,12 +1093,10 @@ func applyEntitiesToText(text string, entities []tgbotapi.MessageEntity) string 
 		ents = append(ents, entityWithRuneIndices{entity: e, start: start, end: end})
 	}
 
-	// Sort entities by start index descending.
 	sort.Slice(ents, func(i, j int) bool {
 		return ents[i].start > ents[j].start
 	})
 
-	// Apply formatting markers in descending order so earlier indices are not affected.
 	for _, ent := range ents {
 		before := string(runes[:ent.start])
 		middle := string(runes[ent.start:ent.end])
@@ -1159,24 +1113,19 @@ func applyEntitiesToText(text string, entities []tgbotapi.MessageEntity) string 
 		case "url":
 			url := ent.entity.URL
 			middle = "[" + middle + "](" + url + ")"
-		// Add more cases as needed.
 		default:
-			// Unsupported entity type; do nothing.
+			// Unsupported entity type.
 		}
 		newText := before + middle + after
-		// Update runes and mapping after modification.
 		runes = []rune(newText)
 		mapping = utf16ToRuneIndices(newText)
 	}
 	return string(runes)
 }
 
-// --- handleMessage ---
-// Note: This function now uses separate variables for each query (issue 8) and calls the refactored roll functions (issue 9).
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	receivedMessage := message.Text
 
-	// Handle new chat members
 	if message.NewChatMembers != nil {
 		if err := handleNewMember(bot, message); err != nil {
 			log.Printf("Error handling new member: %v", err)
@@ -1299,9 +1248,9 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return handleRemoveCascadeCommand(bot, message, db)
 	}
 
-	currentTime, _ := getCurrentTimeForLocation("America/Los Angeles")
+	currentTime, _ := getCurrentTimeForLocation("America/Los_Angeles")
 	currentTimeMoscow, _ := getCurrentTimeForLocation("Europe/Moscow")
-	currentTimeNewYork, _ := getCurrentTimeForLocation("America/New York")
+	currentTimeNewYork, _ := getCurrentTimeForLocation("America/New_York")
 
 	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) &&
 		messageMatches(receivedMessage, "@Porky8888") && isTimeBetween(currentTime, 2, 7) {
@@ -1346,7 +1295,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return nil
 	}
 
-	// Retrieve chat-specific triggers (using distinct variable names, issue 8)
 	localRows, err := db.Query(`
         SELECT 
             id, 
@@ -1493,14 +1441,12 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		}
 	}
 
-	// Process cascade triggers (case-insensitive)
 	err = handleCascadeTriggers(bot, message, db)
 	if err != nil {
 		log.Printf("Error handling cascade triggers: %v", err)
 		return err
 	}
 
-	// Example of handling specific user ID with random responses
 	if message.From.ID == 578801 {
 		if message.Photo == nil &&
 			message.Animation == nil &&
@@ -1530,7 +1476,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	log.Println("Handling /triggers command")
 
-	// Retrieve chat-specific trigger phrases
 	localRows, err := db.Query(`
         SELECT DISTINCT search_phrase
         FROM triggers
@@ -1877,7 +1822,6 @@ func handleTopTerpilCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
 	return nil
 }
 
-// --- Fixed pluralization logic in getRazForm (issue 7) ---
 func getRazForm(count int) string {
 	if count%10 == 1 && count%100 != 11 {
 		return "раз"
@@ -1933,4 +1877,3 @@ func handleNewMember(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
 
 // Assume that getCurrentTimeForLocation, isTimeBetween, isTimeBetween19And8,
 // timeAdd, timeRemove, addOrUpdateAlias, resetMessage are implemented elsewhere.
-
