@@ -25,6 +25,7 @@ import (
 
 // Assume MyResponse and file type constants (e.g. FilePhoto, FileGIF, etc.) are defined elsewhere.
 // For example:
+//
 // type MyResponse struct {
 //     ID           int64
 //     SearchPhrase string
@@ -34,16 +35,18 @@ import (
 //     FileName     string
 //     Entities     []tgbotapi.MessageEntity
 // }
+//
 // type FileType string
+//
 // const (
-//    FilePhoto FileType = "photo"
-//    FileGIF   FileType = "gif"
-//    FileVoice FileType = "voice"
-//    FileSticker FileType = "sticker"
-//    FileVideo FileType = "video"
-//    FileDocument FileType = "document"
+//    FilePhoto     FileType = "photo"
+//    FileGIF       FileType = "gif"
+//    FileVoice     FileType = "voice"
+//    FileSticker   FileType = "sticker"
+//    FileVideo     FileType = "video"
+//    FileDocument  FileType = "document"
 //    FileVideoNote FileType = "videonote"
-//    FileAudio FileType = "audio"
+//    FileAudio     FileType = "audio"
 // )
 
 // SampleSize represents the sample sizes for different risk categories.
@@ -62,7 +65,8 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// --- checkTriggerExistence (Issue 1: normalization) ---
+// checkTriggerExistence converts the search phrase to lower case and returns
+// two booleans indicating whether a local trigger and a cascade trigger exist.
 func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool, bool, error) {
 	var normalCount, cascadeCount int
 	searchPhrase = strings.ToLower(searchPhrase)
@@ -86,14 +90,17 @@ func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool,
 	return normalCount > 0, cascadeCount > 0, nil
 }
 
-// --- handleAddCascadeCommand ---
+// handleAddCascadeCommand creates a cascade trigger using the replied message.
+// Now it also checks that no local trigger with the same trigger phrase exists.
 func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
+	// Ensure the command is a reply to a message
 	if message.ReplyToMessage == nil {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Please reply to the message you want to use as a response when adding a cascade trigger.\nExample: /addc Hello")
 		_, _ = bot.Send(msg)
 		return nil
 	}
 
+	// Extract and normalize the trigger phrase
 	triggerPhrase := strings.TrimSpace(message.CommandArguments())
 	if triggerPhrase == "" {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Please provide a trigger phrase after the /addc command.\nExample: /addc Hello")
@@ -102,8 +109,20 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 	}
 	triggerPhrase = strings.ToLower(triggerPhrase)
 
+	// *** New Check: If a local trigger exists, do not create a cascade trigger.
+	localExists, _, err := checkTriggerExistence(db, message.Chat.ID, triggerPhrase)
+	if err != nil {
+		return err
+	}
+	if localExists {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "A local trigger with this phrase already exists. Cannot create a cascade trigger.")
+		_, _ = bot.Send(msg)
+		return nil
+	}
+
+	// Check if a cascade trigger with the same phrase already exists
 	var existingTriggerID int64
-	err := db.QueryRow(
+	err = db.QueryRow(
 		`SELECT id FROM cascade_triggers2
          WHERE chat_id = ? AND LOWER(search_phrase) = LOWER(?)`,
 		message.Chat.ID, triggerPhrase).Scan(&existingTriggerID)
@@ -113,6 +132,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 
 	var triggerID int64
 	if err == sql.ErrNoRows {
+		// Insert a new cascade trigger
 		result, err := db.Exec(
 			`INSERT INTO cascade_triggers2 (chat_id, search_phrase)
              VALUES (?, ?)`,
@@ -130,9 +150,11 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 			return err
 		}
 	} else {
+		// Trigger already exists, use its ID
 		triggerID = existingTriggerID
 	}
 
+	// Extract response text or caption from the replied message
 	var (
 		responseText string
 		hasText      bool
@@ -145,6 +167,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		hasText = true
 	}
 
+	// Get any entities from the replied message
 	var entities []tgbotapi.MessageEntity
 	if len(message.ReplyToMessage.Entities) > 0 {
 		entities = message.ReplyToMessage.Entities
@@ -152,15 +175,17 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		entities = []tgbotapi.MessageEntity{}
 	}
 
+	// Split text responses by newline if any
 	var textResponses []string
 	if hasText {
 		textResponses = strings.Split(responseText, "\n")
 	}
 
+	// Add each text response
 	for _, resp := range textResponses {
 		resp = strings.TrimSpace(resp)
 		if resp == "" {
-			continue
+			continue // Skip empty responses
 		}
 
 		myResponse := MyResponse{
@@ -192,6 +217,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		}
 	}
 
+	// Handle media responses similarly
 	mediaAdded := false
 	mediaTypes := []struct {
 		FileType string
@@ -199,6 +225,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		FileName string
 	}{}
 
+	// Photos
 	for _, photo := range message.ReplyToMessage.Photo {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -211,6 +238,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
+	// Animations (GIF)
 	if message.ReplyToMessage.Animation != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -223,6 +251,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
+	// Voice messages
 	if message.ReplyToMessage.Voice != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -235,6 +264,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
+	// Stickers
 	if message.ReplyToMessage.Sticker != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -247,6 +277,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
+	// Videos
 	if message.ReplyToMessage.Video != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -259,6 +290,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
+	// Documents
 	if message.ReplyToMessage.Document != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -271,6 +303,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
+	// Audio
 	if message.ReplyToMessage.Audio != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -283,6 +316,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		})
 	}
 
+	// VideoNotes
 	if message.ReplyToMessage.VideoNote != nil {
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
@@ -345,7 +379,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 	return nil
 }
 
-// --- createMyResponse ---
+// createMyResponse extracts response data from the replied message.
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
 	var myResponse MyResponse
 
@@ -402,7 +436,7 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 	return myResponse, nil
 }
 
-// --- handleCascadeTriggers ---
+// handleCascadeTriggers retrieves and sends cascade trigger responses.
 func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	var messageContent string
 	if message.Text != "" {
@@ -498,7 +532,7 @@ func handleCascadeTriggers(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *
 	return nil
 }
 
-// --- handleRemoveCascadeCommand ---
+// handleRemoveCascadeCommand deletes a response from a cascade trigger.
 func handleRemoveCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	if message.ReplyToMessage == nil {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Пожалуйста, ответьте на сообщение, которое хотите удалить из каскадного триггера, и используйте команду /removec с указанием фразы триггера.\nПример: /removec Привет")
@@ -736,12 +770,12 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
 
 	newSearchPhrase := strings.ToLower(message.CommandArguments())
 
+	// Check if a cascade trigger already exists; if so, do not allow local trigger creation.
 	_, cascadeExists, err := checkTriggerExistence(db, message.Chat.ID, newSearchPhrase)
 	if err != nil {
 		log.Printf("Error checking trigger existence: %v", err)
 		return err
 	}
-
 	if cascadeExists {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "A cascade trigger with this phrase already exists. Cannot create a normal trigger.")
 		_, _ = bot.Send(msg)
