@@ -149,14 +149,14 @@ func main() {
 				continue
 			}
 
-			log.Printf("Message received")
+//			log.Printf("Message received")
 			err := handleMessage(bot, m, db)
 			if err != nil {
 				log.Printf("[%s] %s,   err: %s", update.Message.From.UserName, update.Message.Text, err.Error())
 				continue
 			}
 
-			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
+//			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 		}
 	}
 }
