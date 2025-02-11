@@ -164,22 +164,6 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
 		return
 	}
 
-    
- /*   // Debugging: print comparison results during sorting with UTC conversion
-    sort.Slice(locations, func(i, j int) bool {
-        // Extract the hour and minute for both locations, considering their timezone.
-        hourI, minI, _ := locations[i].CurrentTime.Clock()
-        hourJ, minJ, _ := locations[j].CurrentTime.Clock()
-    
-        // First, compare the hours.
-        if hourI != hourJ {
-            return hourI < hourJ
-        }
-    
-        // If the hours are equal, compare the minutes.
-        return minI < minJ
-    })
-*/
 
     sort.Slice(locations, func(i, j int) bool {
         // Convert CurrentTime to a "local hour" extending beyond 24 for sorting.
@@ -225,7 +209,7 @@ func updateTimeMessage(bot *tgbotapi.BotAPI, chatid int64, db *sql.DB) {
         edit := tgbotapi.NewEditMessageText(chatid, messageID, messageText)
         _, err = bot.Send(edit)
         if err != nil {
-            log.Printf("Error editing message: %v", err)
+//            log.Printf("Error editing message: %v", err)
         }
 
     }
@@ -316,7 +300,7 @@ func addOrUpdateAlias(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
     }
 
     if err != nil {
-        log.Printf("Error executing statement: %v", err)
+//        log.Printf("Error executing statement: %v", err)
         return
     }
 
