@@ -773,12 +773,12 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
 	// Extract and normalize the trigger phrase
 	newSearchPhrase := strings.TrimSpace(message.CommandArguments())
 	if newSearchPhrase == "" {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Please provide a trigger phrase after the /addc command.\nExample: /addc Hello")
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Please provide a trigger phrase after the /add command.\nExample: /add Hello")
 		_, _ = bot.Send(msg)
 		return nil
 	}
 	newSearchPhrase = strings.ToLower(newSearchPhrase)
-	
+
 	// Check if a cascade trigger already exists; if so, do not allow local trigger creation.
 	_, cascadeExists, err := checkTriggerExistence(db, message.Chat.ID, newSearchPhrase)
 	if err != nil {
