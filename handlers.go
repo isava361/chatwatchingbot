@@ -391,6 +391,8 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 
 	if len(message.ReplyToMessage.Entities) > 0 {
 		myResponse.Entities = message.ReplyToMessage.Entities
+	} else if len(message.ReplyToMessage.CaptionEntities) > 0 {
+		myResponse.Entities = message.ReplyToMessage.CaptionEntities
 	} else {
 		myResponse.Entities = []tgbotapi.MessageEntity{}
 	}
