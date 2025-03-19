@@ -937,6 +937,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		photoMsg.ReplyToMessageID = message.MessageID
 		photoMsg.Caption = formattedText
+		photoMsg.Entities = myResponse.Entities
 		return photoMsg, nil
 
 	case FileGIF:
@@ -959,6 +960,7 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 		videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		videoMsg.ReplyToMessageID = message.MessageID
 		videoMsg.Caption = formattedText
+		videoMsg.Entities = myResponse.Entities
 		return videoMsg, nil
 
 	case FileDocument:
@@ -993,6 +995,7 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
 	case FilePhoto:
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		photoMsg.Caption = formattedText
+		photoMsg.Entities = myResponse.Entities
 		return photoMsg, nil
 
 	case FileGIF:
@@ -1011,6 +1014,7 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
 	case FileVideo:
 		videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
 		videoMsg.Caption = formattedText
+		videoMsg.Entities = myResponse.Entities
 		return videoMsg, nil
 
 	case FileDocument:
