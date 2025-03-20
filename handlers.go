@@ -1373,10 +1373,10 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 				bot.Send(vasyaMsg)
 			}
 		}
-	}
+	}*/
 
 	return nil
-	}*/
+}
 
 func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	log.Println("Handling /triggers command")
