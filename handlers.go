@@ -376,7 +376,6 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.Entities = []tgbotapi.MessageEntity{}
 	}
 
-	mediaAdded := false
 	mediaTypes := []struct {
 		FileType string
 		FileID   string
