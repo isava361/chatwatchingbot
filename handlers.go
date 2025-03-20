@@ -203,15 +203,17 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 		FileName string
 	}{}
 
-	// Photos
-	for _, photo := range message.ReplyToMessage.Photo {
+	// Photos - using only the largest photo
+	if len(message.ReplyToMessage.Photo) > 0 {
+		// Only use the largest photo (last in the array)
+		largestPhoto := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1]
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
 			FileID   string
 			FileName string
 		}{
 			FileType: string(FilePhoto),
-			FileID:   photo.FileID,
+			FileID:   largestPhoto.FileID,
 			FileName: "",
 		})
 	}
@@ -376,25 +378,10 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.Entities = []tgbotapi.MessageEntity{}
 	}
 
-	mediaTypes := []struct {
-		FileType string
-		FileID   string
-		FileName string
-	}{}
-	
-	// Photos - using only the largest photo
 	if len(message.ReplyToMessage.Photo) > 0 {
-		// Only use the largest photo (last in the array)
-		largestPhoto := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1]
-		mediaTypes = append(mediaTypes, struct {
-			FileType string
-			FileID   string
-			FileName string
-		}{
-			FileType: string(FilePhoto),
-			FileID:   largestPhoto.FileID,
-			FileName: "",
-		})
+		photoFileID := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1].FileID
+		myResponse.FileType = FilePhoto
+		myResponse.FileID = photoFileID
 	} else if message.ReplyToMessage.Animation != nil {
 		gifFileID := message.ReplyToMessage.Animation.FileID
 		myResponse.FileType = FileGIF
