@@ -67,7 +67,6 @@ func checkTriggerExistence(db *sql.DB, chatID int64, searchPhrase string) (bool,
 }
 
 // handleAddCascadeCommand creates a cascade trigger using the replied message.
-// Now it also checks that no local trigger with the same trigger phrase exists.
 func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	// Ensure the command is a reply to a message
 	if message.ReplyToMessage == nil {
@@ -85,7 +84,7 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 	}
 	triggerPhrase = strings.ToLower(triggerPhrase)
 
-	// *** New Check: If a local trigger exists, do not create a cascade trigger.
+	// Check if a local trigger exists and prevent duplicate cascade triggers
 	localExists, _, err := checkTriggerExistence(db, message.Chat.ID, triggerPhrase)
 	if err != nil {
 		return err
@@ -119,245 +118,121 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 			_, _ = bot.Send(msg)
 			return err
 		}
-
 		triggerID, err = result.LastInsertId()
 		if err != nil {
 			log.Printf("Error getting LastInsertId: %v", err)
 			return err
 		}
 	} else {
-		// Trigger already exists, use its ID
+		// Use the existing cascade trigger ID
 		triggerID = existingTriggerID
 	}
 
-	// Extract response text or caption from the replied message
-	var (
-		responseText string
-		hasText      bool
-	)
+	// Determine the response content (text or caption)
+	var responseText string
 	if message.ReplyToMessage.Text != "" {
 		responseText = strings.TrimSpace(message.ReplyToMessage.Text)
-		hasText = true
 	} else if message.ReplyToMessage.Caption != "" {
 		responseText = strings.TrimSpace(message.ReplyToMessage.Caption)
-		hasText = true
 	}
 
-	// Get any entities from the replied message
+	// Get entities from the replied message
 	var entities []tgbotapi.MessageEntity
 	if len(message.ReplyToMessage.Entities) > 0 {
 		entities = filterCustomEmojiEntities(message.ReplyToMessage.Entities)
-	} else if len(message.ReplyToMessage.CaptionEntities) > 0{
+	} else if len(message.ReplyToMessage.CaptionEntities) > 0 {
 		entities = filterCustomEmojiEntities(message.ReplyToMessage.CaptionEntities)
+	}
+
+	// Prepare a single MyResponse struct.
+	var myResponse MyResponse
+	myResponse.SearchPhrase = triggerPhrase
+	myResponse.Entities = entities
+
+	// Determine which response to use, giving media priority if available.
+	// Only one response entry will be inserted.
+	if message.ReplyToMessage.Photo != nil && len(message.ReplyToMessage.Photo) > 0 {
+		// Use the highest resolution photo (last in the array)
+		photo := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1]
+		myResponse.FileType = FilePhoto
+		myResponse.FileID = photo.FileID
+		myResponse.FileName = ""
+		// Use caption if available
+		if responseText != "" {
+			myResponse.Response = responseText
+		}
+	} else if message.ReplyToMessage.Animation != nil {
+		myResponse.FileType = FileGIF
+		myResponse.FileID = message.ReplyToMessage.Animation.FileID
+		myResponse.FileName = ""
+		if responseText != "" {
+			myResponse.Response = responseText
+		}
+	} else if message.ReplyToMessage.Voice != nil {
+		myResponse.FileType = FileVoice
+		myResponse.FileID = message.ReplyToMessage.Voice.FileID
+		myResponse.FileName = ""
+	} else if message.ReplyToMessage.Sticker != nil {
+		myResponse.FileType = FileSticker
+		myResponse.FileID = message.ReplyToMessage.Sticker.FileID
+		myResponse.FileName = ""
+	} else if message.ReplyToMessage.Video != nil {
+		myResponse.FileType = FileVideo
+		myResponse.FileID = message.ReplyToMessage.Video.FileID
+		myResponse.FileName = ""
+		if responseText != "" {
+			myResponse.Response = responseText
+		}
+	} else if message.ReplyToMessage.Document != nil {
+		myResponse.FileType = FileDocument
+		myResponse.FileID = message.ReplyToMessage.Document.FileID
+		myResponse.FileName = message.ReplyToMessage.Document.FileName
+	} else if message.ReplyToMessage.Audio != nil {
+		myResponse.FileType = FileAudio
+		myResponse.FileID = message.ReplyToMessage.Audio.FileID
+		myResponse.FileName = message.ReplyToMessage.Audio.FileName
+	} else if message.ReplyToMessage.VideoNote != nil {
+		myResponse.FileType = FileVideoNote
+		myResponse.FileID = message.ReplyToMessage.VideoNote.FileID
+		myResponse.FileName = ""
+	} else if responseText != "" {
+		// Only text is present
+		myResponse.Response = responseText
 	} else {
-		entities = []tgbotapi.MessageEntity{}
-	}
-
-	// Split text responses by newline if any
-	var textResponses []string
-	if hasText {
-		textResponses = strings.Split(responseText, "\n")
-	}
-
-	// Add each text response
-	for _, resp := range textResponses {
-		resp = strings.TrimSpace(resp)
-		if resp == "" {
-			continue // Skip empty responses
-		}
-
-		myResponse := MyResponse{
-			SearchPhrase: triggerPhrase,
-			Response:     resp,
-			Entities:     entities,
-		}
-
-		var entitiesJSON string
-		if len(myResponse.Entities) > 0 {
-			bytes, err := json.Marshal(myResponse.Entities)
-			if err != nil {
-				log.Printf("Error marshalling entities: %v", err)
-				entitiesJSON = ""
-			} else {
-				entitiesJSON = string(bytes)
-			}
-		} else {
-			entitiesJSON = ""
-		}
-
-		_, err = db.Exec(
-			`INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name, entities)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-			triggerID, myResponse.Response, "", "", "", entitiesJSON)
-		if err != nil {
-			log.Printf("Error adding text response to cascade trigger: %v", err)
-			continue
-		}
-	}
-
-	// Handle media responses similarly
-	mediaAdded := false
-	mediaTypes := []struct {
-		FileType string
-		FileID   string
-		FileName string
-	}{}
-
-	// Photos - using only the largest photo
-	if len(message.ReplyToMessage.Photo) > 0 {
-		// Only use the largest photo (last in the array)
-		largestPhoto := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1]
-		mediaTypes = append(mediaTypes, struct {
-			FileType string
-			FileID   string
-			FileName string
-		}{
-			FileType: string(FilePhoto),
-			FileID:   largestPhoto.FileID,
-			FileName: "",
-		})
-	}
-
-	// Animations (GIF)
-	if message.ReplyToMessage.Animation != nil {
-		mediaTypes = append(mediaTypes, struct {
-			FileType string
-			FileID   string
-			FileName string
-		}{
-			FileType: string(FileGIF),
-			FileID:   message.ReplyToMessage.Animation.FileID,
-			FileName: "",
-		})
-	}
-
-	// Voice messages
-	if message.ReplyToMessage.Voice != nil {
-		mediaTypes = append(mediaTypes, struct {
-			FileType string
-			FileID   string
-			FileName string
-		}{
-			FileType: string(FileVoice),
-			FileID:   message.ReplyToMessage.Voice.FileID,
-			FileName: "",
-		})
-	}
-
-	// Stickers
-	if message.ReplyToMessage.Sticker != nil {
-		mediaTypes = append(mediaTypes, struct {
-			FileType string
-			FileID   string
-			FileName string
-		}{
-			FileType: string(FileSticker),
-			FileID:   message.ReplyToMessage.Sticker.FileID,
-			FileName: "",
-		})
-	}
-
-	// Videos
-	if message.ReplyToMessage.Video != nil {
-		mediaTypes = append(mediaTypes, struct {
-			FileType string
-			FileID   string
-			FileName string
-		}{
-			FileType: string(FileVideo),
-			FileID:   message.ReplyToMessage.Video.FileID,
-			FileName: "",
-		})
-	}
-
-	// Documents
-	if message.ReplyToMessage.Document != nil {
-		mediaTypes = append(mediaTypes, struct {
-			FileType string
-			FileID   string
-			FileName string
-		}{
-			FileType: string(FileDocument),
-			FileID:   message.ReplyToMessage.Document.FileID,
-			FileName: message.ReplyToMessage.Document.FileName,
-		})
-	}
-
-	// Audio
-	if message.ReplyToMessage.Audio != nil {
-		mediaTypes = append(mediaTypes, struct {
-			FileType string
-			FileID   string
-			FileName string
-		}{
-			FileType: string(FileAudio),
-			FileID:   message.ReplyToMessage.Audio.FileID,
-			FileName: message.ReplyToMessage.Audio.FileName,
-		})
-	}
-
-	// VideoNotes
-	if message.ReplyToMessage.VideoNote != nil {
-		mediaTypes = append(mediaTypes, struct {
-			FileType string
-			FileID   string
-			FileName string
-		}{
-			FileType: string(FileVideoNote),
-			FileID:   message.ReplyToMessage.VideoNote.FileID,
-			FileName: "",
-		})
-	}
-
-	for _, media := range mediaTypes {
-		myResponse := MyResponse{
-			SearchPhrase: triggerPhrase,
-			Response:     "",
-			FileType:     FileType(media.FileType),
-			FileID:       media.FileID,
-			FileName:     media.FileName,
-			Entities:     entities,
-		}
-
-		if message.ReplyToMessage.Caption != "" && (myResponse.FileType == FilePhoto || myResponse.FileType == FileVideo) {
-			myResponse.Response = strings.TrimSpace(message.ReplyToMessage.Caption)
-		}
-
-		var entitiesJSONMedia string
-		if len(myResponse.Entities) > 0 {
-			bytes, err := json.Marshal(myResponse.Entities)
-			if err != nil {
-				log.Printf("Error marshalling entities: %v", err)
-				entitiesJSONMedia = ""
-			} else {
-				entitiesJSONMedia = string(bytes)
-			}
-		} else {
-			entitiesJSONMedia = ""
-		}
-
-		_, err = db.Exec(
-			`INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name, entities)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-			triggerID, myResponse.Response, myResponse.FileType, myResponse.FileID, myResponse.FileName, entitiesJSONMedia)
-		if err != nil {
-			log.Printf("Error adding media response to cascade trigger: %v", err)
-			continue
-		}
-
-		mediaAdded = true
-	}
-
-	if !hasText && !mediaAdded {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "The message you're replying to does not contain text, a caption, or supported media.")
 		_, _ = bot.Send(msg)
 		return nil
+	}
+
+	// Marshal entities if available.
+	var entitiesJSON string
+	if len(myResponse.Entities) > 0 {
+		bytes, err := json.Marshal(myResponse.Entities)
+		if err != nil {
+			log.Printf("Error marshalling entities: %v", err)
+			entitiesJSON = ""
+		} else {
+			entitiesJSON = string(bytes)
+		}
+	}
+
+	// Insert the single cascade trigger response entry.
+	_, err = db.Exec(
+		`INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name, entities)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+		triggerID, myResponse.Response, myResponse.FileType, myResponse.FileID, myResponse.FileName, entitiesJSON)
+	if err != nil {
+		log.Printf("Error adding cascade trigger response: %v", err)
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Failed to add cascade trigger response.")
+		_, _ = bot.Send(msg)
+		return err
 	}
 
 	msg := tgbotapi.NewMessage(message.Chat.ID, "Cascade trigger added successfully!")
 	_, _ = bot.Send(msg)
 	return nil
 }
+
 
 // createMyResponse extracts response data from the replied message.
 func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyResponse, error) {
