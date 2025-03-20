@@ -1352,7 +1352,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return err
 	}
 
-	if message.From.ID == 578801 {
+/*	if message.From.ID == 578801 {
 		if message.Photo == nil &&
 			message.Animation == nil &&
 			message.Sticker == nil &&
@@ -1376,7 +1376,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	}
 
 	return nil
-}
+	}*/
 
 func handleTriggersCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	log.Println("Handling /triggers command")
