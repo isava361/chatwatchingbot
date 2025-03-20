@@ -791,7 +791,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
 
 	var entitiesJSON string
 	if len(newMyResponse.Entities) > 0 {
-		myResponse.Entities = filterCustomEmojiEntities(myResponse.Entities)
+		newMyResponse.Entities = filterCustomEmojiEntities(newMyResponse.Entities)
 		bytes, err := json.Marshal(newMyResponse.Entities)
 		if err != nil {
 			log.Printf("Error marshalling entities: %v", err)
@@ -864,7 +864,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
 
 	var entitiesJSON string
 	if len(newMyResponse.Entities) > 0 {
-		myResponse.Entities = filterCustomEmojiEntities(myResponse.Entities)
+		newMyResponse.Entities = filterCustomEmojiEntities(newMyResponse.Entities)
 		bytes, err := json.Marshal(newMyResponse.Entities)
 		if err != nil {
 			log.Printf("Error marshalling entities: %v", err)
