@@ -23,31 +23,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// Assume MyResponse and file type constants (e.g. FilePhoto, FileGIF, etc.) are defined elsewhere.
-// For example:
-//
-// type MyResponse struct {
-//     ID           int64
-//     SearchPhrase string
-//     Response     string
-//     FileType     FileType
-//     FileID       string
-//     FileName     string
-//     Entities     []tgbotapi.MessageEntity
-// }
-//
-// type FileType string
-//
-// const (
-//    FilePhoto     FileType = "photo"
-//    FileGIF       FileType = "gif"
-//    FileVoice     FileType = "voice"
-//    FileSticker   FileType = "sticker"
-//    FileVideo     FileType = "video"
-//    FileDocument  FileType = "document"
-//    FileVideoNote FileType = "videonote"
-//    FileAudio     FileType = "audio"
-// )
+
 
 // SampleSize represents the sample sizes for different risk categories.
 type SampleSize struct {
@@ -1921,6 +1897,3 @@ func handleNewMember(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
 	}
 	return nil
 }
-
-// Assume that getCurrentTimeForLocation, isTimeBetween, isTimeBetween19And8,
-// timeAdd, timeRemove, addOrUpdateAlias, resetMessage are implemented elsewhere.
