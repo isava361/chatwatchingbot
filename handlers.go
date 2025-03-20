@@ -146,7 +146,9 @@ func handleAddCascadeCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db
 	// Get any entities from the replied message
 	var entities []tgbotapi.MessageEntity
 	if len(message.ReplyToMessage.Entities) > 0 {
-		entities = message.ReplyToMessage.Entities
+		entities = filterCustomEmojiEntities(message.ReplyToMessage.Entities)
+	} else if len(message.ReplyToMessage.CaptionEntities) > 0{
+		entities = filterCustomEmojiEntities(message.ReplyToMessage.CaptionEntities)
 	} else {
 		entities = []tgbotapi.MessageEntity{}
 	}
@@ -365,10 +367,11 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.Response = message.ReplyToMessage.Text
 	}
 
+	// In createMyResponse function
 	if len(message.ReplyToMessage.Entities) > 0 {
-		myResponse.Entities = message.ReplyToMessage.Entities
+		myResponse.Entities = filterCustomEmojiEntities(message.ReplyToMessage.Entities)
 	} else if len(message.ReplyToMessage.CaptionEntities) > 0 {
-		myResponse.Entities = message.ReplyToMessage.CaptionEntities
+		myResponse.Entities = filterCustomEmojiEntities(message.ReplyToMessage.CaptionEntities)
 	} else {
 		myResponse.Entities = []tgbotapi.MessageEntity{}
 	}
@@ -788,6 +791,7 @@ func handleAddCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.D
 
 	var entitiesJSON string
 	if len(newMyResponse.Entities) > 0 {
+		myResponse.Entities = filterCustomEmojiEntities(myResponse.Entities)
 		bytes, err := json.Marshal(newMyResponse.Entities)
 		if err != nil {
 			log.Printf("Error marshalling entities: %v", err)
@@ -860,6 +864,7 @@ func handleAddGlobalCommand(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db 
 
 	var entitiesJSON string
 	if len(newMyResponse.Entities) > 0 {
+		myResponse.Entities = filterCustomEmojiEntities(myResponse.Entities)
 		bytes, err := json.Marshal(newMyResponse.Entities)
 		if err != nil {
 			log.Printf("Error marshalling entities: %v", err)
@@ -1896,4 +1901,16 @@ func handleNewMember(bot *tgbotapi.BotAPI, message *tgbotapi.Message) error {
 		}
 	}
 	return nil
+}
+
+// Filter out custom emoji entities which may not be supported by the current API version
+func filterCustomEmojiEntities(entities []tgbotapi.MessageEntity) []tgbotapi.MessageEntity {
+    filteredEntities := []tgbotapi.MessageEntity{}
+    for _, entity := range entities {
+        // Skip custom_emoji type entities to avoid the "Can't find field 'custom_emoji_id'" error
+        if entity.Type != "custom_emoji" {
+            filteredEntities = append(filteredEntities, entity)
+        }
+    }
+    return filteredEntities
 }
