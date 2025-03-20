@@ -376,8 +376,16 @@ func createMyResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message) (MyRespon
 		myResponse.Entities = []tgbotapi.MessageEntity{}
 	}
 
+	mediaAdded := false
+	mediaTypes := []struct {
+		FileType string
+		FileID   string
+		FileName string
+	}{}
+	
+	// Photos - using only the largest photo
 	if len(message.ReplyToMessage.Photo) > 0 {
-		// Only use the largest photo (last in the array) instead of all sizes
+		// Only use the largest photo (last in the array)
 		largestPhoto := message.ReplyToMessage.Photo[len(message.ReplyToMessage.Photo)-1]
 		mediaTypes = append(mediaTypes, struct {
 			FileType string
