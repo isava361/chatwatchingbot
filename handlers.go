@@ -1057,9 +1057,11 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 			if message.ForwardFrom.User.ID != nil {
 				senduserid := message.ForwardFrom.User.ID
 				msg := tgbotapi.NewMessage(message.Chat.ID, senduserid)
+				bot.Send(msg)
 			} else {
 				senduserid := message.From.User.ID
 				msg := tgbotapi.NewMessage(message.Chat.ID, senduserid)
+				bot.Send(msg)
 			}
 		} else {
 			return nil
