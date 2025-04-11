@@ -1061,7 +1061,8 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 				bot.Send(msg)
 				return nil
 			} else  if message.ForwardSenderName != "" {
-				msg := tgbotapi.NewMessage(message.Chat.ID, "Sorry, this user's ID is hidden")
+				msg := tgbotapi.NewMessage(message.Chat.ID, "<b>Sorry, this user's ID is hidden</b>")
+				msg.ParseMode = "HTML"
 				bot.Send(msg)
 				return nil
 			} else {
