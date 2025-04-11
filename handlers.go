@@ -1054,12 +1054,12 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
 		if message.Chat.Type == "private"{
-			if message.ForwardFrom.UserID != nil {
-				senduserid := message.ForwardFrom.UserID
-				msg := tgbotapi.NewMessage(message.ChatID, senduserid)
+			if message.ForwardFrom.User.ID != nil {
+				senduserid := message.ForwardFrom.User.ID
+				msg := tgbotapi.NewMessage(message.Chat.ID, senduserid)
 			} else {
-				senduserid := message.From.UserID
-				msg := tgbotapi.NewMessage(message.ChatID, senduserid)
+				senduserid := message.From.User.ID
+				msg := tgbotapi.NewMessage(message.Chat.ID, senduserid)
 			}
 		} else {
 			return nil
