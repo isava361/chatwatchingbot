@@ -1053,7 +1053,17 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	}
 
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
-		return nil
+		if message.Chat.Type = "private"{
+			if message.ForwardFrom.UserID != nil {
+				senduserid := message.ForwardFrom.UserID
+				msg := tgbotapi.NewMessage(message.ChatID, senduserid)
+			} else {
+				senduserid := message.From.UserID
+				msg := tgbotapi.NewMessage(message.ChatID, senduserid)
+			}
+		} else {
+			return nil
+		}
 	}
 
 	commandHandlers := map[string]func(*tgbotapi.BotAPI, *tgbotapi.Message, *sql.DB) error{
