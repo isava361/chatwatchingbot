@@ -1055,12 +1055,14 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	if message.Chat.Type != "supergroup" && message.Chat.Type != "group" {
 		if message.Chat.Type == "private"{
 			if message.ForwardFrom != nil {
-				senduserid := "Message forwarded from User ID: " + strconv.FormatInt(message.ForwardFrom.ID, 10)
+				senduserid := "<b>Message forwarded from User ID: </b>" + strconv.FormatInt(message.ForwardFrom.ID, 10)
 				msg := tgbotapi.NewMessage(message.Chat.ID, senduserid)
+				msg.ParseMode = "HTML"
 				bot.Send(msg)
 			} else {
-				senduserid := "Message User ID: " + strconv.FormatInt(message.From.ID, 10)
+				senduserid := "<b>Your User ID:</b> " + strconv.FormatInt(message.From.ID, 10)
 				msg := tgbotapi.NewMessage(message.Chat.ID, senduserid)
+				msg.ParseMode = "HTML"
 				bot.Send(msg)
 			}
 		} else {
