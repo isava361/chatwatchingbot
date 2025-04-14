@@ -1239,7 +1239,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return nil
 	}
 
-	if message.Chat.ID == -1001936344717 && strings.Contains(message.Text, "@KelThuzad") && isTimeBetween(currentTime, 2, 7) {
+	if message.Chat.ID == -1001936344717 && strings.Contains(message.Text, "@KelThuzad"){
 		currentTime, _ := getCurrentTimeForLocation("America/New_York")
 		if !isTimeBetween(currentTime, 2, 7) {
 			return nil
