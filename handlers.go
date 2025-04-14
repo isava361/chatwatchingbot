@@ -1191,12 +1191,13 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return handleRemoveCascadeCommand(bot, message, db)
 	}
 
-	currentTime, _ := getCurrentTimeForLocation("Los_Angeles")
 	currentTimeMoscow, _ := getCurrentTimeForLocation("Moscow")
-	currentTimeNewYork, _ := getCurrentTimeForLocation("New_York")
 
-	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) &&
-	strings.Contains(message.Text, "@Porky8888") && isTimeBetween(currentTime, 2, 7) {
+	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) && strings.Contains(message.Text, "@Porky8888") {
+		currentTime, _ := getCurrentTimeForLocation("America/Los_Angeles")
+		if !isTimeBetween(currentTime, 2, 7) {
+			return nil
+		}
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
 		photoMsg.ReplyToMessageID = message.MessageID
 		if isTimeBetween(currentTime, 2, 4) {
@@ -1221,12 +1222,12 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return nil
 	}
 
-	if message.Chat.ID == -1002245157577 && strings.Contains(message.Text, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2, 7) {
-		fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
-		if rand.Float32() < 0.5 {
-			fileID = "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
+	if message.Chat.ID == -1002245157577 && strings.Contains(message.Text, "@KelThuzad") {
+		currentTime, _ := getCurrentTimeForLocation("America/New_York")
+		if !isTimeBetween(currentTime, 2, 7) {
+			return nil
 		}
-
+		fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(fileID))
 		photoMsg.ReplyToMessageID = message.MessageID
 		if isTimeBetween(currentTimeNewYork, 2, 4) {
@@ -1237,9 +1238,12 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		bot.Send(photoMsg)
 		return nil
 	}
-	log.Printf("Current time correct: %v", isTimeBetween(currentTimeNewYork, 2, 7))
 
 	if message.Chat.ID == -1001936344717 && strings.Contains(message.Text, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2, 7) {
+		currentTime, _ := getCurrentTimeForLocation("America/New_York")
+		if !isTimeBetween(currentTime, 2, 7) {
+			return nil
+		}
 		fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(fileID))
 		photoMsg.ReplyToMessageID = message.MessageID
@@ -1249,7 +1253,6 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 			photoMsg.Caption = fmt.Sprintf("Кел в %v утра", currentTimeNewYork.Hour())
 		}
 		bot.Send(photoMsg)
-		log.Printf("I've sent the message")
 		return nil
 	}
 

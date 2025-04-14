@@ -245,7 +245,7 @@ func getCurrentTimeForLocation(location string) (time.Time, error) {
     }
 
     // If none of the combinations worked, return the last error
-//    log.Printf("Error loading location: %v", err)
+    log.Printf("Error loading location: %v", err)
     return time.Time{}, err
 }
 
