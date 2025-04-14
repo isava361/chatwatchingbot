@@ -1194,7 +1194,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	currentTimeMoscow, _ := getCurrentTimeForLocation("Moscow")
 
 	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) && strings.Contains(message.Text, "@Porky8888") {
-		loc, err := time.LoadLocation("America/Los_Angeles")
+		loc, _ := time.LoadLocation("America/Los_Angeles")
 		currentTime := time.Now().In(loc)
 		if !isTimeBetween(currentTime, 2, 7) {
 			return nil
@@ -1224,7 +1224,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	}
 
 	if message.Chat.ID == -1002245157577 && strings.Contains(message.Text, "@KelThuzad") {
-		loc, err := time.LoadLocation("America/New_York")
+		loc, _ := time.LoadLocation("America/New_York")
 		currentTime := time.Now().In(loc)
 		if !isTimeBetween(currentTime, 2, 7) {
 			return nil
@@ -1242,7 +1242,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	}
 
 	if message.Chat.ID == -1001936344717 && strings.Contains(message.Text, "@KelThuzad"){
-		loc, err := time.LoadLocation("America/New_York")
+		loc, _ := time.LoadLocation("America/New_York")
 		currentTime := time.Now().In(loc)
 		if !isTimeBetween(currentTime, 2, 7) {
 			return nil
