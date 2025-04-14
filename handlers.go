@@ -1237,7 +1237,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		bot.Send(photoMsg)
 		return nil
 	}
-	log.Printf("Message contains Kel: %v", strings.Contains(message.Text, "@KelThuzad"))
+	log.Printf("Current time correct: %v", isTimeBetween(currentTimeNewYork, 2, 7))
 
 	if message.Chat.ID == -1001936344717 && strings.Contains(message.Text, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2, 7) {
 		fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
