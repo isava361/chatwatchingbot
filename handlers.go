@@ -1196,7 +1196,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	currentTimeNewYork, _ := getCurrentTimeForLocation("America/New_York")
 
 	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) &&
-	strings.Contains(receivedMessage, "@Porky8888") && isTimeBetween(currentTime, 2, 7) {
+	strings.Contains(message.Text, "@Porky8888") && isTimeBetween(currentTime, 2, 7) {
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
 		photoMsg.ReplyToMessageID = message.MessageID
 		if isTimeBetween(currentTime, 2, 4) {
@@ -1208,7 +1208,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return nil
 	}
 
-	if message.Chat.ID == -1001970411651 && strings.Contains(receivedMessage, "@vincenitycarter") && isTimeBetween19And8(currentTimeMoscow) {
+	if message.Chat.ID == -1001970411651 && strings.Contains(message.Text, "@vincenitycarter") && isTimeBetween19And8(currentTimeMoscow) {
 		fileID := "AgACAgQAAx0Cc2pGjQACAX9ltZ3416cTOKI_-1Jp1wXzAVCLygACG74xGwkasVEOQZYuKQ4abQEAAwIAA3kAAzUE"
 		if rand.Float32() < 0.5 {
 			fileID = "AgACAgIAAx0Cc2pGjQACAnVmeHhbXkkqgeg_DNEW1dChwB3BYQACuNoxG2g9yUsZaxbgiGFD_wEAAwIAA3kAAzUE"
@@ -1221,7 +1221,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return nil
 	}
 
-	if message.Chat.ID == -1002245157577 && strings.Contains(receivedMessage, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2, 7) {
+	if message.Chat.ID == -1002245157577 && strings.Contains(message.Text, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2, 7) {
 		fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
 		if rand.Float32() < 0.5 {
 			fileID = "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
