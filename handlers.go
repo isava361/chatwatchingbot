@@ -1199,6 +1199,9 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		if !isTimeBetween(currentTime, 2, 7) {
 			return nil
 		}
+		if rand.Float32() < 0.5 {
+			return nil
+		}
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
 		photoMsg.ReplyToMessageID = message.MessageID
 		if isTimeBetween(currentTime, 2, 4) {
@@ -1227,6 +1230,9 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		loc, _ := time.LoadLocation("America/New_York")
 		currentTime := time.Now().In(loc)
 		if !isTimeBetween(currentTime, 2, 7) {
+			return nil
+		}
+		if rand.Float32() < 0.3 {
 			return nil
 		}
 		fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
