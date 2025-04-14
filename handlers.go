@@ -1191,9 +1191,9 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return handleRemoveCascadeCommand(bot, message, db)
 	}
 
-	currentTime, _ := getCurrentTimeForLocation("America/Los_Angeles")
-	currentTimeMoscow, _ := getCurrentTimeForLocation("Europe/Moscow")
-	currentTimeNewYork, _ := getCurrentTimeForLocation("America/New_York")
+	currentTime, _ := getCurrentTimeForLocation("Los_Angeles")
+	currentTimeMoscow, _ := getCurrentTimeForLocation("Moscow")
+	currentTimeNewYork, _ := getCurrentTimeForLocation("New_York")
 
 	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) &&
 	strings.Contains(message.Text, "@Porky8888") && isTimeBetween(currentTime, 2, 7) {
