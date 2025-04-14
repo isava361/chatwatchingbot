@@ -23,7 +23,12 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-
+// lastKeywordTimestamps will hold the last time each keyword was triggered in each chat.
+var (
+	// For example, you could have a key like "chatID:keyword"
+	lastKeywordTimestamps = make(map[string]time.Time)
+	timestampsMu          sync.Mutex
+)
 
 // SampleSize represents the sample sizes for different risk categories.
 type SampleSize struct {
@@ -1031,6 +1036,17 @@ func applyEntitiesToText(text string, entities []tgbotapi.MessageEntity) string 
 func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) error {
 	receivedMessage := message.Text
 
+	const targetChatID int64 = -1002245157577
+	keyword := "рейдодроч"
+
+	if message.Chat.ID == targetChatID && message.Text == keyword {
+		// Check if 5 minutes have passed since the last occurrence.
+		if !checkAndUpdateLastKeyword(targetChatID, keyword) {
+			log.Println("Less than 5 minutes since the last occurrence of the keyword; skipping processing.")
+			return nil // Do nothing
+		}
+	}
+
 	if message.NewChatMembers != nil {
 		if err := handleNewMember(bot, message); err != nil {
 			log.Printf("Error handling new member: %v", err)
@@ -1179,7 +1195,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	currentTimeNewYork, _ := getCurrentTimeForLocation("America/New_York")
 
 	if (message.Chat.ID == -1001245934322 || message.Chat.ID == -1001390115843) &&
-		messageMatches(receivedMessage, "@Porky8888") && isTimeBetween(currentTime, 2, 7) {
+	strings.Contains(receivedMessage, "@Porky8888") && isTimeBetween(currentTime, 2, 7) {
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID("AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"))
 		photoMsg.ReplyToMessageID = message.MessageID
 		if isTimeBetween(currentTime, 2, 4) {
@@ -1191,7 +1207,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return nil
 	}
 
-	if message.Chat.ID == -1001970411651 && messageMatches(receivedMessage, "@vincenitycarter") && isTimeBetween19And8(currentTimeMoscow) {
+	if message.Chat.ID == -1001970411651 && strings.Contains(receivedMessage, "@vincenitycarter") && isTimeBetween19And8(currentTimeMoscow) {
 		fileID := "AgACAgQAAx0Cc2pGjQACAX9ltZ3416cTOKI_-1Jp1wXzAVCLygACG74xGwkasVEOQZYuKQ4abQEAAwIAA3kAAzUE"
 		if rand.Float32() < 0.5 {
 			fileID = "AgACAgIAAx0Cc2pGjQACAnVmeHhbXkkqgeg_DNEW1dChwB3BYQACuNoxG2g9yUsZaxbgiGFD_wEAAwIAA3kAAzUE"
@@ -1204,7 +1220,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 		return nil
 	}
 
-	if message.Chat.ID == -1002245157577 && messageMatches(receivedMessage, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2, 7) {
+	if message.Chat.ID == -1002245157577 && strings.Contains(receivedMessage, "@KelThuzad") && isTimeBetween(currentTimeNewYork, 2, 7) {
 		fileID := "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
 		if rand.Float32() < 0.5 {
 			fileID = "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
@@ -1811,4 +1827,27 @@ func filterCustomEmojiEntities(entities []tgbotapi.MessageEntity) []tgbotapi.Mes
         }
     }
     return filteredEntities
+}
+
+// checkAndUpdateLastKeyword checks if at least 5 minutes have passed since the last time
+// 'keyword' was processed in the given chatID. It returns true if processing should continue.
+func checkAndUpdateLastKeyword(chatID int64, keyword string) bool {
+	key := formatKey(chatID, keyword)
+	now := time.Now()
+
+	timestampsMu.Lock()
+	defer timestampsMu.Unlock()
+
+	lastTime, exists := lastKeywordTimestamps[key]
+	if exists && now.Sub(lastTime) < 5*time.Minute {
+		// Not enough time has passed.
+		return false
+	}
+	// Update the timestamp and allow processing.
+	lastKeywordTimestamps[key] = now
+	return true
+}
+
+func formatKey(chatID int64, keyword string) string {
+	return string(chatID) + ":" + keyword
 }
