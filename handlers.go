@@ -1040,7 +1040,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 	const targetChatID int64 = -1002245157577
 	keyword := "рейдодроч"
 
-	if message.Chat.ID == targetChatID && message.Text == keyword {
+	if message.Chat.ID == targetChatID && strings.ToLower(message.Text) == keyword {
 		// Check if 5 minutes have passed since the last occurrence.
 		if !checkAndUpdateLastKeyword(targetChatID, keyword) {
 			log.Println("Less than 5 minutes since the last occurrence of the keyword; skipping processing.")
