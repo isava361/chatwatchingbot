@@ -1248,6 +1248,7 @@ func handleMessage(bot *tgbotapi.BotAPI, message *tgbotapi.Message, db *sql.DB) 
 			photoMsg.Caption = fmt.Sprintf("Кел в %v утра", currentTimeNewYork.Hour())
 		}
 		bot.Send(photoMsg)
+		log.Printf("I've sent the message")
 		return nil
 	}
 
