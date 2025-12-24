@@ -805,57 +805,63 @@ func processResponse(bot *tgbotapi.BotAPI, message *tgbotapi.Message, myResponse
 func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
 	formattedText := myResponse.Response
 
+	// Helper to set common properties
+	setCommon := func(base *tgbotapi.BaseChat) {
+		base.ReplyToMessageID = message.MessageID
+		base.MessageThreadID = message.MessageThreadID // <--- CRITICAL FIX
+	}
+
 	switch myResponse.FileType {
 	case FilePhoto:
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-		photoMsg.ReplyToMessageID = message.MessageID
+		setCommon(&photoMsg.BaseChat)
 		photoMsg.Caption = formattedText
 		photoMsg.CaptionEntities = myResponse.Entities
 		return photoMsg, nil
 
 	case FileGIF:
 		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-		gifMsg.ReplyToMessageID = message.MessageID
+		setCommon(&gifMsg.BaseChat)
 		gifMsg.Caption = formattedText
 		return gifMsg, nil
 
 	case FileVoice:
 		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-		voiceMsg.ReplyToMessageID = message.MessageID
+		setCommon(&voiceMsg.BaseChat)
 		return voiceMsg, nil
 
 	case FileSticker:
 		stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-		stickerMsg.ReplyToMessageID = message.MessageID
+		setCommon(&stickerMsg.BaseChat)
 		return stickerMsg, nil
 
 	case FileVideo:
 		videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-		videoMsg.ReplyToMessageID = message.MessageID
+		setCommon(&videoMsg.BaseChat)
 		videoMsg.Caption = formattedText
 		videoMsg.CaptionEntities = myResponse.Entities
 		return videoMsg, nil
 
 	case FileDocument:
 		documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-		documentMsg.ReplyToMessageID = message.MessageID
+		setCommon(&documentMsg.BaseChat)
 		documentMsg.Caption = formattedText
 		return documentMsg, nil
 
 	case FileVideoNote:
 		videoNoteMsg := tgbotapi.NewVideoNote(message.Chat.ID, 60, tgbotapi.FileID(myResponse.FileID))
-		videoNoteMsg.ReplyToMessageID = message.MessageID
+		setCommon(&videoNoteMsg.BaseChat)
 		return videoNoteMsg, nil
 
 	case FileAudio:
 		audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
-		audioMsg.ReplyToMessageID = message.MessageID
+		setCommon(&audioMsg.BaseChat)
 		audioMsg.Caption = formattedText
 		return audioMsg, nil
 
 	default:
 		textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
-		textMsg.ReplyToMessageID = message.MessageID
+		setCommon(&textMsg.BaseChat)
 		textMsg.Entities = myResponse.Entities
 		return textMsg, nil
 	}
@@ -864,49 +870,62 @@ func buildChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (t
 func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyResponse) (tgbotapi.Chattable, error) {
 	formattedText := myResponse.Response
 
+	setCommon := func(base *tgbotapi.BaseChat) {
+		base.ReplyToMessageID = message.MessageID
+		base.MessageThreadID = message.MessageThreadID // <--- CRITICAL FIX
+
 	switch myResponse.FileType {
 	case FilePhoto:
 		photoMsg := tgbotapi.NewPhoto(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		setCommon(&photoMsg.BaseChat)
 		photoMsg.Caption = formattedText
 		photoMsg.CaptionEntities = myResponse.Entities
 		return photoMsg, nil
 
 	case FileGIF:
 		gifMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		setCommon(&gifMsg.BaseChat)
 		gifMsg.Caption = formattedText
 		return gifMsg, nil
 
 	case FileVoice:
 		voiceMsg := tgbotapi.NewVoice(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		setCommon(&voiceMsg.BaseChat)
 		return voiceMsg, nil
 
 	case FileSticker:
 		stickerMsg := tgbotapi.NewSticker(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		setCommon(&stickerMsg.BaseChat)
 		return stickerMsg, nil
 
 	case FileVideo:
 		videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		setCommon(&videoMsg.BaseChat)
 		videoMsg.Caption = formattedText
 		videoMsg.CaptionEntities = myResponse.Entities
 		return videoMsg, nil
 
 	case FileDocument:
 		documentMsg := tgbotapi.NewDocument(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		setCommon(&documentMsg.BaseChat)
 		documentMsg.Caption = formattedText
 		return documentMsg, nil
 
 	case FileVideoNote:
 		videoNoteMsg := tgbotapi.NewVideoNote(message.Chat.ID, 60, tgbotapi.FileID(myResponse.FileID))
+		setCommon(&videoNoteMsg.BaseChat)
 		videoNoteMsg.ReplyToMessageID = message.MessageID
 		return videoNoteMsg, nil
 
 	case FileAudio:
 		audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FileID(myResponse.FileID))
+		setCommon(&audioMsg.BaseChat)
 		audioMsg.Caption = formattedText
 		return audioMsg, nil
 
 	default:
 		textMsg := tgbotapi.NewMessage(message.Chat.ID, formattedText)
+		setCommon(&textMsg.BaseChat)
 		textMsg.Entities = myResponse.Entities
 		return textMsg, nil
 	}
