@@ -32,13 +32,43 @@ from telegram.ext import (
 )
 
 # -----------------------------
-# Logging
+# Logging Configuration
 # -----------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 logger = logging.getLogger("tg-bot")
+
+# -----------------------------
+# Log Security: Redaction Filter
+# -----------------------------
+class TokenRedactionFilter(logging.Filter):
+    """
+    Filters log records to replace the sensitive bot token with ********.
+    """
+    def __init__(self, token: str):
+        super().__init__()
+        self.token = token
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not self.token:
+            return True
+            
+        # Redact in the main message string
+        if isinstance(record.msg, str) and self.token in record.msg:
+            record.msg = record.msg.replace(self.token, "********")
+        
+        # Redact in arguments (if logging uses %s formatting)
+        if record.args:
+            new_args = []
+            for arg in record.args:
+                if isinstance(arg, str):
+                    arg = arg.replace(self.token, "********")
+                new_args.append(arg)
+            record.args = tuple(new_args)
+            
+        return True
 
 # -----------------------------
 # Constants / Types
@@ -110,7 +140,7 @@ def sanitize_filename(name: str) -> str:
     return FILENAME_SANITIZER.sub("_", name)
 
 # -----------------------------
-# DB Layer (aiosqlite) - Improved
+# DB Layer (aiosqlite)
 # -----------------------------
 class Database:
     def __init__(self, path: str) -> None:
@@ -143,13 +173,13 @@ class Database:
 
     async def fetchone(self, sql: str, params: Sequence[Any] = ()) -> Optional[aiosqlite.Row]:
         assert self.conn is not None
-        # Removed self.lock to allow concurrent reads
+        # No lock needed for reads in WAL mode
         async with self.conn.execute(sql, params) as cur:
             return await cur.fetchone()
 
     async def fetchall(self, sql: str, params: Sequence[Any] = ()) -> List[aiosqlite.Row]:
         assert self.conn is not None
-        # Removed self.lock to allow concurrent reads
+        # No lock needed for reads in WAL mode
         async with self.conn.execute(sql, params) as cur:
             return await cur.fetchall()
 
@@ -823,9 +853,7 @@ async def handle_addc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         _, trigger_id = await db.execute("INSERT INTO cascade_triggers2 (chat_id, search_phrase) VALUES (?, ?)", (message.chat_id, phrase))
 
     reply = message.reply_to_message
-    # Simplify extraction
-    mr = create_my_response_from_reply(message) # This helper does 90% of the work
-    # But create_my_response checks reply_to_message on message, which is what we want
+    mr = create_my_response_from_reply(message) 
     
     if not myresponse_has_content(mr):
         await message.reply_text("Replied message has no supported content.")
@@ -855,7 +883,6 @@ async def handle_removec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Identify content to remove
     response_text = ((r.text or "") or (r.caption or "")).strip()
     file_id = ""
-    # Quick check for file_id
     for attr in ['photo', 'animation', 'voice', 'sticker', 'video', 'document', 'audio', 'video_note']:
         val = getattr(r, attr, None)
         if val:
@@ -888,7 +915,6 @@ async def handle_removec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         await message.reply_text("Response removed from cascade.")
 
-    # Cleanup if empty
     row2 = await db.fetchone("SELECT COUNT(*) AS c FROM cascade_trigger_responses WHERE cascade_trigger_id = ?", (trigger_id,))
     if row2 and int(row2["c"]) == 0:
         await db.execute("DELETE FROM cascade_triggers2 WHERE id = ?", (trigger_id,))
@@ -1187,6 +1213,20 @@ async def on_shutdown(app: Application) -> None:
 # -----------------------------
 def main() -> None:
     token = read_bot_token(BOT_TOKEN_PATH)
+    
+    # -- SECURITY: Apply Redaction Filter --
+    root_logger = logging.getLogger()
+    redacter = TokenRedactionFilter(token)
+    
+    # Apply to all existing handlers (e.g. console)
+    for handler in root_logger.handlers:
+        handler.addFilter(redacter)
+    
+    # Silence httpx/httpcore to prevent URL logging in debug mode
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    # --------------------------------------
+
     app = Application.builder().token(token).post_init(on_startup).post_shutdown(on_shutdown).build()
 
     # Commands
