@@ -10,20 +10,22 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from functools import partial
 from io import BytesIO
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+from zoneinfo import ZoneInfo
 
 import aiosqlite
 import qrcode
 from barcode import Code128
 from barcode.writer import ImageWriter
-from zoneinfo import ZoneInfo
 
 from telegram import Message, MessageEntity, Update
 from telegram.constants import ChatType, ParseMode, MessageEntityType
 from telegram.error import BadRequest, Forbidden
 from telegram.ext import (
     Application,
+    CommandHandler,
     ContextTypes,
     MessageHandler,
     filters,
@@ -44,7 +46,6 @@ logger = logging.getLogger("tg-bot")
 class FileType(str):
     pass
 
-
 FILE_PHOTO = FileType("photo")
 FILE_GIF = FileType("gif")
 FILE_STICKER = FileType("sticker")
@@ -53,7 +54,6 @@ FILE_VIDEO = FileType("video")
 FILE_DOCUMENT = FileType("document")
 FILE_VIDEONOTE = FileType("videonote")
 FILE_AUDIO = FileType("audio")
-
 
 @dataclass
 class MyResponse:
@@ -65,12 +65,14 @@ class MyResponse:
     file_name: str = ""
     entities: List[MessageEntity] = field(default_factory=list)
 
-
 BOT_TOKEN_PATH = "./config/token.txt"
 DB_PATH = "./mydb.db"
 
-ADMIN_ID = 193117018  # used for /addglobal /removeglobal /getlink
+ADMIN_ID = 193117018
 BLOCKED_COMMAND_USER_ID = 89886125
+
+# Pre-compiled regex for performance
+FILENAME_SANITIZER = re.compile(r"[^a-zA-Z0-9.\-]")
 
 # -----------------------------
 # Keyword cooldown (5 minutes)
@@ -78,10 +80,8 @@ BLOCKED_COMMAND_USER_ID = 89886125
 _last_keyword_timestamps: Dict[str, datetime] = {}
 _last_keyword_lock = asyncio.Lock()
 
-
 def _cooldown_key(chat_id: int, keyword: str) -> str:
     return f"{chat_id}:{keyword}"
-
 
 async def check_and_update_last_keyword(chat_id: int, keyword: str) -> bool:
     now = datetime.now(timezone.utc)
@@ -93,7 +93,6 @@ async def check_and_update_last_keyword(chat_id: int, keyword: str) -> bool:
         _last_keyword_timestamps[key] = now
         return True
 
-
 # -----------------------------
 # Utilities
 # -----------------------------
@@ -101,108 +100,17 @@ def read_bot_token(path: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         return f.readline().strip()
 
-
 def nfc_casefold(s: str) -> str:
     return unicodedata.normalize("NFC", s).casefold()
 
-
 def norm_key(s: Optional[str]) -> str:
-    """Stable normalization for trigger keys (Unicode + casefold + trim)."""
     return nfc_casefold((s or "").strip())
 
-
-def message_matches(message_text: str, target: str) -> bool:
-    return nfc_casefold(message_text) == nfc_casefold(target)
-
-
-def message_contains(message_text: str, target: str) -> bool:
-    return nfc_casefold(target) in nfc_casefold(message_text)
-
-
 def sanitize_filename(name: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9.\-]", "_", name)
-
-
-def parse_command_and_args(message: Message, bot_username: Optional[str]) -> Tuple[Optional[str], str]:
-    """
-    Parse /command [args...] from message.text using bot_command entity.
-    Strips optional @BotName suffix.
-    """
-    if not message.text or not message.entities:
-        return None, ""
-
-    first = message.entities[0]
-    if first.type != MessageEntityType.BOT_COMMAND or first.offset != 0:
-        return None, ""
-
-    cmd_token = message.text[: first.length]  # like "/add" or "/add@MyBot"
-    cmd = cmd_token[1:]
-    if "@" in cmd and bot_username:
-        base, at = cmd.split("@", 1)
-        if at.casefold() == bot_username.casefold():
-            cmd = base
-        else:
-            return None, ""
-
-    args = message.text[first.length :].lstrip()
-    return cmd.casefold(), args
-
+    return FILENAME_SANITIZER.sub("_", name)
 
 # -----------------------------
-# Optional: entity-to-markdown formatter (ported; not used by default)
-# -----------------------------
-def _utf16_code_unit_offsets(text: str) -> List[int]:
-    offsets: List[int] = []
-    cu = 0
-    for ch in text:
-        offsets.append(cu)
-        cu += 2 if ord(ch) > 0xFFFF else 1
-    return offsets
-
-
-def _codeunit_to_index(mapping: List[int], codeunit_offset: int) -> int:
-    for i, off in enumerate(mapping):
-        if off >= codeunit_offset:
-            return i
-    return len(mapping)
-
-
-def apply_entities_to_text_markdown(text: str, entities: Sequence[MessageEntity]) -> str:
-    runes = list(text)
-    mapping = _utf16_code_unit_offsets(text)
-
-    enriched = []
-    for e in entities:
-        start = _codeunit_to_index(mapping, e.offset)
-        end = _codeunit_to_index(mapping, e.offset + e.length)
-        enriched.append((start, end, e))
-
-    enriched.sort(key=lambda x: x[0], reverse=True)
-
-    for start, end, ent in enriched:
-        before = "".join(runes[:start])
-        middle = "".join(runes[start:end])
-        after = "".join(runes[end:])
-        t = ent.type
-        if t == "bold":
-            middle = f"**{middle}**"
-        elif t == "italic":
-            middle = f"*{middle}*"
-        elif t == "code":
-            middle = f"`{middle}`"
-        elif t == "pre":
-            middle = f"```{middle}```"
-        elif t == "url" and getattr(ent, "url", None):
-            middle = f"[{middle}]({ent.url})"
-        new_text = before + middle + after
-        runes = list(new_text)
-        mapping = _utf16_code_unit_offsets(new_text)
-
-    return "".join(runes)
-
-
-# -----------------------------
-# DB Layer (aiosqlite)
+# DB Layer (aiosqlite) - Improved
 # -----------------------------
 class Database:
     def __init__(self, path: str) -> None:
@@ -213,6 +121,8 @@ class Database:
     async def connect(self) -> None:
         self.conn = await aiosqlite.connect(self.path)
         self.conn.row_factory = aiosqlite.Row
+        # WAL mode for better concurrency (non-blocking reads)
+        await self.conn.execute("PRAGMA journal_mode=WAL;") 
         async with self.conn.execute("PRAGMA foreign_keys = ON;"):
             pass
         await self.conn.commit()
@@ -223,29 +133,25 @@ class Database:
             self.conn = None
 
     async def execute(self, sql: str, params: Sequence[Any] = ()) -> Tuple[int, int]:
-        """
-        Executes SQL and commits.
-        Returns (rowcount, lastrowid). Always closes cursor.
-        """
         assert self.conn is not None
+        # Writes still use a lock to ensure application-level consistency if needed,
+        # though SQLite handles this well in WAL mode.
         async with self.lock:
             async with self.conn.execute(sql, params) as cur:
                 await self.conn.commit()
-                rowcount = int(cur.rowcount) if cur.rowcount is not None else 0
-                lastrowid = int(cur.lastrowid) if cur.lastrowid is not None else 0
-                return rowcount, lastrowid
+                return cur.rowcount, cur.lastrowid
 
     async def fetchone(self, sql: str, params: Sequence[Any] = ()) -> Optional[aiosqlite.Row]:
         assert self.conn is not None
-        async with self.lock:
-            async with self.conn.execute(sql, params) as cur:
-                return await cur.fetchone()
+        # Removed self.lock to allow concurrent reads
+        async with self.conn.execute(sql, params) as cur:
+            return await cur.fetchone()
 
     async def fetchall(self, sql: str, params: Sequence[Any] = ()) -> List[aiosqlite.Row]:
         assert self.conn is not None
-        async with self.lock:
-            async with self.conn.execute(sql, params) as cur:
-                return await cur.fetchall()
+        # Removed self.lock to allow concurrent reads
+        async with self.conn.execute(sql, params) as cur:
+            return await cur.fetchall()
 
     async def init_schema(self) -> None:
         await self.execute(
@@ -269,8 +175,6 @@ class Database:
             )
             """
         )
-
-        # legacy cascade table (kept)
         await self.execute(
             """
             CREATE TABLE IF NOT EXISTS cascade_triggers (
@@ -281,7 +185,6 @@ class Database:
             )
             """
         )
-
         await self.execute(
             """
             CREATE TABLE IF NOT EXISTS cascade_triggers2 (
@@ -306,7 +209,6 @@ class Database:
             )
             """
         )
-
         await self.execute(
             """
             CREATE TABLE IF NOT EXISTS terpet_count (
@@ -318,32 +220,27 @@ class Database:
             """
         )
 
-        # Indexes for fast lookup
         await self.execute("CREATE INDEX IF NOT EXISTS idx_triggers_local ON triggers(chat_id, is_global, search_phrase)")
         await self.execute("CREATE INDEX IF NOT EXISTS idx_triggers_global ON triggers(is_global, search_phrase)")
         await self.execute("CREATE INDEX IF NOT EXISTS idx_cascade_phrase ON cascade_triggers2(chat_id, search_phrase)")
         await self.execute("CREATE INDEX IF NOT EXISTS idx_cascade_resp ON cascade_trigger_responses(cascade_trigger_id)")
 
-        # FIX #5: prevent future duplicates in triggers
-        # If your migration already removed duplicates, this should succeed.
         try:
             await self.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_triggers_unique ON triggers(chat_id, is_global, search_phrase)"
             )
         except Exception as e:
-            logger.warning("Failed to create triggers UNIQUE index (duplicates still exist?): %s", e)
+            logger.warning("Failed to create triggers UNIQUE index: %s", e)
 
     async def get_all_active_chat_ids(self) -> List[int]:
         rows = await self.fetchall("SELECT DISTINCT chatID FROM timezones")
         return [int(r["chatID"]) for r in rows]
 
-
 # -----------------------------
-# Timezone helpers (ported)
+# Timezone helpers
 # -----------------------------
 def get_current_time_for_location(location: str) -> datetime:
     prefixes = ["Europe/", "America/", "Asia/", "Africa/", "Australia/"]
-
     parts = [p for p in location.strip().split() if p]
     normalized = "_".join([p[:1].upper() + p[1:].lower() if p else p for p in parts]) or location.strip()
     normalized = normalized.replace(" ", "_")
@@ -364,23 +261,19 @@ def get_current_time_for_location(location: str) -> datetime:
 
     raise last_exc or ValueError("Invalid location")
 
-
 def is_time_between(dt: datetime, hour1: int, hour2: int) -> bool:
     h = dt.hour
     return hour1 <= h <= hour2
 
-
 def is_time_between_19_and_8(dt: datetime) -> bool:
     h = dt.hour
     return h >= 19 or h <= 8
-
 
 # -----------------------------
 # Trigger helpers
 # -----------------------------
 async def check_trigger_existence(db: Database, chat_id: int, search_phrase: str) -> Tuple[bool, bool]:
     key = norm_key(search_phrase)
-
     row1 = await db.fetchone(
         "SELECT 1 AS x FROM triggers WHERE chat_id = ? AND is_global = ? AND search_phrase = ? LIMIT 1",
         (chat_id, False, key),
@@ -391,19 +284,15 @@ async def check_trigger_existence(db: Database, chat_id: int, search_phrase: str
     )
     return (row1 is not None), (row2 is not None)
 
-
 def allowed_message_type(reply_msg: Message) -> bool:
     return reply_msg.game is None
 
-
 def extract_reply_entities(reply_msg: Message) -> List[MessageEntity]:
-    # custom emoji entities are NOT filtered (per your request)
     if reply_msg.entities:
         return list(reply_msg.entities)
     if reply_msg.caption_entities:
         return list(reply_msg.caption_entities)
     return []
-
 
 def myresponse_has_content(mr: MyResponse) -> bool:
     if (mr.response or "").strip():
@@ -413,7 +302,6 @@ def myresponse_has_content(mr: MyResponse) -> bool:
     if (mr.file_type or "").strip():
         return True
     return False
-
 
 def create_my_response_from_reply(message: Message) -> MyResponse:
     assert message.reply_to_message is not None
@@ -455,25 +343,19 @@ def create_my_response_from_reply(message: Message) -> MyResponse:
 
     return mr
 
-
 def entities_to_json(entities: Sequence[MessageEntity]) -> str:
     if not entities:
         return ""
     return json.dumps([e.to_dict() for e in entities], ensure_ascii=False)
-
 
 def entities_from_json(s: str) -> List[MessageEntity]:
     if not s:
         return []
     try:
         data = json.loads(s)
-        out: List[MessageEntity] = []
-        for d in data:
-            out.append(MessageEntity(**d))
-        return out
+        return [MessageEntity(**d) for d in data]
     except Exception:
         return []
-
 
 # -----------------------------
 # Sending responses
@@ -490,87 +372,34 @@ async def send_trigger_response(
     text = resp.response or ""
 
     ft = resp.file_type or FileType("")
+    
+    # Common args
+    kwargs = {
+        'chat_id': chat_id,
+        'reply_to_message_id': reply_to_message_id,
+        'message_thread_id': message.message_thread_id,
+    }
+
     if ft == FILE_PHOTO:
-        await bot.send_photo(
-            chat_id=chat_id,
-            photo=resp.file_id,
-            caption=text or None,
-            caption_entities=resp.entities or None,
-            reply_to_message_id=reply_to_message_id,
-            message_thread_id=message.message_thread_id,
-        )
+        await bot.send_photo(photo=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
     elif ft == FILE_GIF:
-        await bot.send_animation(
-            chat_id=chat_id,
-            animation=resp.file_id,
-            caption=text or None,
-            caption_entities=resp.entities or None,
-            reply_to_message_id=reply_to_message_id,
-            message_thread_id=message.message_thread_id,
-        )
+        await bot.send_animation(animation=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
     elif ft == FILE_VOICE:
-        await bot.send_voice(
-            chat_id=chat_id,
-            voice=resp.file_id,
-            reply_to_message_id=reply_to_message_id,
-            message_thread_id=message.message_thread_id,
-        )
+        await bot.send_voice(voice=resp.file_id, **kwargs)
     elif ft == FILE_STICKER:
-        await bot.send_sticker(
-            chat_id=chat_id,
-            sticker=resp.file_id,
-            reply_to_message_id=reply_to_message_id,
-            message_thread_id=message.message_thread_id,
-        )
+        await bot.send_sticker(sticker=resp.file_id, **kwargs)
     elif ft == FILE_VIDEO:
-        await bot.send_video(
-            chat_id=chat_id,
-            video=resp.file_id,
-            caption=text or None,
-            caption_entities=resp.entities or None,
-            reply_to_message_id=reply_to_message_id,
-            message_thread_id=message.message_thread_id,
-        )
+        await bot.send_video(video=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
     elif ft == FILE_DOCUMENT:
-        await bot.send_document(
-            chat_id=chat_id,
-            document=resp.file_id,
-            caption=text or None,
-            caption_entities=resp.entities or None,
-            reply_to_message_id=reply_to_message_id,
-            message_thread_id=message.message_thread_id,
-        )
+        await bot.send_document(document=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
     elif ft == FILE_VIDEONOTE:
-        await bot.send_video_note(
-            chat_id=chat_id,
-            video_note=resp.file_id,
-            reply_to_message_id=reply_to_message_id,
-            message_thread_id=message.message_thread_id,
-        )
+        await bot.send_video_note(video_note=resp.file_id, **kwargs)
     elif ft == FILE_AUDIO:
-        await bot.send_audio(
-            chat_id=chat_id,
-            audio=resp.file_id,
-            caption=text or None,
-            caption_entities=resp.entities or None,
-            reply_to_message_id=reply_to_message_id,
-            message_thread_id=message.message_thread_id,
-        )
+        await bot.send_audio(audio=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
     else:
-        if not text.strip():
-            return
-        await bot.send_message(
-            chat_id=chat_id,
-            text=text,
-            entities=resp.entities or None,
-            reply_to_message_id=reply_to_message_id,
-            message_thread_id=message.message_thread_id,
-        )
+        if text.strip():
+            await bot.send_message(text=text, entities=resp.entities or None, **kwargs)
 
-
-# -----------------------------
-# Small helper: chunk long messages (Telegram limit ~4096)
-# -----------------------------
 async def send_long_text(
     context: ContextTypes.DEFAULT_TYPE,
     chat_id: int,
@@ -583,39 +412,38 @@ async def send_long_text(
         if len(s) <= limit:
             await context.bot.send_message(chat_id=chat_id, text=s, message_thread_id=message_thread_id)
             return
-
         cut = s.rfind("\n", 0, limit)
         if cut <= 0:
             cut = limit
         chunk = s[:cut].rstrip()
         s = s[cut:].lstrip("\n")
-
         if chunk:
             await context.bot.send_message(chat_id=chat_id, text=chunk, message_thread_id=message_thread_id)
 
+# -----------------------------
+# Handlers (Refactored to PTB Standards)
+# -----------------------------
 
-# -----------------------------
-# Commands
-# -----------------------------
-async def handle_chatid(context: ContextTypes.DEFAULT_TYPE, message: Message) -> None:
+async def handle_chatid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if not message: return
     await context.bot.send_message(
         chat_id=message.chat_id,
         text=f"This chat ID is: {message.chat_id}",
         message_thread_id=message.message_thread_id,
     )
 
-
-async def handle_getlink(context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
-    if not message.from_user or message.from_user.id != ADMIN_ID:
+async def handle_getlink(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if not message or not message.from_user or message.from_user.id != ADMIN_ID:
         return
-    user_id = args.strip()
-    if not user_id:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Please provide an ID.",
-            message_thread_id=message.message_thread_id,
-        )
+    
+    args = context.args
+    if not args:
+        await context.bot.send_message(chat_id=message.chat_id, text="Please provide an ID.")
         return
+    
+    user_id = args[0].strip()
     link = f"<a href='tg://user?id={user_id}'>Link to User</a>"
     await context.bot.send_message(
         chat_id=message.chat_id,
@@ -625,8 +453,9 @@ async def handle_getlink(context: ContextTypes.DEFAULT_TYPE, message: Message, a
         message_thread_id=message.message_thread_id,
     )
 
-
-async def handle_roll(context: ContextTypes.DEFAULT_TYPE, message: Message, sides: int) -> None:
+async def handle_roll(update: Update, context: ContextTypes.DEFAULT_TYPE, sides: int = 100) -> None:
+    message = update.effective_message
+    if not message: return
     n = random.randint(1, sides)
     await context.bot.send_message(
         chat_id=message.chat_id,
@@ -635,76 +464,65 @@ async def handle_roll(context: ContextTypes.DEFAULT_TYPE, message: Message, side
         message_thread_id=message.message_thread_id,
     )
 
-
-async def handle_generate_qr(context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
-    code = args.strip()
-    if not code:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Usage: /generateqr <text>",
-            reply_to_message_id=message.message_id,
-            message_thread_id=message.message_thread_id,
-        )
-        return
+# -----------------------------
+# Blocking I/O Helpers (Async Wrappers)
+# -----------------------------
+def _generate_qr_sync(code: str) -> BytesIO:
     img = qrcode.make(code)
     bio = BytesIO()
     bio.name = f"{sanitize_filename(code)[:40]}.png"
     img.save(bio, format="PNG")
     bio.seek(0)
-    await context.bot.send_photo(
-        chat_id=message.chat_id,
-        photo=bio,
-        reply_to_message_id=message.message_id,
-        message_thread_id=message.message_thread_id,
-    )
+    return bio
 
-
-async def handle_generate_barcode(context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
-    code = args.strip()
-    if not code:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Usage: /generatebar <text>",
-            reply_to_message_id=message.message_id,
-            message_thread_id=message.message_thread_id,
-        )
-        return
+def _generate_bar_sync(code: str) -> BytesIO:
     barcode_obj = Code128(code, writer=ImageWriter())
     bio = BytesIO()
     bio.name = f"{sanitize_filename(code)[:40]}.png"
     barcode_obj.write(bio, options={"write_text": False})
     bio.seek(0)
-    await context.bot.send_photo(
-        chat_id=message.chat_id,
-        photo=bio,
-        reply_to_message_id=message.message_id,
-        message_thread_id=message.message_thread_id,
-    )
+    return bio
 
+async def handle_generate_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    args = " ".join(context.args) if context.args else ""
+    if not args:
+        await message.reply_text("Usage: /generateqr <text>")
+        return
 
-# ---- Sample size ----
+    # Run blocking generation in default executor
+    loop = asyncio.get_running_loop()
+    bio = await loop.run_in_executor(None, _generate_qr_sync, args)
+    
+    await message.reply_photo(photo=bio)
+
+async def handle_generate_barcode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    args = " ".join(context.args) if context.args else ""
+    if not args:
+        await message.reply_text("Usage: /generatebar <text>")
+        return
+
+    loop = asyncio.get_running_loop()
+    bio = await loop.run_in_executor(None, _generate_bar_sync, args)
+    
+    await message.reply_photo(photo=bio)
+
+# -----------------------------
+# Sample Size Logic
+# -----------------------------
 @dataclass
 class SampleSize:
     low: int
     medium: int
     high: int
 
-
 def get_risk_size(sizes: SampleSize, risk: str) -> int:
-    if risk == "low":
-        return sizes.low
-    if risk == "medium":
-        return sizes.medium
-    if risk == "high":
-        return sizes.high
-    return 0
-
+    return getattr(sizes, risk, 0)
 
 def interpolate(x0: float, y0: float, x: float, x1: float, y1: float) -> float:
-    if x1 == x0:
-        return y0
+    if x1 == x0: return y0
     return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
-
 
 def get_sample_size(population: int, risk: str) -> int:
     rows = [
@@ -715,11 +533,10 @@ def get_sample_size(population: int, risk: str) -> int:
         (53, 250, SampleSize(20, 30, 40)),
         (251, 2**31 - 1, SampleSize(25, 45, 60)),
     ]
-
     if population > 250:
         return get_risk_size(rows[-1][2], risk)
 
-    for i, (_minp, maxp, sizes) in enumerate(rows):
+    for i, (_, maxp, sizes) in enumerate(rows):
         if population <= maxp:
             if i == 0 or population == maxp:
                 return get_risk_size(sizes, risk)
@@ -728,58 +545,43 @@ def get_sample_size(population: int, risk: str) -> int:
             y1 = float(get_risk_size(sizes, risk))
             val = interpolate(float(prev[1]), y0, float(population), float(maxp), y1)
             return int(math.ceil(val))
-
     raise ValueError("population out of range")
 
-
 def generate_random_selection(sample_size: int, population: int) -> List[int]:
-    if sample_size > population:
-        return []
+    if sample_size > population: return []
     s = set()
     while len(s) < sample_size:
         s.add(random.randint(1, population))
     return sorted(s)
 
-
-async def handle_samplesize(context: ContextTypes.DEFAULT_TYPE, message: Message) -> None:
-    parts = (message.text or "").split()
-    if len(parts) < 3:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Usage: /samplesize <low|medium|high> <population>",
-            message_thread_id=message.message_thread_id,
-        )
+async def handle_samplesize(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if not context.args or len(context.args) < 2:
+        await message.reply_text("Usage: /samplesize <low|medium|high> <population>")
         return
-    risk = parts[1].casefold()
+
+    risk = context.args[0].casefold()
     try:
-        population = int(parts[2])
+        population = int(context.args[1])
     except ValueError:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text=f"Invalid population number: {parts[2]}",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text(f"Invalid population number: {context.args[1]}")
         return
 
     try:
         ss = get_sample_size(population, risk)
-        if ss <= 0:
-            raise ValueError("Risk must be one of: low, medium, high")
+        if ss <= 0: raise ValueError("Risk must be one of: low, medium, high")
     except Exception as e:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text=str(e),
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text(str(e))
         return
 
     selection = generate_random_selection(ss, population)
     out = f"For {risk} risk and population of {population}, sample size is {ss}\n"
     out += "Random numbers for random selection:\n" + "\n".join(map(str, selection))
-    await context.bot.send_message(chat_id=message.chat_id, text=out, message_thread_id=message.message_thread_id)
+    await message.reply_text(out)
 
-
-# ---- Terpet ----
+# -----------------------------
+# Terpet & Topterpil
+# -----------------------------
 def get_raz_form(count: int) -> str:
     if count % 10 == 1 and count % 100 != 11:
         return "раз"
@@ -787,31 +589,34 @@ def get_raz_form(count: int) -> str:
         return "раза"
     return "раз"
 
+async def increment_terpet(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message) -> None:
+    u = message.from_user
+    if not u: return
+    await db.execute(
+        """
+        INSERT INTO terpet_count (user_id, username, first_name, count)
+        VALUES (?, ?, ?, 1)
+        ON CONFLICT(user_id) DO UPDATE SET count = count + 1, username = excluded.username, first_name = excluded.first_name
+        """,
+        (u.id, u.username or "", u.first_name or ""),
+    )
+    row = await db.fetchone("SELECT count FROM terpet_count WHERE user_id = ?", (u.id,))
+    count = int(row["count"]) if row else 1
+    await context.bot.send_message(
+        chat_id=message.chat_id,
+        text=f"Вы терпели {count} {get_raz_form(count)}",
+        reply_to_message_id=message.message_id,
+        message_thread_id=message.message_thread_id,
+    )
 
-async def handle_terpet_message(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message) -> None:
-    if message.chat_id == -1001390115843 and ((message.text or "") == "Терпеть" or (message.text or "") == "/terpet"):
-        u = message.from_user
-        if not u:
-            return
-        await db.execute(
-            """
-            INSERT INTO terpet_count (user_id, username, first_name, count)
-            VALUES (?, ?, ?, 1)
-            ON CONFLICT(user_id) DO UPDATE SET count = count + 1, username = excluded.username, first_name = excluded.first_name
-            """,
-            (u.id, u.username or "", u.first_name or ""),
-        )
-        row = await db.fetchone("SELECT count FROM terpet_count WHERE user_id = ?", (u.id,))
-        count = int(row["count"]) if row else 1
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text=f"Вы терпели {count} {get_raz_form(count)}",
-            reply_to_message_id=message.message_id,
-            message_thread_id=message.message_thread_id,
-        )
+async def handle_terpet_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if message.chat_id != -1001390115843: return
+    db: Database = context.application.bot_data["db"]
+    await increment_terpet(db, context, message)
 
-
-async def handle_topterpil(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message) -> None:
+async def handle_topterpil(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    db: Database = context.application.bot_data["db"]
     rows = await db.fetchall(
         """
         SELECT COALESCE(NULLIF(username, ''), first_name) AS name, count
@@ -821,26 +626,18 @@ async def handle_topterpil(db: Database, context: ContextTypes.DEFAULT_TYPE, mes
         """
     )
     if not rows:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="No terpet data available.",
-            message_thread_id=message.message_thread_id,
-        )
+        await update.effective_message.reply_text("No terpet data available.")
         return
-    lines = []
-    for r in rows:
-        name = r["name"] or "?"
-        count = int(r["count"])
-        lines.append(f"{name}: {count} {get_raz_form(count)}")
-    await context.bot.send_message(
-        chat_id=message.chat_id,
-        text="Топ-5 Терпил:\n" + "\n".join(lines),
-        message_thread_id=message.message_thread_id,
-    )
+    lines = [f"{r['name'] or '?'}: {r['count']} {get_raz_form(int(r['count']))}" for r in rows]
+    await update.effective_message.reply_text("Топ-5 Терпил:\n" + "\n".join(lines))
 
-
-# ---- Triggers ----
-async def handle_triggers_command(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message) -> None:
+# -----------------------------
+# Triggers Management
+# -----------------------------
+async def handle_triggers_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    db: Database = context.application.bot_data["db"]
+    message = update.effective_message
+    
     local = await db.fetchall(
         "SELECT DISTINCT search_phrase FROM triggers WHERE chat_id = ? AND is_global = ? ORDER BY search_phrase",
         (message.chat_id, False),
@@ -854,210 +651,121 @@ async def handle_triggers_command(db: Database, context: ContextTypes.DEFAULT_TY
         (message.chat_id,),
     )
 
-    lines: List[str] = []
-    lines.append("Local Triggers:")
-    if local:
-        for r in local:
-            lines.append(f"- {r['search_phrase']}")
-    else:
-        lines.append("- (none)")
+    lines: List[str] = ["Local Triggers:"]
+    lines.extend([f"- {r['search_phrase']}" for r in local] if local else ["- (none)"])
+    lines.append("\nGlobal Triggers:")
+    lines.extend([f"- {r['search_phrase']}" for r in glob] if glob else ["- (none)"])
+    lines.append("\nCascade Triggers:")
+    lines.extend([f"- {r['search_phrase']}" for r in casc] if casc else ["- (none)"])
 
-    lines.append("")
-    lines.append("Global Triggers:")
-    if glob:
-        for r in glob:
-            lines.append(f"- {r['search_phrase']}")
-    else:
-        lines.append("- (none)")
+    await send_long_text(context, message.chat_id, "\n".join(lines), message.message_thread_id)
 
-    lines.append("")
-    lines.append("Cascade Triggers:")
-    if casc:
-        for r in casc:
-            lines.append(f"- {r['search_phrase']}")
-    else:
-        lines.append("- (none)")
-
-    await send_long_text(
-        context=context,
-        chat_id=message.chat_id,
-        text="\n".join(lines),
-        message_thread_id=message.message_thread_id,
-    )
-
-
-async def handle_remove(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
+async def handle_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
     if message.from_user and message.from_user.id == BLOCKED_COMMAND_USER_ID:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="You are not allowed to use this command.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("You are not allowed to use this command.")
         return
 
-    phrase = norm_key(args)
+    phrase = norm_key(" ".join(context.args))
+    if not phrase:
+        await message.reply_text("Usage: /remove <phrase>")
+        return
+
+    db: Database = context.application.bot_data["db"]
     deleted, _ = await db.execute(
         "DELETE FROM triggers WHERE chat_id = ? AND search_phrase = ? AND is_global = ?",
         (message.chat_id, phrase, False),
     )
     if deleted > 0:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Local response removed!",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Local response removed!")
     else:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="No local response found with that search phrase.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("No local response found with that search phrase.")
 
-
-async def handle_removeglobal(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
+async def handle_removeglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
     if not message.from_user or message.from_user.id != ADMIN_ID:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="You are not authorized to use this command.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("You are not authorized.")
         return
-    phrase = norm_key(args)
+
+    phrase = norm_key(" ".join(context.args))
+    db: Database = context.application.bot_data["db"]
     deleted, _ = await db.execute(
         "DELETE FROM triggers WHERE search_phrase = ? AND is_global = ?",
         (phrase, True),
     )
     if deleted > 0:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Global response removed!",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Global response removed!")
     else:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="No global response found with that search phrase.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("No global response found.")
 
-
-async def handle_add(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
+async def handle_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
     if message.from_user and message.from_user.id == BLOCKED_COMMAND_USER_ID:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="You are not allowed to use this command.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("You are not allowed to use this command.")
         return
-
     if not message.reply_to_message:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Please reply to a message and use: /add <phrase>",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Reply to a message and use: /add <phrase>")
         return
 
-    phrase_raw = args.strip()
-    if not phrase_raw:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Please provide a trigger phrase.\nExample: /add Hello",
-            message_thread_id=message.message_thread_id,
-        )
+    phrase = norm_key(" ".join(context.args))
+    if not phrase:
+        await message.reply_text("Please provide a trigger phrase.")
         return
-    phrase = norm_key(phrase_raw)
 
+    db: Database = context.application.bot_data["db"]
     _, cascade_exists = await check_trigger_existence(db, message.chat_id, phrase)
     if cascade_exists:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="A cascade trigger with this phrase already exists. Cannot create a normal trigger.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("A cascade trigger with this phrase exists.")
         return
 
+    try:
+        mr = create_my_response_from_reply(message)
+    except Exception:
+        await message.reply_text("Can't add this trigger")
+        return
+
+    if not myresponse_has_content(mr):
+        await message.reply_text("Replied message has no supported content.")
+        return
+
+    mr.search_phrase = phrase
+    ent_json = entities_to_json(mr.entities)
+    
+    # Check exists
     exists = await db.fetchone(
         "SELECT id FROM triggers WHERE chat_id = ? AND is_global = ? AND search_phrase = ? LIMIT 1",
         (message.chat_id, False, phrase),
     )
 
-    try:
-        mr = create_my_response_from_reply(message)
-    except Exception:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Can't add this trigger",
-            message_thread_id=message.message_thread_id,
-        )
-        return
-
-    if not myresponse_has_content(mr):
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Can't add this trigger: replied message has no text/caption and no supported media.",
-            message_thread_id=message.message_thread_id,
-        )
-        return
-
-    mr.search_phrase = phrase
-    ent_json = entities_to_json(mr.entities)
-
     if exists:
         await db.execute(
-            """
-            UPDATE triggers
-            SET response = ?, file_type = ?, file_id = ?, file_name = ?, entities = ?
-            WHERE id = ?
-            """,
+            """UPDATE triggers SET response=?, file_type=?, file_id=?, file_name=?, entities=? WHERE id=?""",
             (mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, int(exists["id"])),
         )
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Response updated!",
-            message_thread_id=message.message_thread_id,
+        await message.reply_text("Response updated!")
+    else:
+        await db.execute(
+            """INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, entities, is_global)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (message.chat_id, phrase, mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, False),
         )
-        return
+        await message.reply_text("New response added!")
 
-    await db.execute(
-        """
-        INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, entities, is_global)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (message.chat_id, phrase, mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, False),
-    )
-    await context.bot.send_message(
-        chat_id=message.chat_id,
-        text="New response added!",
-        message_thread_id=message.message_thread_id,
-    )
-
-
-async def handle_addglobal(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
+async def handle_addglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
     if not message.from_user or message.from_user.id != ADMIN_ID:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="You are not authorized to use this command.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Unauthorized.")
         return
     if not message.reply_to_message:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Please reply to a message and use: /addglobal <phrase>",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Reply to a message and use: /addglobal <phrase>")
         return
 
-    phrase = norm_key(args)
+    phrase = norm_key(" ".join(context.args))
     if not phrase:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Please provide a trigger phrase.\nExample: /addglobal Hello",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Provide a phrase.")
         return
 
+    db: Database = context.application.bot_data["db"]
     existing_row = await db.fetchone(
         "SELECT id FROM triggers WHERE is_global = ? AND search_phrase = ? LIMIT 1",
         (True, phrase),
@@ -1067,203 +775,100 @@ async def handle_addglobal(db: Database, context: ContextTypes.DEFAULT_TYPE, mes
     try:
         mr = create_my_response_from_reply(message)
     except Exception:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Can't add this trigger",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Can't add this trigger")
         return
-
+    
     if not myresponse_has_content(mr):
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Can't add this trigger: replied message has no text/caption and no supported media.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("No content found.")
         return
 
-    mr.search_phrase = phrase
     ent_json = entities_to_json(mr.entities)
-
     if existing_id:
         await db.execute(
-            """
-            UPDATE triggers
-            SET response = ?, file_type = ?, file_id = ?, file_name = ?, entities = ?, chat_id = ?
-            WHERE id = ?
-            """,
+            """UPDATE triggers SET response=?, file_type=?, file_id=?, file_name=?, entities=?, chat_id=? WHERE id=?""",
             (mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, 0, existing_id),
         )
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Response updated!",
-            message_thread_id=message.message_thread_id,
+        await message.reply_text("Global response updated!")
+    else:
+        await db.execute(
+            """INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, entities, is_global)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (0, phrase, mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, True),
         )
-        return
+        await message.reply_text("New global response added!")
 
-    await db.execute(
-        """
-        INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, entities, is_global)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (0, phrase, mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, True),
-    )
-    await context.bot.send_message(
-        chat_id=message.chat_id,
-        text="New global response added!",
-        message_thread_id=message.message_thread_id,
-    )
-
-
-# ---- Cascade triggers ----
-async def handle_addc(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
+# -----------------------------
+# Cascade Triggers
+# -----------------------------
+async def handle_addc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
     if not message.reply_to_message:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Please reply to the message you want to use as a response when adding a cascade trigger.\nExample: /addc Hello",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Reply to the response message: /addc <phrase>")
+        return
+    phrase = norm_key(" ".join(context.args))
+    if not phrase:
+        await message.reply_text("Provide a phrase.")
         return
 
-    phrase_raw = args.strip()
-    if not phrase_raw:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Please provide a trigger phrase.\nExample: /addc Hello",
-            message_thread_id=message.message_thread_id,
-        )
-        return
-    phrase = norm_key(phrase_raw)
-
+    db: Database = context.application.bot_data["db"]
     local_exists, _ = await check_trigger_existence(db, message.chat_id, phrase)
     if local_exists:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="A local trigger with this phrase already exists. Cannot create a cascade trigger.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("A normal trigger exists for this phrase.")
         return
 
-    row = await db.fetchone(
-        "SELECT id FROM cascade_triggers2 WHERE chat_id = ? AND search_phrase = ?",
-        (message.chat_id, phrase),
-    )
+    row = await db.fetchone("SELECT id FROM cascade_triggers2 WHERE chat_id = ? AND search_phrase = ?", (message.chat_id, phrase))
     if row:
         trigger_id = int(row["id"])
     else:
-        _, trigger_id = await db.execute(
-            "INSERT INTO cascade_triggers2 (chat_id, search_phrase) VALUES (?, ?)",
-            (message.chat_id, phrase),
-        )
+        _, trigger_id = await db.execute("INSERT INTO cascade_triggers2 (chat_id, search_phrase) VALUES (?, ?)", (message.chat_id, phrase))
 
     reply = message.reply_to_message
-    response_text = (reply.text or "").strip() or (reply.caption or "").strip()
-    entities = extract_reply_entities(reply)
-
-    mr = MyResponse(search_phrase=phrase, response=response_text, entities=entities)
-
-    if reply.photo:
-        mr.file_type, mr.file_id = FILE_PHOTO, reply.photo[-1].file_id
-    elif reply.animation:
-        mr.file_type, mr.file_id = FILE_GIF, reply.animation.file_id
-    elif reply.voice:
-        mr.file_type, mr.file_id = FILE_VOICE, reply.voice.file_id
-    elif reply.sticker:
-        mr.file_type, mr.file_id = FILE_STICKER, reply.sticker.file_id
-    elif reply.video:
-        mr.file_type, mr.file_id = FILE_VIDEO, reply.video.file_id
-    elif reply.document:
-        mr.file_type, mr.file_id = FILE_DOCUMENT, reply.document.file_id
-        mr.file_name = reply.document.file_name or ""
-    elif reply.audio:
-        mr.file_type, mr.file_id = FILE_AUDIO, reply.audio.file_id
-        mr.file_name = reply.audio.file_name or ""
-    elif reply.video_note:
-        mr.file_type, mr.file_id = FILE_VIDEONOTE, reply.video_note.file_id
-    elif response_text:
-        pass
-    else:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="The replied message has no supported content.",
-            message_thread_id=message.message_thread_id,
-        )
+    # Simplify extraction
+    mr = create_my_response_from_reply(message) # This helper does 90% of the work
+    # But create_my_response checks reply_to_message on message, which is what we want
+    
+    if not myresponse_has_content(mr):
+        await message.reply_text("Replied message has no supported content.")
         return
 
     ent_json = entities_to_json(mr.entities)
     await db.execute(
-        """
-        INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name, entities)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
+        """INSERT INTO cascade_trigger_responses (cascade_trigger_id, response, file_type, file_id, file_name, entities)
+           VALUES (?, ?, ?, ?, ?, ?)""",
         (trigger_id, mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json),
     )
-    await context.bot.send_message(
-        chat_id=message.chat_id,
-        text="Cascade trigger added successfully!",
-        message_thread_id=message.message_thread_id,
-    )
+    await message.reply_text("Cascade trigger added!")
 
-
-async def handle_removec(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
-    # FIX: consistent strip + safer deletion conditions
+async def handle_removec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
     if not message.reply_to_message:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Пожалуйста, ответьте на сообщение, которое хотите удалить из каскадного триггера, и используйте /removec <фраза>.\nПример: /removec Привет",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Reply to the message you want to remove: /removec <phrase>")
+        return
+    phrase = norm_key(" ".join(context.args))
+    if not phrase:
+        await message.reply_text("Provide a phrase.")
         return
 
-    phrase_raw = args.strip()
-    if not phrase_raw:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Пожалуйста, предоставьте фразу.\nПример: /removec Привет",
-            message_thread_id=message.message_thread_id,
-        )
-        return
-    phrase = norm_key(phrase_raw)
-
+    db: Database = context.application.bot_data["db"]
     r = message.reply_to_message
+    
+    # Identify content to remove
     response_text = ((r.text or "") or (r.caption or "")).strip()
-
     file_id = ""
-    if r.photo:
-        file_id = r.photo[-1].file_id
-    elif r.animation:
-        file_id = r.animation.file_id
-    elif r.voice:
-        file_id = r.voice.file_id
-    elif r.sticker:
-        file_id = r.sticker.file_id
-    elif r.video:
-        file_id = r.video.file_id
-    elif r.document:
-        file_id = r.document.file_id
-    elif r.audio:
-        file_id = r.audio.file_id
-    elif r.video_note:
-        file_id = r.video_note.file_id
+    # Quick check for file_id
+    for attr in ['photo', 'animation', 'voice', 'sticker', 'video', 'document', 'audio', 'video_note']:
+        val = getattr(r, attr, None)
+        if val:
+            file_id = val[-1].file_id if isinstance(val, list) else val.file_id
+            break
 
     if not response_text and not file_id:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Сообщение не содержит текста/подписи/медиа.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Target message has no content.")
         return
 
-    row = await db.fetchone(
-        "SELECT id FROM cascade_triggers2 WHERE chat_id = ? AND search_phrase = ?",
-        (message.chat_id, phrase),
-    )
+    row = await db.fetchone("SELECT id FROM cascade_triggers2 WHERE chat_id = ? AND search_phrase = ?", (message.chat_id, phrase))
     if not row:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Каскадный триггер с данной фразой не найден.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Cascade trigger not found.")
         return
     trigger_id = int(row["id"])
 
@@ -1272,192 +877,83 @@ async def handle_removec(db: Database, context: ContextTypes.DEFAULT_TYPE, messa
             "DELETE FROM cascade_trigger_responses WHERE cascade_trigger_id = ? AND file_id = ?",
             (trigger_id, file_id),
         )
-        if deleted == 0:
-            await context.bot.send_message(
-                chat_id=message.chat_id,
-                text="Медиа-ответ с данным FileID не найден.",
-                message_thread_id=message.message_thread_id,
-            )
-            return
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text=f"Медиа-ответ удалён из каскадного триггера '{phrase}'.",
-            message_thread_id=message.message_thread_id,
-        )
     else:
         deleted, _ = await db.execute(
-            """
-            DELETE FROM cascade_trigger_responses
-            WHERE cascade_trigger_id = ?
-              AND COALESCE(file_id, '') = ''
-              AND response = ?
-            """,
+            "DELETE FROM cascade_trigger_responses WHERE cascade_trigger_id = ? AND COALESCE(file_id, '') = '' AND response = ?",
             (trigger_id, response_text),
         )
-        if deleted == 0:
-            await context.bot.send_message(
-                chat_id=message.chat_id,
-                text="Текстовый ответ не найден.",
-                message_thread_id=message.message_thread_id,
-            )
-            return
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text=f"Текстовый ответ удалён из каскадного триггера '{phrase}'.",
-            message_thread_id=message.message_thread_id,
-        )
 
-    row2 = await db.fetchone(
-        "SELECT COUNT(*) AS c FROM cascade_trigger_responses WHERE cascade_trigger_id = ?",
-        (trigger_id,),
-    )
-    remaining = int(row2["c"]) if row2 else 0
-    if remaining == 0:
+    if deleted == 0:
+        await message.reply_text("Matching response not found in this cascade.")
+    else:
+        await message.reply_text("Response removed from cascade.")
+
+    # Cleanup if empty
+    row2 = await db.fetchone("SELECT COUNT(*) AS c FROM cascade_trigger_responses WHERE cascade_trigger_id = ?", (trigger_id,))
+    if row2 and int(row2["c"]) == 0:
         await db.execute("DELETE FROM cascade_triggers2 WHERE id = ?", (trigger_id,))
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text=f"Каскадный триггер '{phrase}' удалён, так как больше не содержит ответов.",
-            message_thread_id=message.message_thread_id,
-        )
-
-
-async def handle_cascade_triggers(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message) -> None:
-    content = norm_key(message.text) if message.text else norm_key(message.caption) if message.caption else ""
-
-    rows = await db.fetchall(
-        """
-        SELECT
-            ct.id AS trigger_id,
-            ct.search_phrase,
-            COALESCE(ctr.id, ctr.rowid) AS resp_id,
-            ctr.response,
-            ctr.file_type,
-            ctr.file_id,
-            ctr.file_name,
-            ctr.entities
-        FROM cascade_triggers2 ct
-        JOIN cascade_trigger_responses ctr ON ct.id = ctr.cascade_trigger_id
-        WHERE ct.chat_id = ? AND ct.search_phrase = ?
-        ORDER BY ctr.id ASC
-        """,
-        (message.chat_id, content),
-    )
-    if not rows:
-        return
-
-    for r in rows:
-        resp = MyResponse(
-            id=int(r["resp_id"]),
-            search_phrase=r["search_phrase"] or "",
-            response=r["response"] or "",
-            file_type=FileType(r["file_type"] or ""),
-            file_id=r["file_id"] or "",
-            file_name=r["file_name"] or "",
-            entities=entities_from_json(r["entities"] or ""),
-        )
-        await send_trigger_response(context, message, resp, reply_to=False)
-
+        await message.reply_text("Cascade trigger deleted as it is now empty.")
 
 # -----------------------------
-# Timezone commands / updater
+# Timezone Commands
 # -----------------------------
-async def time_add(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
-    location = args.strip()
+async def time_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    location = " ".join(context.args).strip()
     if not location:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Usage: /addlocation <Location>",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Usage: /addlocation <Location>")
         return
 
     try:
         _ = get_current_time_for_location(location)
     except Exception:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="This location is not available. Please try a different town in this time zone.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Location unavailable.")
         return
 
+    db: Database = context.application.bot_data["db"]
     try:
         await db.execute("INSERT INTO timezones (chatID, location) VALUES (?, ?)", (message.chat_id, location))
-    except aiosqlite.Error as e:
-        if "UNIQUE constraint failed" in str(e):
-            await context.bot.send_message(
-                chat_id=message.chat_id,
-                text="This location has already been added.",
-                message_thread_id=message.message_thread_id,
-            )
-            return
-        raise
+    except aiosqlite.Error:
+        await message.reply_text("Location already added.")
+        return
 
     rows = await db.fetchall("SELECT location FROM timezones WHERE chatID = ?", (message.chat_id,))
     locations = [r["location"] for r in rows]
+    await message.reply_text(f"Added! Current locations: {', '.join(locations)}")
 
-    await context.bot.send_message(
-        chat_id=message.chat_id,
-        text=f"Timezone location '{location}' added successfully!",
-        message_thread_id=message.message_thread_id,
-    )
-    await context.bot.send_message(
-        chat_id=message.chat_id,
-        text="Current locations are: " + ", ".join(locations),
-        message_thread_id=message.message_thread_id,
-    )
-
-
-async def time_remove(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
-    location = args.strip()
+async def time_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    location = " ".join(context.args).strip()
     if not location:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Usage: /removelocation <Location>",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Usage: /removelocation <Location>")
         return
+    
+    db: Database = context.application.bot_data["db"]
     deleted, _ = await db.execute("DELETE FROM timezones WHERE chatID = ? AND location = ?", (message.chat_id, location))
-    txt = (
-        f"Timezone location '{location}' removed successfully!"
-        if deleted > 0
-        else f"No timezone location found for '{location}'."
-    )
-    await context.bot.send_message(chat_id=message.chat_id, text=txt, message_thread_id=message.message_thread_id)
+    await message.reply_text(f"Removed '{location}'" if deleted else "Location not found.")
 
-
-async def add_or_update_alias(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message, args: str) -> None:
+async def add_or_update_alias(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    args = " ".join(context.args)
     parts = args.split("-", 1)
     if len(parts) != 2:
-        await context.bot.send_message(
-            chat_id=message.chat_id,
-            text="Invalid format. Please use 'Location - Alias'.",
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_text("Usage: /alias Location - Alias")
         return
     location = parts[0].strip()
     alias = parts[1].strip()
 
-    row = await db.fetchone(
-        "SELECT 1 AS x FROM alias WHERE chatID = ? AND location = ? LIMIT 1",
-        (message.chat_id, location),
-    )
+    db: Database = context.application.bot_data["db"]
+    row = await db.fetchone("SELECT 1 AS x FROM alias WHERE chatID = ? AND location = ? LIMIT 1", (message.chat_id, location))
     if row:
         await db.execute("UPDATE alias SET alias = ? WHERE chatID = ? AND location = ?", (alias, message.chat_id, location))
     else:
         await db.execute("INSERT INTO alias (chatID, location, alias) VALUES (?, ?, ?)", (message.chat_id, location, alias))
+    await message.reply_text(f"Alias set: {location} -> {alias}")
 
-    await context.bot.send_message(
-        chat_id=message.chat_id,
-        text=f"Alias '{alias}' set for location '{location}'",
-        message_thread_id=message.message_thread_id,
-    )
-
-
-async def reset_message(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message) -> None:
-    await db.execute("DELETE FROM messagelist WHERE chatID = ?", (message.chat_id,))
-    await update_time_message_for_chat(db, context, message.chat_id)
-
+async def reset_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    db: Database = context.application.bot_data["db"]
+    await db.execute("DELETE FROM messagelist WHERE chatID = ?", (update.effective_chat.id,))
+    await update_time_message_for_chat(db, context, update.effective_chat.id)
 
 async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
     rows = await db.fetchall(
@@ -1472,17 +968,13 @@ async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAU
 
     locs: List[Tuple[str, str, datetime]] = []
     for r in rows:
-        loc = r["location"]
-        display = r["display_location"]
         try:
-            now = get_current_time_for_location(loc)
-            locs.append((loc, display, now))
+            now = get_current_time_for_location(r["location"])
+            locs.append((r["location"], r["display_location"], now))
         except Exception:
             continue
 
-    if not locs:
-        return
-
+    if not locs: return
     locs.sort(key=lambda x: (x[2].date().toordinal(), x[2].hour, x[2].minute))
     text = "\n".join([f"{display} {dt.strftime('%H:%M')}" for _, display, dt in locs])
 
@@ -1490,22 +982,23 @@ async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAU
     bot = context.bot
 
     if row is None:
-        sent = await bot.send_message(chat_id=chat_id, text=text)
-        await db.execute("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", (chat_id, sent.message_id))
+        try:
+            sent = await bot.send_message(chat_id=chat_id, text=text)
+            await db.execute("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", (chat_id, sent.message_id))
+        except Forbidden: pass
         return
 
     msg_id = int(row["messageID"])
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=text)
     except BadRequest as e:
-        emsg = str(e)
-        if "message to edit not found" in emsg or "message can't be edited" in emsg:
+        if "message to edit not found" in str(e) or "message can't be edited" in str(e):
             await db.execute("DELETE FROM messagelist WHERE chatID = ?", (chat_id,))
-            sent = await bot.send_message(chat_id=chat_id, text=text)
-            await db.execute("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", (chat_id, sent.message_id))
-    except Forbidden:
-        return
-
+            try:
+                sent = await bot.send_message(chat_id=chat_id, text=text)
+                await db.execute("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", (chat_id, sent.message_id))
+            except Forbidden: pass
+    except Forbidden: pass
 
 async def update_time_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     db: Database = context.application.bot_data["db"]
@@ -1513,235 +1006,115 @@ async def update_time_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     for cid in chat_ids:
         await update_time_message_for_chat(db, context, cid)
 
-
 # -----------------------------
 # Special behaviors
 # -----------------------------
 async def handle_new_member(context: ContextTypes.DEFAULT_TYPE, message: Message) -> None:
-    if not message.new_chat_members:
-        return
     sticker_set_name = "privetcivpack_by_fStikBot"
     try:
         stset = await context.bot.get_sticker_set(name=sticker_set_name)
-        if not stset.stickers:
-            return
-        st = random.choice(stset.stickers)
-        await context.bot.send_sticker(
-            chat_id=message.chat_id,
-            sticker=st.file_id,
-            message_thread_id=message.message_thread_id,
-        )
+        if stset.stickers:
+            st = random.choice(stset.stickers)
+            await context.bot.send_sticker(chat_id=message.chat_id, sticker=st.file_id, message_thread_id=message.message_thread_id)
     except Exception as e:
         logger.info("handle_new_member failed: %s", e)
 
-
 async def maybe_send_mention_memes(context: ContextTypes.DEFAULT_TYPE, message: Message) -> bool:
-    """
-    Returns True only if we actually sent something (so we should stop further processing).
-    """
     text = message.text or ""
-    if not text:
-        return False
+    if not text: return False
 
     try:
         current_moscow = get_current_time_for_location("Moscow")
     except Exception:
         current_moscow = datetime.now(timezone.utc)
 
+    # Meme 1
     if message.chat_id in (-1001245934322, -1001390115843) and "@Porky8888" in text:
         la = datetime.now(ZoneInfo("America/Los_Angeles"))
-        if not is_time_between(la, 2, 7):
+        if not is_time_between(la, 2, 7) or random.random() < 0.5:
             return False
-        if random.random() < 0.5:
-            return False
-        file_id = "AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE"
         caption = f"Машталер в {la.hour} ночи" if is_time_between(la, 2, 4) else f"Машталер в {la.hour} утра"
-        await context.bot.send_photo(
-            chat_id=message.chat_id,
-            photo=file_id,
-            caption=caption,
-            reply_to_message_id=message.message_id,
-            message_thread_id=message.message_thread_id,
+        await message.reply_photo(
+            photo="AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE",
+            caption=caption
         )
         return True
 
+    # Meme 2
     if message.chat_id == -1001970411651 and "@vincenitycarter" in text and is_time_between_19_and_8(current_moscow):
-        file_id = "AgACAgQAAx0Cc2pGjQACAX9ltZ3416cTOKI_-1Jp1wXzAVCLygACG74xGwkasVEOQZYuKQ4abQEAAwIAA3kAAzUE"
+        fid = "AgACAgQAAx0Cc2pGjQACAX9ltZ3416cTOKI_-1Jp1wXzAVCLygACG74xGwkasVEOQZYuKQ4abQEAAwIAA3kAAzUE"
         if random.random() < 0.5:
-            file_id = "AgACAgIAAx0Cc2pGjQACAnVmeHhbXkkqgeg_DNEW1dChwB3BYQACuNoxG2g9yUsZaxbgiGFD_wEAAwIAA3kAAzUE"
+            fid = "AgACAgIAAx0Cc2pGjQACAnVmeHhbXkkqgeg_DNEW1dChwB3BYQACuNoxG2g9yUsZaxbgiGFD_wEAAwIAA3kAAzUE"
         caption = f"Сегодня, в {current_moscow.strftime('%H:%M')}, Яков Андреев был найден спящим в своей квартире. Приносим соболезнования всем его тиммейтам"
-        await context.bot.send_photo(
-            chat_id=message.chat_id,
-            photo=file_id,
-            caption=caption,
-            reply_to_message_id=message.message_id,
-            message_thread_id=message.message_thread_id,
-        )
+        await message.reply_photo(photo=fid, caption=caption)
         return True
 
+    # Meme 3
     if message.chat_id in (-1002245157577, -1001936344717) and "@KelThuzad" in text:
         ny = datetime.now(ZoneInfo("America/New_York"))
-        if not is_time_between(ny, 2, 7):
-            return False
-        if message.chat_id == -1002245157577 and random.random() < 0.3:
-            return False
-        file_id = "AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE"
+        if not is_time_between(ny, 2, 7): return False
+        if message.chat_id == -1002245157577 and random.random() < 0.3: return False
         caption = f"Кел в {ny.hour} ночи" if is_time_between(ny, 2, 4) else f"Кел в {ny.hour} утра"
-        await context.bot.send_photo(
-            chat_id=message.chat_id,
-            photo=file_id,
-            caption=caption,
-            reply_to_message_id=message.message_id,
-            message_thread_id=message.message_thread_id,
+        await message.reply_photo(
+            photo="AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE",
+            caption=caption
         )
         return True
 
     return False
 
-
 # -----------------------------
-# Main message handler
+# Main Message Handler (Trigger Logic)
 # -----------------------------
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
-    if not message or not message.from_user:
+    if not message or not message.from_user: return
+
+    # 1. New Member
+    if message.new_chat_members:
+        await handle_new_member(context, message)
         return
 
-    db: Database = context.application.bot_data["db"]
+    # 2. Terpet check (legacy text check)
+    txt_lower = (message.text or "").lower()
+    if message.chat_id == -1001390115843 and "терпеть" in txt_lower:
+        db = context.application.bot_data["db"]
+        await increment_terpet(db, context, message)
 
+    # 3. Keyword Cooldown Check
     target_chat_id = -1002245157577
     keyword = "рейдодроч"
     txt_for_keyword = message.text or message.caption or ""
     if message.chat_id == target_chat_id and norm_key(txt_for_keyword) == norm_key(keyword):
         ok = await check_and_update_last_keyword(target_chat_id, keyword)
         if not ok:
-            logger.info("Keyword cooldown: skipping.")
-            return
+            return # Cooldown active
 
-    if message.new_chat_members:
-        await handle_new_member(context, message)
-
-    await handle_terpet_message(db, context, message)
-
-    cmd, args = parse_command_and_args(message, getattr(context.bot, "username", None))
-
-    if cmd == "topterpil":
-        await handle_topterpil(db, context, message)
-        return
-
-    if cmd == "getlink":
-        await handle_getlink(context, message, args)
-        return
-
-    if message.chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
-        if message.chat.type == ChatType.PRIVATE:
-            if message.forward_from:
-                txt = f"<b>Message forwarded from User ID: </b> <code>{message.forward_from.id}</code>"
-                await context.bot.send_message(
-                    chat_id=message.chat_id,
-                    text=txt,
-                    parse_mode=ParseMode.HTML,
-                    message_thread_id=message.message_thread_id,
-                )
-                return
-            if message.forward_sender_name:
-                await context.bot.send_message(
-                    chat_id=message.chat_id,
-                    text="<b>Sorry, this user's ID is hidden</b>",
-                    parse_mode=ParseMode.HTML,
-                    message_thread_id=message.message_thread_id,
-                )
-                return
-            txt = f"<b>Your User ID:</b> <code>{message.from_user.id}</code>"
-            await context.bot.send_message(
-                chat_id=message.chat_id,
-                text=txt,
-                parse_mode=ParseMode.HTML,
-                message_thread_id=message.message_thread_id,
-            )
-            return
-        return
-
-    if cmd in {"add", "remove", "addglobal", "removeglobal", "triggers"}:
-        allowed_without_reply = {"removeglobal", "triggers", "remove"}
-        if cmd in allowed_without_reply or message.reply_to_message:
-            if cmd == "add":
-                await handle_add(db, context, message, args)
-                return
-            if cmd == "remove":
-                await handle_remove(db, context, message, args)
-                return
-            if cmd == "addglobal":
-                await handle_addglobal(db, context, message, args)
-                return
-            if cmd == "removeglobal":
-                await handle_removeglobal(db, context, message, args)
-                return
-            if cmd == "triggers":
-                await handle_triggers_command(db, context, message)
-                return
-
-    if cmd == "chatid":
-        await handle_chatid(context, message)
-        return
-    if cmd == "generateqr":
-        await handle_generate_qr(context, message, args)
-        return
-    if cmd == "generatebar":
-        await handle_generate_barcode(context, message, args)
-        return
-    if cmd == "addlocation":
-        await time_add(db, context, message, args)
-        return
-    if cmd == "removelocation":
-        await time_remove(db, context, message, args)
-        return
-    if cmd == "alias":
-        await add_or_update_alias(db, context, message, args)
-        return
-    if cmd == "resetmessage":
-        await reset_message(db, context, message)
-        return
-    if cmd == "samplesize":
-        await handle_samplesize(context, message)
-        return
-
-    roll_map = {
-        "roll": 100,
-        "roll20": 20,
-        "roll12": 12,
-        "roll10": 10,
-        "roll8": 8,
-        "roll6": 6,
-        "roll4": 4,
-    }
-    if cmd in roll_map:
-        await handle_roll(context, message, roll_map[cmd])
-        return
-
-    if cmd == "addc":
-        await handle_addc(db, context, message, args)
-        return
-    if cmd == "removec":
-        await handle_removec(db, context, message, args)
-        return
-
+    # 4. Mention Memes
     if await maybe_send_mention_memes(context, message):
         return
 
-    # ---- Fast trigger lookup (no full-table scans) ----
-    # FIX #3: match normal triggers on text OR caption
+    # 5. DB Triggers
+    if not (message.text or message.caption):
+        return
+
+    db: Database = context.application.bot_data["db"]
     received_key = norm_key(message.text or message.caption or "")
+    
     if received_key:
+        # Check Local then Global
         row = await db.fetchone(
-            """
-            SELECT id, search_phrase, response, file_type, file_id, file_name, entities
-            FROM triggers
-            WHERE chat_id = ? AND is_global = ? AND search_phrase = ?
-            LIMIT 1
-            """,
+            """SELECT id, search_phrase, response, file_type, file_id, file_name, entities
+               FROM triggers WHERE chat_id = ? AND is_global = ? AND search_phrase = ? LIMIT 1""",
             (message.chat_id, False, received_key),
         )
+        if not row:
+            row = await db.fetchone(
+                """SELECT id, search_phrase, response, file_type, file_id, file_name, entities
+                   FROM triggers WHERE is_global = ? AND search_phrase = ? LIMIT 1""",
+                (True, received_key),
+            )
+        
         if row:
             resp = MyResponse(
                 id=int(row["id"]),
@@ -1753,29 +1126,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 entities=entities_from_json(row["entities"] or ""),
             )
             await send_trigger_response(context, message, resp, reply_to=True)
-        else:
-            rowg = await db.fetchone(
-                """
-                SELECT id, search_phrase, response, file_type, file_id, file_name, entities
-                FROM triggers
-                WHERE is_global = ? AND search_phrase = ?
-                LIMIT 1
-                """,
-                (True, received_key),
-            )
-            if rowg:
-                resp = MyResponse(
-                    id=int(rowg["id"]),
-                    search_phrase=rowg["search_phrase"] or "",
-                    response=rowg["response"] or "",
-                    file_type=FileType(rowg["file_type"] or ""),
-                    file_id=rowg["file_id"] or "",
-                    file_name=rowg["file_name"] or "",
-                    entities=entities_from_json(rowg["entities"] or ""),
-                )
-                await send_trigger_response(context, message, resp, reply_to=True)
-
-    await handle_cascade_triggers(db, context, message)
+            # Standard triggers take precedence? Code implies yes.
+    
+    # Cascade Triggers
+    rows = await db.fetchall(
+        """
+        SELECT ct.id, ctr.id as rid, ctr.response, ctr.file_type, ctr.file_id, ctr.file_name, ctr.entities
+        FROM cascade_triggers2 ct
+        JOIN cascade_trigger_responses ctr ON ct.id = ctr.cascade_trigger_id
+        WHERE ct.chat_id = ? AND ct.search_phrase = ?
+        ORDER BY ctr.id ASC
+        """,
+        (message.chat_id, received_key),
+    )
+    for r in rows:
+        resp = MyResponse(
+            id=int(r["rid"]),
+            response=r["response"] or "",
+            file_type=FileType(r["file_type"] or ""),
+            file_id=r["file_id"] or "",
+            file_name=r["file_name"] or "",
+            entities=entities_from_json(r["entities"] or ""),
+        )
+        await send_trigger_response(context, message, resp, reply_to=False)
 
 
 # -----------------------------
@@ -1785,28 +1158,23 @@ async def on_startup(app: Application) -> None:
     db = Database(DB_PATH)
     await db.connect()
     await db.init_schema()
-
     app.bot_data["db"] = db
 
     chat_ids = await db.get_all_active_chat_ids()
-
     class _TmpCtx:
         def __init__(self, application: Application) -> None:
             self.application = application
             self.bot = application.bot
-
-    tmp_ctx = _TmpCtx(app)  # type: ignore
+    tmp_ctx = _TmpCtx(app)
+    
     for cid in chat_ids:
-        await update_time_message_for_chat(db, tmp_ctx, cid)  # type: ignore
+        await update_time_message_for_chat(db, tmp_ctx, cid) # type: ignore
 
-    # FIX #6: JobQueue optional dependency
     if app.job_queue:
         app.job_queue.run_repeating(update_time_job, interval=30, first=30)
     else:
-        logger.warning("JobQueue is not available (install python-telegram-bot[job-queue]); timezone updates disabled.")
-
+        logger.warning("JobQueue not available.")
     logger.info("Bot started.")
-
 
 async def on_shutdown(app: Application) -> None:
     db: Database = app.bot_data.get("db")
@@ -1814,24 +1182,66 @@ async def on_shutdown(app: Application) -> None:
         await db.close()
     logger.info("Bot stopped.")
 
-
 # -----------------------------
 # Entrypoint
 # -----------------------------
 def main() -> None:
     token = read_bot_token(BOT_TOKEN_PATH)
+    app = Application.builder().token(token).post_init(on_startup).post_shutdown(on_shutdown).build()
 
-    app = (
-        Application.builder()
-        .token(token)
-        .post_init(on_startup)
-        .post_shutdown(on_shutdown)
-        .build()
-    )
+    # Commands
+    app.add_handler(CommandHandler("chatid", handle_chatid))
+    app.add_handler(CommandHandler("getlink", handle_getlink))
+    app.add_handler(CommandHandler("generateqr", handle_generate_qr))
+    app.add_handler(CommandHandler("generatebar", handle_generate_barcode))
+    app.add_handler(CommandHandler("samplesize", handle_samplesize))
+    app.add_handler(CommandHandler("terpet", handle_terpet_command))
+    app.add_handler(CommandHandler("topterpil", handle_topterpil))
+    
+    # Triggers / Timezone commands
+    app.add_handler(CommandHandler("triggers", handle_triggers_list))
+    app.add_handler(CommandHandler("add", handle_add))
+    app.add_handler(CommandHandler("remove", handle_remove))
+    app.add_handler(CommandHandler("addglobal", handle_addglobal))
+    app.add_handler(CommandHandler("removeglobal", handle_removeglobal))
+    app.add_handler(CommandHandler("addc", handle_addc))
+    app.add_handler(CommandHandler("removec", handle_removec))
+    
+    app.add_handler(CommandHandler("addlocation", time_add))
+    app.add_handler(CommandHandler("removelocation", time_remove))
+    app.add_handler(CommandHandler("alias", add_or_update_alias))
+    app.add_handler(CommandHandler("resetmessage", reset_message))
 
-    app.add_handler(MessageHandler(filters.ALL, handle_message))
+    # Rolls
+    app.add_handler(CommandHandler("roll", partial(handle_roll, sides=100)))
+    app.add_handler(CommandHandler("roll20", partial(handle_roll, sides=20)))
+    app.add_handler(CommandHandler("roll12", partial(handle_roll, sides=12)))
+    app.add_handler(CommandHandler("roll10", partial(handle_roll, sides=10)))
+    app.add_handler(CommandHandler("roll8", partial(handle_roll, sides=8)))
+    app.add_handler(CommandHandler("roll6", partial(handle_roll, sides=6)))
+    app.add_handler(CommandHandler("roll4", partial(handle_roll, sides=4)))
+
+    # Fallback for triggers and other logic (excluding commands)
+    # Using filters.TEXT | filters.CAPTION ensures we catch media with captions too
+    app.add_handler(MessageHandler(
+        (filters.TEXT | filters.CAPTION) & ~filters.COMMAND & filters.ChatType.GROUPS, 
+        handle_text_logic
+    ))
+    
+    # Private chat logic fallback
+    async def private_echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        m = update.effective_message
+        if not m: return
+        if m.forward_from:
+            await m.reply_html(f"<b>Message forwarded from User ID: </b> <code>{m.forward_from.id}</code>")
+        elif m.forward_sender_name:
+            await m.reply_html("<b>Sorry, this user's ID is hidden</b>")
+        else:
+            await m.reply_html(f"<b>Your User ID:</b> <code>{m.from_user.id}</code>")
+
+    app.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_echo))
+
     app.run_polling(allowed_updates=Update.ALL_TYPES)
-
 
 if __name__ == "__main__":
     main()
