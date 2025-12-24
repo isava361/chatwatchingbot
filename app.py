@@ -1,19 +1,5 @@
-# bot.py
-# Python rewrite of the provided Go Telegram bot code.
-#
-# Requires:
-#   pip install python-telegram-bot aiosqlite qrcode[pil] python-barcode pillow
-#
-# Notes:
-# - I intentionally removed the hardcoded obscene/harassing response that targeted a specific user ID
-#   (kept the branch but replaced the message with a neutral block) to avoid shipping harassment by default.
-# - Uses long polling (run_polling).
-#
-# Run:
-#   python bot.py
-#
-# Token file:
-#   ./config/token.txt
+
+#!/usr/bin/env python3
 
 from __future__ import annotations
 
