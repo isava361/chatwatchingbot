@@ -873,6 +873,7 @@ func buildCascadeChattableResponse(message *tgbotapi.Message, myResponse MyRespo
 	setCommon := func(base *tgbotapi.BaseChat) {
 		base.ReplyToMessageID = message.MessageID
 		base.MessageThreadID = message.MessageThreadID // <--- CRITICAL FIX
+	}
 
 	switch myResponse.FileType {
 	case FilePhoto:
