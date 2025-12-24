@@ -1118,7 +1118,7 @@ async def handle_cascade_triggers(db: Database, context: ContextTypes.DEFAULT_TY
         SELECT
             ct.id AS trigger_id,
             ct.search_phrase,
-            ctr.id AS resp_id,
+            COALESCE(ctr.id, ctr.rowid) AS resp_id,
             ctr.response,
             ctr.file_type,
             ctr.file_id,
@@ -1127,7 +1127,8 @@ async def handle_cascade_triggers(db: Database, context: ContextTypes.DEFAULT_TY
         FROM cascade_triggers2 ct
         JOIN cascade_trigger_responses ctr ON ct.id = ctr.cascade_trigger_id
         WHERE ct.chat_id = ? AND LOWER(ct.search_phrase) = LOWER(?)
-        """,
+        """
+,
         (message.chat_id, content),
     )
     if not rows:
