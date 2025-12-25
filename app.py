@@ -47,6 +47,7 @@ class TokenRedactionFilter(logging.Filter):
     """
     Filters log records to replace the sensitive bot token with ********.
     """
+
     def __init__(self, token: str):
         super().__init__()
         self.token = token
@@ -54,11 +55,11 @@ class TokenRedactionFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if not self.token:
             return True
-            
+
         # Redact in the main message string
         if isinstance(record.msg, str) and self.token in record.msg:
             record.msg = record.msg.replace(self.token, "********")
-        
+
         # Redact in arguments (if logging uses %s formatting)
         if record.args:
             new_args = []
@@ -67,14 +68,16 @@ class TokenRedactionFilter(logging.Filter):
                     arg = arg.replace(self.token, "********")
                 new_args.append(arg)
             record.args = tuple(new_args)
-            
+
         return True
+
 
 # -----------------------------
 # Constants / Types
 # -----------------------------
 class FileType(str):
     pass
+
 
 FILE_PHOTO = FileType("photo")
 FILE_GIF = FileType("gif")
@@ -84,6 +87,7 @@ FILE_VIDEO = FileType("video")
 FILE_DOCUMENT = FileType("document")
 FILE_VIDEONOTE = FileType("videonote")
 FILE_AUDIO = FileType("audio")
+
 
 @dataclass
 class MyResponse:
@@ -95,6 +99,7 @@ class MyResponse:
     file_name: str = ""
     entities: List[MessageEntity] = field(default_factory=list)
 
+
 BOT_TOKEN_PATH = "./config/token.txt"
 DB_PATH = "./mydb.db"
 
@@ -104,14 +109,17 @@ BLOCKED_COMMAND_USER_ID = 89886125
 # Pre-compiled regex for performance
 FILENAME_SANITIZER = re.compile(r"[^a-zA-Z0-9.\-]")
 
+
 # -----------------------------
 # Keyword cooldown (5 minutes)
 # -----------------------------
 _last_keyword_timestamps: Dict[str, datetime] = {}
 _last_keyword_lock = asyncio.Lock()
 
+
 def _cooldown_key(chat_id: int, keyword: str) -> str:
     return f"{chat_id}:{keyword}"
+
 
 async def check_and_update_last_keyword(chat_id: int, keyword: str) -> bool:
     now = datetime.now(timezone.utc)
@@ -123,6 +131,7 @@ async def check_and_update_last_keyword(chat_id: int, keyword: str) -> bool:
         _last_keyword_timestamps[key] = now
         return True
 
+
 # -----------------------------
 # Utilities
 # -----------------------------
@@ -130,14 +139,27 @@ def read_bot_token(path: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         return f.readline().strip()
 
+
 def nfc_casefold(s: str) -> str:
     return unicodedata.normalize("NFC", s).casefold()
+
 
 def norm_key(s: Optional[str]) -> str:
     return nfc_casefold((s or "").strip())
 
+
 def sanitize_filename(name: str) -> str:
     return FILENAME_SANITIZER.sub("_", name)
+
+
+def safe_int(v: Any, default: int = 0) -> int:
+    try:
+        if v is None:
+            return default
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
 
 # -----------------------------
 # DB Layer (aiosqlite)
@@ -152,9 +174,8 @@ class Database:
         self.conn = await aiosqlite.connect(self.path)
         self.conn.row_factory = aiosqlite.Row
         # WAL mode for better concurrency (non-blocking reads)
-        await self.conn.execute("PRAGMA journal_mode=WAL;") 
-        async with self.conn.execute("PRAGMA foreign_keys = ON;"):
-            pass
+        await self.conn.execute("PRAGMA journal_mode=WAL;")
+        await self.conn.execute("PRAGMA foreign_keys = ON;")
         await self.conn.commit()
 
     async def close(self) -> None:
@@ -164,8 +185,6 @@ class Database:
 
     async def execute(self, sql: str, params: Sequence[Any] = ()) -> Tuple[int, int]:
         assert self.conn is not None
-        # Writes still use a lock to ensure application-level consistency if needed,
-        # though SQLite handles this well in WAL mode.
         async with self.lock:
             async with self.conn.execute(sql, params) as cur:
                 await self.conn.commit()
@@ -173,13 +192,11 @@ class Database:
 
     async def fetchone(self, sql: str, params: Sequence[Any] = ()) -> Optional[aiosqlite.Row]:
         assert self.conn is not None
-        # No lock needed for reads in WAL mode
         async with self.conn.execute(sql, params) as cur:
             return await cur.fetchone()
 
     async def fetchall(self, sql: str, params: Sequence[Any] = ()) -> List[aiosqlite.Row]:
         assert self.conn is not None
-        # No lock needed for reads in WAL mode
         async with self.conn.execute(sql, params) as cur:
             return await cur.fetchall()
 
@@ -205,6 +222,8 @@ class Database:
             )
             """
         )
+
+        # legacy tables (kept if already exist)
         await self.execute(
             """
             CREATE TABLE IF NOT EXISTS cascade_triggers (
@@ -215,6 +234,7 @@ class Database:
             )
             """
         )
+
         await self.execute(
             """
             CREATE TABLE IF NOT EXISTS cascade_triggers2 (
@@ -225,6 +245,7 @@ class Database:
             )
             """
         )
+
         await self.execute(
             """
             CREATE TABLE IF NOT EXISTS cascade_trigger_responses (
@@ -239,6 +260,7 @@ class Database:
             )
             """
         )
+
         await self.execute(
             """
             CREATE TABLE IF NOT EXISTS terpet_count (
@@ -264,7 +286,8 @@ class Database:
 
     async def get_all_active_chat_ids(self) -> List[int]:
         rows = await self.fetchall("SELECT DISTINCT chatID FROM timezones")
-        return [int(r["chatID"]) for r in rows]
+        return [safe_int(r["chatID"]) for r in rows]
+
 
 # -----------------------------
 # Timezone helpers
@@ -291,13 +314,16 @@ def get_current_time_for_location(location: str) -> datetime:
 
     raise last_exc or ValueError("Invalid location")
 
+
 def is_time_between(dt: datetime, hour1: int, hour2: int) -> bool:
     h = dt.hour
     return hour1 <= h <= hour2
 
+
 def is_time_between_19_and_8(dt: datetime) -> bool:
     h = dt.hour
     return h >= 19 or h <= 8
+
 
 # -----------------------------
 # Trigger helpers
@@ -314,8 +340,10 @@ async def check_trigger_existence(db: Database, chat_id: int, search_phrase: str
     )
     return (row1 is not None), (row2 is not None)
 
+
 def allowed_message_type(reply_msg: Message) -> bool:
     return reply_msg.game is None
+
 
 def extract_reply_entities(reply_msg: Message) -> List[MessageEntity]:
     if reply_msg.entities:
@@ -323,6 +351,7 @@ def extract_reply_entities(reply_msg: Message) -> List[MessageEntity]:
     if reply_msg.caption_entities:
         return list(reply_msg.caption_entities)
     return []
+
 
 def myresponse_has_content(mr: MyResponse) -> bool:
     if (mr.response or "").strip():
@@ -332,6 +361,7 @@ def myresponse_has_content(mr: MyResponse) -> bool:
     if (mr.file_type or "").strip():
         return True
     return False
+
 
 def create_my_response_from_reply(message: Message) -> MyResponse:
     assert message.reply_to_message is not None
@@ -373,10 +403,12 @@ def create_my_response_from_reply(message: Message) -> MyResponse:
 
     return mr
 
+
 def entities_to_json(entities: Sequence[MessageEntity]) -> str:
     if not entities:
         return ""
     return json.dumps([e.to_dict() for e in entities], ensure_ascii=False)
+
 
 def entities_from_json(s: str) -> List[MessageEntity]:
     if not s:
@@ -386,6 +418,7 @@ def entities_from_json(s: str) -> List[MessageEntity]:
         return [MessageEntity(**d) for d in data]
     except Exception:
         return []
+
 
 # -----------------------------
 # Sending responses
@@ -402,18 +435,20 @@ async def send_trigger_response(
     text = resp.response or ""
 
     ft = resp.file_type or FileType("")
-    
+
     # Common args
     kwargs = {
-        'chat_id': chat_id,
-        'reply_to_message_id': reply_to_message_id,
-        'message_thread_id': message.message_thread_id,
+        "chat_id": chat_id,
+        "reply_to_message_id": reply_to_message_id,
+        "message_thread_id": message.message_thread_id,
     }
 
     if ft == FILE_PHOTO:
         await bot.send_photo(photo=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
     elif ft == FILE_GIF:
-        await bot.send_animation(animation=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
+        await bot.send_animation(
+            animation=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs
+        )
     elif ft == FILE_VOICE:
         await bot.send_voice(voice=resp.file_id, **kwargs)
     elif ft == FILE_STICKER:
@@ -421,7 +456,9 @@ async def send_trigger_response(
     elif ft == FILE_VIDEO:
         await bot.send_video(video=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
     elif ft == FILE_DOCUMENT:
-        await bot.send_document(document=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
+        await bot.send_document(
+            document=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs
+        )
     elif ft == FILE_VIDEONOTE:
         await bot.send_video_note(video_note=resp.file_id, **kwargs)
     elif ft == FILE_AUDIO:
@@ -429,6 +466,7 @@ async def send_trigger_response(
     else:
         if text.strip():
             await bot.send_message(text=text, entities=resp.entities or None, **kwargs)
+
 
 async def send_long_text(
     context: ContextTypes.DEFAULT_TYPE,
@@ -450,29 +488,31 @@ async def send_long_text(
         if chunk:
             await context.bot.send_message(chat_id=chat_id, text=chunk, message_thread_id=message_thread_id)
 
-# -----------------------------
-# Handlers (Refactored to PTB Standards)
-# -----------------------------
 
+# -----------------------------
+# Handlers
+# -----------------------------
 async def handle_chatid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
-    if not message: return
+    if not message:
+        return
     await context.bot.send_message(
         chat_id=message.chat_id,
         text=f"This chat ID is: {message.chat_id}",
         message_thread_id=message.message_thread_id,
     )
 
+
 async def handle_getlink(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
     if not message or not message.from_user or message.from_user.id != ADMIN_ID:
         return
-    
+
     args = context.args
     if not args:
         await context.bot.send_message(chat_id=message.chat_id, text="Please provide an ID.")
         return
-    
+
     user_id = args[0].strip()
     link = f"<a href='tg://user?id={user_id}'>Link to User</a>"
     await context.bot.send_message(
@@ -483,9 +523,11 @@ async def handle_getlink(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         message_thread_id=message.message_thread_id,
     )
 
+
 async def handle_roll(update: Update, context: ContextTypes.DEFAULT_TYPE, sides: int = 100) -> None:
     message = update.effective_message
-    if not message: return
+    if not message:
+        return
     n = random.randint(1, sides)
     await context.bot.send_message(
         chat_id=message.chat_id,
@@ -493,6 +535,7 @@ async def handle_roll(update: Update, context: ContextTypes.DEFAULT_TYPE, sides:
         reply_to_message_id=message.message_id,
         message_thread_id=message.message_thread_id,
     )
+
 
 # -----------------------------
 # Blocking I/O Helpers (Async Wrappers)
@@ -505,6 +548,7 @@ def _generate_qr_sync(code: str) -> BytesIO:
     bio.seek(0)
     return bio
 
+
 def _generate_bar_sync(code: str) -> BytesIO:
     barcode_obj = Code128(code, writer=ImageWriter())
     bio = BytesIO()
@@ -513,6 +557,7 @@ def _generate_bar_sync(code: str) -> BytesIO:
     bio.seek(0)
     return bio
 
+
 async def handle_generate_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
     args = " ".join(context.args) if context.args else ""
@@ -520,11 +565,10 @@ async def handle_generate_qr(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await message.reply_text("Usage: /generateqr <text>")
         return
 
-    # Run blocking generation in default executor
     loop = asyncio.get_running_loop()
     bio = await loop.run_in_executor(None, _generate_qr_sync, args)
-    
     await message.reply_photo(photo=bio)
+
 
 async def handle_generate_barcode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
@@ -535,8 +579,8 @@ async def handle_generate_barcode(update: Update, context: ContextTypes.DEFAULT_
 
     loop = asyncio.get_running_loop()
     bio = await loop.run_in_executor(None, _generate_bar_sync, args)
-    
     await message.reply_photo(photo=bio)
+
 
 # -----------------------------
 # Sample Size Logic
@@ -547,12 +591,16 @@ class SampleSize:
     medium: int
     high: int
 
+
 def get_risk_size(sizes: SampleSize, risk: str) -> int:
     return getattr(sizes, risk, 0)
 
+
 def interpolate(x0: float, y0: float, x: float, x1: float, y1: float) -> float:
-    if x1 == x0: return y0
+    if x1 == x0:
+        return y0
     return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+
 
 def get_sample_size(population: int, risk: str) -> int:
     rows = [
@@ -577,12 +625,15 @@ def get_sample_size(population: int, risk: str) -> int:
             return int(math.ceil(val))
     raise ValueError("population out of range")
 
+
 def generate_random_selection(sample_size: int, population: int) -> List[int]:
-    if sample_size > population: return []
+    if sample_size > population:
+        return []
     s = set()
     while len(s) < sample_size:
         s.add(random.randint(1, population))
     return sorted(s)
+
 
 async def handle_samplesize(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
@@ -599,7 +650,8 @@ async def handle_samplesize(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     try:
         ss = get_sample_size(population, risk)
-        if ss <= 0: raise ValueError("Risk must be one of: low, medium, high")
+        if ss <= 0:
+            raise ValueError("Risk must be one of: low, medium, high")
     except Exception as e:
         await message.reply_text(str(e))
         return
@@ -608,6 +660,7 @@ async def handle_samplesize(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     out = f"For {risk} risk and population of {population}, sample size is {ss}\n"
     out += "Random numbers for random selection:\n" + "\n".join(map(str, selection))
     await message.reply_text(out)
+
 
 # -----------------------------
 # Terpet & Topterpil
@@ -619,9 +672,11 @@ def get_raz_form(count: int) -> str:
         return "раза"
     return "раз"
 
+
 async def increment_terpet(db: Database, context: ContextTypes.DEFAULT_TYPE, message: Message) -> None:
     u = message.from_user
-    if not u: return
+    if not u:
+        return
     await db.execute(
         """
         INSERT INTO terpet_count (user_id, username, first_name, count)
@@ -631,7 +686,7 @@ async def increment_terpet(db: Database, context: ContextTypes.DEFAULT_TYPE, mes
         (u.id, u.username or "", u.first_name or ""),
     )
     row = await db.fetchone("SELECT count FROM terpet_count WHERE user_id = ?", (u.id,))
-    count = int(row["count"]) if row else 1
+    count = safe_int(row["count"], 1) if row else 1
     await context.bot.send_message(
         chat_id=message.chat_id,
         text=f"Вы терпели {count} {get_raz_form(count)}",
@@ -639,11 +694,16 @@ async def increment_terpet(db: Database, context: ContextTypes.DEFAULT_TYPE, mes
         message_thread_id=message.message_thread_id,
     )
 
+
 async def handle_terpet_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
-    if message.chat_id != -1001390115843: return
+    if not message:
+        return
+    if message.chat_id != -1001390115843:
+        return
     db: Database = context.application.bot_data["db"]
     await increment_terpet(db, context, message)
+
 
 async def handle_topterpil(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db: Database = context.application.bot_data["db"]
@@ -658,8 +718,9 @@ async def handle_topterpil(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if not rows:
         await update.effective_message.reply_text("No terpet data available.")
         return
-    lines = [f"{r['name'] or '?'}: {r['count']} {get_raz_form(int(r['count']))}" for r in rows]
+    lines = [f"{r['name'] or '?'}: {r['count']} {get_raz_form(safe_int(r['count']))}" for r in rows]
     await update.effective_message.reply_text("Топ-5 Терпил:\n" + "\n".join(lines))
+
 
 # -----------------------------
 # Triggers Management
@@ -667,7 +728,9 @@ async def handle_topterpil(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def handle_triggers_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db: Database = context.application.bot_data["db"]
     message = update.effective_message
-    
+    if not message:
+        return
+
     local = await db.fetchall(
         "SELECT DISTINCT search_phrase FROM triggers WHERE chat_id = ? AND is_global = ? ORDER BY search_phrase",
         (message.chat_id, False),
@@ -690,8 +753,11 @@ async def handle_triggers_list(update: Update, context: ContextTypes.DEFAULT_TYP
 
     await send_long_text(context, message.chat_id, "\n".join(lines), message.message_thread_id)
 
+
 async def handle_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     if message.from_user and message.from_user.id == BLOCKED_COMMAND_USER_ID:
         await message.reply_text("You are not allowed to use this command.")
         return
@@ -711,13 +777,20 @@ async def handle_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     else:
         await message.reply_text("No local response found with that search phrase.")
 
+
 async def handle_removeglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     if not message.from_user or message.from_user.id != ADMIN_ID:
         await message.reply_text("You are not authorized.")
         return
 
     phrase = norm_key(" ".join(context.args))
+    if not phrase:
+        await message.reply_text("Usage: /removeglobal <phrase>")
+        return
+
     db: Database = context.application.bot_data["db"]
     deleted, _ = await db.execute(
         "DELETE FROM triggers WHERE search_phrase = ? AND is_global = ?",
@@ -728,8 +801,11 @@ async def handle_removeglobal(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         await message.reply_text("No global response found.")
 
+
 async def handle_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     if message.from_user and message.from_user.id == BLOCKED_COMMAND_USER_ID:
         await message.reply_text("You are not allowed to use this command.")
         return
@@ -760,8 +836,7 @@ async def handle_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     mr.search_phrase = phrase
     ent_json = entities_to_json(mr.entities)
-    
-    # Check exists
+
     exists = await db.fetchone(
         "SELECT id FROM triggers WHERE chat_id = ? AND is_global = ? AND search_phrase = ? LIMIT 1",
         (message.chat_id, False, phrase),
@@ -770,7 +845,7 @@ async def handle_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if exists:
         await db.execute(
             """UPDATE triggers SET response=?, file_type=?, file_id=?, file_name=?, entities=? WHERE id=?""",
-            (mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, int(exists["id"])),
+            (mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, safe_int(exists["id"])),
         )
         await message.reply_text("Response updated!")
     else:
@@ -781,8 +856,11 @@ async def handle_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         )
         await message.reply_text("New response added!")
 
+
 async def handle_addglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     if not message.from_user or message.from_user.id != ADMIN_ID:
         await message.reply_text("Unauthorized.")
         return
@@ -800,14 +878,14 @@ async def handle_addglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "SELECT id FROM triggers WHERE is_global = ? AND search_phrase = ? LIMIT 1",
         (True, phrase),
     )
-    existing_id = int(existing_row["id"]) if existing_row else 0
+    existing_id = safe_int(existing_row["id"]) if existing_row else 0
 
     try:
         mr = create_my_response_from_reply(message)
     except Exception:
         await message.reply_text("Can't add this trigger")
         return
-    
+
     if not myresponse_has_content(mr):
         await message.reply_text("No content found.")
         return
@@ -827,11 +905,14 @@ async def handle_addglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         await message.reply_text("New global response added!")
 
+
 # -----------------------------
 # Cascade Triggers
 # -----------------------------
 async def handle_addc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     if not message.reply_to_message:
         await message.reply_text("Reply to the response message: /addc <phrase>")
         return
@@ -846,15 +927,20 @@ async def handle_addc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await message.reply_text("A normal trigger exists for this phrase.")
         return
 
-    row = await db.fetchone("SELECT id FROM cascade_triggers2 WHERE chat_id = ? AND search_phrase = ?", (message.chat_id, phrase))
+    row = await db.fetchone(
+        "SELECT id FROM cascade_triggers2 WHERE chat_id = ? AND search_phrase = ?",
+        (message.chat_id, phrase),
+    )
     if row:
-        trigger_id = int(row["id"])
+        trigger_id = safe_int(row["id"])
     else:
-        _, trigger_id = await db.execute("INSERT INTO cascade_triggers2 (chat_id, search_phrase) VALUES (?, ?)", (message.chat_id, phrase))
+        _, trigger_id = await db.execute(
+            "INSERT INTO cascade_triggers2 (chat_id, search_phrase) VALUES (?, ?)",
+            (message.chat_id, phrase),
+        )
 
-    reply = message.reply_to_message
-    mr = create_my_response_from_reply(message) 
-    
+    mr = create_my_response_from_reply(message)
+
     if not myresponse_has_content(mr):
         await message.reply_text("Replied message has no supported content.")
         return
@@ -867,8 +953,11 @@ async def handle_addc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
     await message.reply_text("Cascade trigger added!")
 
+
 async def handle_removec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     if not message.reply_to_message:
         await message.reply_text("Reply to the message you want to remove: /removec <phrase>")
         return
@@ -879,11 +968,10 @@ async def handle_removec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     db: Database = context.application.bot_data["db"]
     r = message.reply_to_message
-    
-    # Identify content to remove
+
     response_text = ((r.text or "") or (r.caption or "")).strip()
     file_id = ""
-    for attr in ['photo', 'animation', 'voice', 'sticker', 'video', 'document', 'audio', 'video_note']:
+    for attr in ["photo", "animation", "voice", "sticker", "video", "document", "audio", "video_note"]:
         val = getattr(r, attr, None)
         if val:
             file_id = val[-1].file_id if isinstance(val, list) else val.file_id
@@ -893,11 +981,14 @@ async def handle_removec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await message.reply_text("Target message has no content.")
         return
 
-    row = await db.fetchone("SELECT id FROM cascade_triggers2 WHERE chat_id = ? AND search_phrase = ?", (message.chat_id, phrase))
+    row = await db.fetchone(
+        "SELECT id FROM cascade_triggers2 WHERE chat_id = ? AND search_phrase = ?",
+        (message.chat_id, phrase),
+    )
     if not row:
         await message.reply_text("Cascade trigger not found.")
         return
-    trigger_id = int(row["id"])
+    trigger_id = safe_int(row["id"])
 
     if file_id:
         deleted, _ = await db.execute(
@@ -915,16 +1006,22 @@ async def handle_removec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     else:
         await message.reply_text("Response removed from cascade.")
 
-    row2 = await db.fetchone("SELECT COUNT(*) AS c FROM cascade_trigger_responses WHERE cascade_trigger_id = ?", (trigger_id,))
-    if row2 and int(row2["c"]) == 0:
+    row2 = await db.fetchone(
+        "SELECT COUNT(*) AS c FROM cascade_trigger_responses WHERE cascade_trigger_id = ?",
+        (trigger_id,),
+    )
+    if row2 and safe_int(row2["c"]) == 0:
         await db.execute("DELETE FROM cascade_triggers2 WHERE id = ?", (trigger_id,))
         await message.reply_text("Cascade trigger deleted as it is now empty.")
+
 
 # -----------------------------
 # Timezone Commands
 # -----------------------------
 async def time_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     location = " ".join(context.args).strip()
     if not location:
         await message.reply_text("Usage: /addlocation <Location>")
@@ -947,19 +1044,25 @@ async def time_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     locations = [r["location"] for r in rows]
     await message.reply_text(f"Added! Current locations: {', '.join(locations)}")
 
+
 async def time_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     location = " ".join(context.args).strip()
     if not location:
         await message.reply_text("Usage: /removelocation <Location>")
         return
-    
+
     db: Database = context.application.bot_data["db"]
     deleted, _ = await db.execute("DELETE FROM timezones WHERE chatID = ? AND location = ?", (message.chat_id, location))
     await message.reply_text(f"Removed '{location}'" if deleted else "Location not found.")
 
+
 async def add_or_update_alias(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     args = " ".join(context.args)
     parts = args.split("-", 1)
     if len(parts) != 2:
@@ -969,17 +1072,23 @@ async def add_or_update_alias(update: Update, context: ContextTypes.DEFAULT_TYPE
     alias = parts[1].strip()
 
     db: Database = context.application.bot_data["db"]
-    row = await db.fetchone("SELECT 1 AS x FROM alias WHERE chatID = ? AND location = ? LIMIT 1", (message.chat_id, location))
+    row = await db.fetchone(
+        "SELECT 1 AS x FROM alias WHERE chatID = ? AND location = ? LIMIT 1",
+        (message.chat_id, location),
+    )
     if row:
         await db.execute("UPDATE alias SET alias = ? WHERE chatID = ? AND location = ?", (alias, message.chat_id, location))
     else:
         await db.execute("INSERT INTO alias (chatID, location, alias) VALUES (?, ?, ?)", (message.chat_id, location, alias))
     await message.reply_text(f"Alias set: {location} -> {alias}")
 
+
 async def reset_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     db: Database = context.application.bot_data["db"]
-    await db.execute("DELETE FROM messagelist WHERE chatID = ?", (update.effective_chat.id,))
-    await update_time_message_for_chat(db, context, update.effective_chat.id)
+    chat_id = update.effective_chat.id
+    await db.execute("DELETE FROM messagelist WHERE chatID = ?", (chat_id,))
+    await update_time_message_for_chat(db, context, chat_id)
+
 
 async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
     rows = await db.fetchall(
@@ -1000,7 +1109,8 @@ async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAU
         except Exception:
             continue
 
-    if not locs: return
+    if not locs:
+        return
     locs.sort(key=lambda x: (x[2].date().toordinal(), x[2].hour, x[2].minute))
     text = "\n".join([f"{display} {dt.strftime('%H:%M')}" for _, display, dt in locs])
 
@@ -1011,10 +1121,11 @@ async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAU
         try:
             sent = await bot.send_message(chat_id=chat_id, text=text)
             await db.execute("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", (chat_id, sent.message_id))
-        except Forbidden: pass
+        except Forbidden:
+            pass
         return
 
-    msg_id = int(row["messageID"])
+    msg_id = safe_int(row["messageID"])
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=text)
     except BadRequest as e:
@@ -1023,14 +1134,18 @@ async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAU
             try:
                 sent = await bot.send_message(chat_id=chat_id, text=text)
                 await db.execute("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", (chat_id, sent.message_id))
-            except Forbidden: pass
-    except Forbidden: pass
+            except Forbidden:
+                pass
+    except Forbidden:
+        pass
+
 
 async def update_time_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     db: Database = context.application.bot_data["db"]
     chat_ids = await db.get_all_active_chat_ids()
     for cid in chat_ids:
         await update_time_message_for_chat(db, context, cid)
+
 
 # -----------------------------
 # Special behaviors
@@ -1041,13 +1156,19 @@ async def handle_new_member(context: ContextTypes.DEFAULT_TYPE, message: Message
         stset = await context.bot.get_sticker_set(name=sticker_set_name)
         if stset.stickers:
             st = random.choice(stset.stickers)
-            await context.bot.send_sticker(chat_id=message.chat_id, sticker=st.file_id, message_thread_id=message.message_thread_id)
+            await context.bot.send_sticker(
+                chat_id=message.chat_id,
+                sticker=st.file_id,
+                message_thread_id=message.message_thread_id,
+            )
     except Exception as e:
         logger.info("handle_new_member failed: %s", e)
 
+
 async def maybe_send_mention_memes(context: ContextTypes.DEFAULT_TYPE, message: Message) -> bool:
     text = message.text or ""
-    if not text: return False
+    if not text:
+        return False
 
     try:
         current_moscow = get_current_time_for_location("Moscow")
@@ -1062,7 +1183,7 @@ async def maybe_send_mention_memes(context: ContextTypes.DEFAULT_TYPE, message: 
         caption = f"Машталер в {la.hour} ночи" if is_time_between(la, 2, 4) else f"Машталер в {la.hour} утра"
         await message.reply_photo(
             photo="AgACAgQAAx0Cc2pGjQACAUBlssL7rSKP4mmzMMYeORKjAS3LOAACHMIxGzznmFF5Spk5RRTfbwEAAwIAA3gAAzQE",
-            caption=caption
+            caption=caption,
         )
         return True
 
@@ -1071,30 +1192,37 @@ async def maybe_send_mention_memes(context: ContextTypes.DEFAULT_TYPE, message: 
         fid = "AgACAgQAAx0Cc2pGjQACAX9ltZ3416cTOKI_-1Jp1wXzAVCLygACG74xGwkasVEOQZYuKQ4abQEAAwIAA3kAAzUE"
         if random.random() < 0.5:
             fid = "AgACAgIAAx0Cc2pGjQACAnVmeHhbXkkqgeg_DNEW1dChwB3BYQACuNoxG2g9yUsZaxbgiGFD_wEAAwIAA3kAAzUE"
-        caption = f"Сегодня, в {current_moscow.strftime('%H:%M')}, Яков Андреев был найден спящим в своей квартире. Приносим соболезнования всем его тиммейтам"
+        caption = (
+            f"Сегодня, в {current_moscow.strftime('%H:%M')}, Яков Андреев был найден спящим в своей квартире. "
+            f"Приносим соболезнования всем его тиммейтам"
+        )
         await message.reply_photo(photo=fid, caption=caption)
         return True
 
     # Meme 3
     if message.chat_id in (-1002245157577, -1001936344717) and "@KelThuzad" in text:
         ny = datetime.now(ZoneInfo("America/New_York"))
-        if not is_time_between(ny, 2, 7): return False
-        if message.chat_id == -1002245157577 and random.random() < 0.3: return False
+        if not is_time_between(ny, 2, 7):
+            return False
+        if message.chat_id == -1002245157577 and random.random() < 0.3:
+            return False
         caption = f"Кел в {ny.hour} ночи" if is_time_between(ny, 2, 4) else f"Кел в {ny.hour} утра"
         await message.reply_photo(
             photo="AgACAgQAAx0Cc2pGjQACArNm0PVZDzYsYwqBhiOBkCD4rCu8cQAC-78xGxt-iFJZyKNkTiV9hQEAAwIAA3gAAzUE",
-            caption=caption
+            caption=caption,
         )
         return True
 
     return False
+
 
 # -----------------------------
 # Main Message Handler (Trigger Logic)
 # -----------------------------
 async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
-    if not message or not message.from_user: return
+    if not message or not message.from_user:
+        return
 
     # 1. New Member
     if message.new_chat_members:
@@ -1114,7 +1242,7 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if message.chat_id == target_chat_id and norm_key(txt_for_keyword) == norm_key(keyword):
         ok = await check_and_update_last_keyword(target_chat_id, keyword)
         if not ok:
-            return # Cooldown active
+            return  # Cooldown active
 
     # 4. Mention Memes
     if await maybe_send_mention_memes(context, message):
@@ -1126,24 +1254,28 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     db: Database = context.application.bot_data["db"]
     received_key = norm_key(message.text or message.caption or "")
-    
+
     if received_key:
         # Check Local then Global
         row = await db.fetchone(
             """SELECT id, search_phrase, response, file_type, file_id, file_name, entities
-               FROM triggers WHERE chat_id = ? AND is_global = ? AND search_phrase = ? LIMIT 1""",
+               FROM triggers
+               WHERE chat_id = ? AND is_global = ? AND search_phrase = ?
+               LIMIT 1""",
             (message.chat_id, False, received_key),
         )
         if not row:
             row = await db.fetchone(
                 """SELECT id, search_phrase, response, file_type, file_id, file_name, entities
-                   FROM triggers WHERE is_global = ? AND search_phrase = ? LIMIT 1""",
+                   FROM triggers
+                   WHERE is_global = ? AND search_phrase = ?
+                   LIMIT 1""",
                 (True, received_key),
             )
-        
+
         if row:
             resp = MyResponse(
-                id=int(row["id"]),
+                id=safe_int(row["id"]),
                 search_phrase=row["search_phrase"] or "",
                 response=row["response"] or "",
                 file_type=FileType(row["file_type"] or ""),
@@ -1152,22 +1284,23 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 entities=entities_from_json(row["entities"] or ""),
             )
             await send_trigger_response(context, message, resp, reply_to=True)
-            # Standard triggers take precedence? Code implies yes.
-    
-    # Cascade Triggers
+
+    # Cascade Triggers (FIXED: use guaranteed rowid + safe_int to avoid int(None))
     rows = await db.fetchall(
         """
-        SELECT ct.id, ctr.id as rid, ctr.response, ctr.file_type, ctr.file_id, ctr.file_name, ctr.entities
+        SELECT
+          ctr.rowid AS rid,
+          ctr.response, ctr.file_type, ctr.file_id, ctr.file_name, ctr.entities
         FROM cascade_triggers2 ct
         JOIN cascade_trigger_responses ctr ON ct.id = ctr.cascade_trigger_id
         WHERE ct.chat_id = ? AND ct.search_phrase = ?
-        ORDER BY ctr.id ASC
+        ORDER BY ctr.rowid ASC
         """,
         (message.chat_id, received_key),
     )
     for r in rows:
         resp = MyResponse(
-            id=int(r["rid"]),
+            id=safe_int(r["rid"]),
             response=r["response"] or "",
             file_type=FileType(r["file_type"] or ""),
             file_id=r["file_id"] or "",
@@ -1175,6 +1308,13 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             entities=entities_from_json(r["entities"] or ""),
         )
         await send_trigger_response(context, message, resp, reply_to=False)
+
+
+# -----------------------------
+# PTB Error Handler (FIXED: no more "No error handlers are registered")
+# -----------------------------
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.exception("Unhandled exception while processing an update", exc_info=context.error)
 
 
 # -----------------------------
@@ -1187,14 +1327,16 @@ async def on_startup(app: Application) -> None:
     app.bot_data["db"] = db
 
     chat_ids = await db.get_all_active_chat_ids()
+
     class _TmpCtx:
         def __init__(self, application: Application) -> None:
             self.application = application
             self.bot = application.bot
+
     tmp_ctx = _TmpCtx(app)
-    
+
     for cid in chat_ids:
-        await update_time_message_for_chat(db, tmp_ctx, cid) # type: ignore
+        await update_time_message_for_chat(db, tmp_ctx, cid)  # type: ignore
 
     if app.job_queue:
         app.job_queue.run_repeating(update_time_job, interval=30, first=30)
@@ -1202,32 +1344,43 @@ async def on_startup(app: Application) -> None:
         logger.warning("JobQueue not available.")
     logger.info("Bot started.")
 
+
 async def on_shutdown(app: Application) -> None:
     db: Database = app.bot_data.get("db")
     if db:
         await db.close()
     logger.info("Bot stopped.")
 
+
 # -----------------------------
 # Entrypoint
 # -----------------------------
 def main() -> None:
     token = read_bot_token(BOT_TOKEN_PATH)
-    
+
     # -- SECURITY: Apply Redaction Filter --
     root_logger = logging.getLogger()
     redacter = TokenRedactionFilter(token)
-    
+
     # Apply to all existing handlers (e.g. console)
     for handler in root_logger.handlers:
         handler.addFilter(redacter)
-    
+
     # Silence httpx/httpcore to prevent URL logging in debug mode
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     # --------------------------------------
 
-    app = Application.builder().token(token).post_init(on_startup).post_shutdown(on_shutdown).build()
+    app = (
+        Application.builder()
+        .token(token)
+        .post_init(on_startup)
+        .post_shutdown(on_shutdown)
+        .build()
+    )
+
+    # Error handler (FIX)
+    app.add_error_handler(error_handler)
 
     # Commands
     app.add_handler(CommandHandler("chatid", handle_chatid))
@@ -1237,7 +1390,7 @@ def main() -> None:
     app.add_handler(CommandHandler("samplesize", handle_samplesize))
     app.add_handler(CommandHandler("terpet", handle_terpet_command))
     app.add_handler(CommandHandler("topterpil", handle_topterpil))
-    
+
     # Triggers / Timezone commands
     app.add_handler(CommandHandler("triggers", handle_triggers_list))
     app.add_handler(CommandHandler("add", handle_add))
@@ -1246,7 +1399,7 @@ def main() -> None:
     app.add_handler(CommandHandler("removeglobal", handle_removeglobal))
     app.add_handler(CommandHandler("addc", handle_addc))
     app.add_handler(CommandHandler("removec", handle_removec))
-    
+
     app.add_handler(CommandHandler("addlocation", time_add))
     app.add_handler(CommandHandler("removelocation", time_remove))
     app.add_handler(CommandHandler("alias", add_or_update_alias))
@@ -1262,16 +1415,18 @@ def main() -> None:
     app.add_handler(CommandHandler("roll4", partial(handle_roll, sides=4)))
 
     # Fallback for triggers and other logic (excluding commands)
-    # Using filters.TEXT | filters.CAPTION ensures we catch media with captions too
-    app.add_handler(MessageHandler(
-        (filters.TEXT | filters.CAPTION) & ~filters.COMMAND & filters.ChatType.GROUPS, 
-        handle_text_logic
-    ))
-    
+    app.add_handler(
+        MessageHandler(
+            (filters.TEXT | filters.CAPTION) & ~filters.COMMAND & filters.ChatType.GROUPS,
+            handle_text_logic,
+        )
+    )
+
     # Private chat logic fallback
-    async def private_echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def private_echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         m = update.effective_message
-        if not m: return
+        if not m:
+            return
         if m.forward_from:
             await m.reply_html(f"<b>Message forwarded from User ID: </b> <code>{m.forward_from.id}</code>")
         elif m.forward_sender_name:
@@ -1282,6 +1437,7 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_echo))
 
     app.run_polling(allowed_updates=Update.ALL_TYPES)
+
 
 if __name__ == "__main__":
     main()
