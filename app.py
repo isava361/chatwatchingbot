@@ -21,7 +21,7 @@ from barcode import Code128
 from barcode.writer import ImageWriter
 
 from telegram import Message, MessageEntity, Update
-from telegram.constants import ChatType, ParseMode, MessageEntityType
+from telegram.constants import ParseMode
 from telegram.error import BadRequest, Forbidden
 from telegram.ext import (
     Application,
@@ -44,9 +44,7 @@ logger = logging.getLogger("tg-bot")
 # Log Security: Redaction Filter
 # -----------------------------
 class TokenRedactionFilter(logging.Filter):
-    """
-    Filters log records to replace the sensitive bot token with ********.
-    """
+    """Redacts bot token from logs."""
 
     def __init__(self, token: str):
         super().__init__()
@@ -56,11 +54,9 @@ class TokenRedactionFilter(logging.Filter):
         if not self.token:
             return True
 
-        # Redact in the main message string
         if isinstance(record.msg, str) and self.token in record.msg:
             record.msg = record.msg.replace(self.token, "********")
 
-        # Redact in arguments (if logging uses %s formatting)
         if record.args:
             new_args = []
             for arg in record.args:
@@ -68,7 +64,6 @@ class TokenRedactionFilter(logging.Filter):
                     arg = arg.replace(self.token, "********")
                 new_args.append(arg)
             record.args = tuple(new_args)
-
         return True
 
 
@@ -106,9 +101,7 @@ DB_PATH = "./mydb.db"
 ADMIN_ID = 193117018
 BLOCKED_COMMAND_USER_ID = 89886125
 
-# Pre-compiled regex for performance
 FILENAME_SANITIZER = re.compile(r"[^a-zA-Z0-9.\-]")
-
 
 # -----------------------------
 # Keyword cooldown (5 minutes)
@@ -161,6 +154,48 @@ def safe_int(v: Any, default: int = 0) -> int:
         return default
 
 
+def _is_topic_error(e: Exception) -> bool:
+    s = str(e).lower()
+    return ("topic_closed" in s) or ("topic closed" in s)
+
+
+def _is_thread_not_found(e: Exception) -> bool:
+    s = str(e).lower()
+    return "message thread not found" in s
+
+
+async def _call_with_thread_fallback(fn, **kwargs):
+    """
+    Try request; if Telegram says message_thread_id is invalid -> retry without it.
+    If topic is closed -> silently skip.
+    """
+    try:
+        return await fn(**kwargs)
+    except BadRequest as e:
+        if _is_topic_error(e):
+            logger.info("Skip send: topic closed (%s)", e)
+            return None
+
+        if _is_thread_not_found(e):
+            # Retry without thread id first
+            kwargs2 = dict(kwargs)
+            kwargs2.pop("message_thread_id", None)
+            try:
+                return await fn(**kwargs2)
+            except BadRequest as e2:
+                if _is_topic_error(e2):
+                    logger.info("Skip send: topic closed (retry) (%s)", e2)
+                    return None
+                # If still failing, drop reply_to (can also be thread-related)
+                if _is_thread_not_found(e2):
+                    kwargs3 = dict(kwargs2)
+                    kwargs3.pop("reply_to_message_id", None)
+                    return await fn(**kwargs3)
+                raise
+
+        raise
+
+
 # -----------------------------
 # DB Layer (aiosqlite)
 # -----------------------------
@@ -173,7 +208,6 @@ class Database:
     async def connect(self) -> None:
         self.conn = await aiosqlite.connect(self.path)
         self.conn.row_factory = aiosqlite.Row
-        # WAL mode for better concurrency (non-blocking reads)
         await self.conn.execute("PRAGMA journal_mode=WAL;")
         await self.conn.execute("PRAGMA foreign_keys = ON;")
         await self.conn.commit()
@@ -223,7 +257,6 @@ class Database:
             """
         )
 
-        # legacy tables (kept if already exist)
         await self.execute(
             """
             CREATE TABLE IF NOT EXISTS cascade_triggers (
@@ -423,6 +456,23 @@ def entities_from_json(s: str) -> List[MessageEntity]:
 # -----------------------------
 # Sending responses
 # -----------------------------
+def _base_send_kwargs(message: Message, reply_to_message_id: Optional[int]) -> Dict[str, Any]:
+    """
+    Important fix:
+    - DO NOT pass message_thread_id when it is None (Telegram can error: "Message thread not found").
+    - DO NOT pass reply_to_message_id when it is None.
+    """
+    kwargs: Dict[str, Any] = {"chat_id": message.chat_id}
+
+    if reply_to_message_id is not None:
+        kwargs["reply_to_message_id"] = reply_to_message_id
+
+    if message.message_thread_id is not None:
+        kwargs["message_thread_id"] = message.message_thread_id
+
+    return kwargs
+
+
 async def send_trigger_response(
     context: ContextTypes.DEFAULT_TYPE,
     message: Message,
@@ -430,42 +480,61 @@ async def send_trigger_response(
     reply_to: bool,
 ) -> None:
     bot = context.bot
-    chat_id = message.chat_id
     reply_to_message_id = message.message_id if reply_to else None
     text = resp.response or ""
-
     ft = resp.file_type or FileType("")
 
-    # Common args
-    kwargs = {
-        "chat_id": chat_id,
-        "reply_to_message_id": reply_to_message_id,
-        "message_thread_id": message.message_thread_id,
-    }
+    kwargs = _base_send_kwargs(message, reply_to_message_id)
 
     if ft == FILE_PHOTO:
-        await bot.send_photo(photo=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
+        await _call_with_thread_fallback(
+            bot.send_photo,
+            photo=resp.file_id,
+            caption=text or None,
+            caption_entities=resp.entities or None,
+            **kwargs,
+        )
     elif ft == FILE_GIF:
-        await bot.send_animation(
-            animation=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs
+        await _call_with_thread_fallback(
+            bot.send_animation,
+            animation=resp.file_id,
+            caption=text or None,
+            caption_entities=resp.entities or None,
+            **kwargs,
         )
     elif ft == FILE_VOICE:
-        await bot.send_voice(voice=resp.file_id, **kwargs)
+        await _call_with_thread_fallback(bot.send_voice, voice=resp.file_id, **kwargs)
     elif ft == FILE_STICKER:
-        await bot.send_sticker(sticker=resp.file_id, **kwargs)
+        await _call_with_thread_fallback(bot.send_sticker, sticker=resp.file_id, **kwargs)
     elif ft == FILE_VIDEO:
-        await bot.send_video(video=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
+        await _call_with_thread_fallback(
+            bot.send_video,
+            video=resp.file_id,
+            caption=text or None,
+            caption_entities=resp.entities or None,
+            **kwargs,
+        )
     elif ft == FILE_DOCUMENT:
-        await bot.send_document(
-            document=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs
+        await _call_with_thread_fallback(
+            bot.send_document,
+            document=resp.file_id,
+            caption=text or None,
+            caption_entities=resp.entities or None,
+            **kwargs,
         )
     elif ft == FILE_VIDEONOTE:
-        await bot.send_video_note(video_note=resp.file_id, **kwargs)
+        await _call_with_thread_fallback(bot.send_video_note, video_note=resp.file_id, **kwargs)
     elif ft == FILE_AUDIO:
-        await bot.send_audio(audio=resp.file_id, caption=text or None, caption_entities=resp.entities or None, **kwargs)
+        await _call_with_thread_fallback(
+            bot.send_audio,
+            audio=resp.file_id,
+            caption=text or None,
+            caption_entities=resp.entities or None,
+            **kwargs,
+        )
     else:
         if text.strip():
-            await bot.send_message(text=text, entities=resp.entities or None, **kwargs)
+            await _call_with_thread_fallback(bot.send_message, text=text, entities=resp.entities or None, **kwargs)
 
 
 async def send_long_text(
@@ -476,9 +545,14 @@ async def send_long_text(
 ) -> None:
     limit = 3800
     s = text or ""
+
+    base_kwargs: Dict[str, Any] = {"chat_id": chat_id}
+    if message_thread_id is not None:
+        base_kwargs["message_thread_id"] = message_thread_id
+
     while s:
         if len(s) <= limit:
-            await context.bot.send_message(chat_id=chat_id, text=s, message_thread_id=message_thread_id)
+            await _call_with_thread_fallback(context.bot.send_message, text=s, **base_kwargs)
             return
         cut = s.rfind("\n", 0, limit)
         if cut <= 0:
@@ -486,7 +560,7 @@ async def send_long_text(
         chunk = s[:cut].rstrip()
         s = s[cut:].lstrip("\n")
         if chunk:
-            await context.bot.send_message(chat_id=chat_id, text=chunk, message_thread_id=message_thread_id)
+            await _call_with_thread_fallback(context.bot.send_message, text=chunk, **base_kwargs)
 
 
 # -----------------------------
@@ -496,11 +570,10 @@ async def handle_chatid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     message = update.effective_message
     if not message:
         return
-    await context.bot.send_message(
-        chat_id=message.chat_id,
-        text=f"This chat ID is: {message.chat_id}",
-        message_thread_id=message.message_thread_id,
-    )
+    kwargs: Dict[str, Any] = {"chat_id": message.chat_id}
+    if message.message_thread_id is not None:
+        kwargs["message_thread_id"] = message.message_thread_id
+    await _call_with_thread_fallback(context.bot.send_message, text=f"This chat ID is: {message.chat_id}", **kwargs)
 
 
 async def handle_getlink(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -508,19 +581,23 @@ async def handle_getlink(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not message or not message.from_user or message.from_user.id != ADMIN_ID:
         return
 
-    args = context.args
-    if not args:
-        await context.bot.send_message(chat_id=message.chat_id, text="Please provide an ID.")
+    if not context.args:
+        await message.reply_text("Please provide an ID.")
         return
 
-    user_id = args[0].strip()
+    user_id = context.args[0].strip()
     link = f"<a href='tg://user?id={user_id}'>Link to User</a>"
-    await context.bot.send_message(
-        chat_id=message.chat_id,
+
+    kwargs: Dict[str, Any] = {"chat_id": message.chat_id}
+    if message.message_thread_id is not None:
+        kwargs["message_thread_id"] = message.message_thread_id
+
+    await _call_with_thread_fallback(
+        context.bot.send_message,
         text=link,
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True,
-        message_thread_id=message.message_thread_id,
+        **kwargs,
     )
 
 
@@ -529,16 +606,13 @@ async def handle_roll(update: Update, context: ContextTypes.DEFAULT_TYPE, sides:
     if not message:
         return
     n = random.randint(1, sides)
-    await context.bot.send_message(
-        chat_id=message.chat_id,
-        text=f"🎲 You rolled: {n}",
-        reply_to_message_id=message.message_id,
-        message_thread_id=message.message_thread_id,
-    )
+
+    kwargs = _base_send_kwargs(message, reply_to_message_id=message.message_id)
+    await _call_with_thread_fallback(context.bot.send_message, text=f"🎲 You rolled: {n}", **kwargs)
 
 
 # -----------------------------
-# Blocking I/O Helpers (Async Wrappers)
+# Blocking I/O Helpers
 # -----------------------------
 def _generate_qr_sync(code: str) -> BytesIO:
     img = qrcode.make(code)
@@ -560,11 +634,12 @@ def _generate_bar_sync(code: str) -> BytesIO:
 
 async def handle_generate_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     args = " ".join(context.args) if context.args else ""
     if not args:
         await message.reply_text("Usage: /generateqr <text>")
         return
-
     loop = asyncio.get_running_loop()
     bio = await loop.run_in_executor(None, _generate_qr_sync, args)
     await message.reply_photo(photo=bio)
@@ -572,11 +647,12 @@ async def handle_generate_qr(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def handle_generate_barcode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     args = " ".join(context.args) if context.args else ""
     if not args:
         await message.reply_text("Usage: /generatebar <text>")
         return
-
     loop = asyncio.get_running_loop()
     bio = await loop.run_in_executor(None, _generate_bar_sync, args)
     await message.reply_photo(photo=bio)
@@ -637,6 +713,8 @@ def generate_random_selection(sample_size: int, population: int) -> List[int]:
 
 async def handle_samplesize(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
+    if not message:
+        return
     if not context.args or len(context.args) < 2:
         await message.reply_text("Usage: /samplesize <low|medium|high> <population>")
         return
@@ -687,11 +765,12 @@ async def increment_terpet(db: Database, context: ContextTypes.DEFAULT_TYPE, mes
     )
     row = await db.fetchone("SELECT count FROM terpet_count WHERE user_id = ?", (u.id,))
     count = safe_int(row["count"], 1) if row else 1
-    await context.bot.send_message(
-        chat_id=message.chat_id,
+
+    kwargs = _base_send_kwargs(message, reply_to_message_id=message.message_id)
+    await _call_with_thread_fallback(
+        context.bot.send_message,
         text=f"Вы терпели {count} {get_raz_form(count)}",
-        reply_to_message_id=message.message_id,
-        message_thread_id=message.message_thread_id,
+        **kwargs,
     )
 
 
@@ -772,10 +851,7 @@ async def handle_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "DELETE FROM triggers WHERE chat_id = ? AND search_phrase = ? AND is_global = ?",
         (message.chat_id, phrase, False),
     )
-    if deleted > 0:
-        await message.reply_text("Local response removed!")
-    else:
-        await message.reply_text("No local response found with that search phrase.")
+    await message.reply_text("Local response removed!" if deleted > 0 else "No local response found with that search phrase.")
 
 
 async def handle_removeglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -796,10 +872,7 @@ async def handle_removeglobal(update: Update, context: ContextTypes.DEFAULT_TYPE
         "DELETE FROM triggers WHERE search_phrase = ? AND is_global = ?",
         (phrase, True),
     )
-    if deleted > 0:
-        await message.reply_text("Global response removed!")
-    else:
-        await message.reply_text("No global response found.")
+    await message.reply_text("Global response removed!" if deleted > 0 else "No global response found.")
 
 
 async def handle_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -844,7 +917,7 @@ async def handle_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     if exists:
         await db.execute(
-            """UPDATE triggers SET response=?, file_type=?, file_id=?, file_name=?, entities=? WHERE id=?""",
+            "UPDATE triggers SET response=?, file_type=?, file_id=?, file_name=?, entities=? WHERE id=?",
             (mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, safe_int(exists["id"])),
         )
         await message.reply_text("Response updated!")
@@ -893,7 +966,7 @@ async def handle_addglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     ent_json = entities_to_json(mr.entities)
     if existing_id:
         await db.execute(
-            """UPDATE triggers SET response=?, file_type=?, file_id=?, file_name=?, entities=?, chat_id=? WHERE id=?""",
+            "UPDATE triggers SET response=?, file_type=?, file_id=?, file_name=?, entities=?, chat_id=? WHERE id=?",
             (mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, 0, existing_id),
         )
         await message.reply_text("Global response updated!")
@@ -916,6 +989,7 @@ async def handle_addc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not message.reply_to_message:
         await message.reply_text("Reply to the response message: /addc <phrase>")
         return
+
     phrase = norm_key(" ".join(context.args))
     if not phrase:
         await message.reply_text("Provide a phrase.")
@@ -940,7 +1014,6 @@ async def handle_addc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
 
     mr = create_my_response_from_reply(message)
-
     if not myresponse_has_content(mr):
         await message.reply_text("Replied message has no supported content.")
         return
@@ -961,6 +1034,7 @@ async def handle_removec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not message.reply_to_message:
         await message.reply_text("Reply to the message you want to remove: /removec <phrase>")
         return
+
     phrase = norm_key(" ".join(context.args))
     if not phrase:
         await message.reply_text("Provide a phrase.")
@@ -1001,10 +1075,9 @@ async def handle_removec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             (trigger_id, response_text),
         )
 
-    if deleted == 0:
-        await message.reply_text("Matching response not found in this cascade.")
-    else:
-        await message.reply_text("Response removed from cascade.")
+    await message.reply_text(
+        "Response removed from cascade." if deleted else "Matching response not found in this cascade."
+    )
 
     row2 = await db.fetchone(
         "SELECT COUNT(*) AS c FROM cascade_trigger_responses WHERE cascade_trigger_id = ?",
@@ -1111,6 +1184,7 @@ async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAU
 
     if not locs:
         return
+
     locs.sort(key=lambda x: (x[2].date().toordinal(), x[2].hour, x[2].minute))
     text = "\n".join([f"{display} {dt.strftime('%H:%M')}" for _, display, dt in locs])
 
@@ -1129,7 +1203,7 @@ async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAU
     try:
         await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text=text)
     except BadRequest as e:
-        if "message to edit not found" in str(e) or "message can't be edited" in str(e):
+        if "message to edit not found" in str(e).lower() or "message can't be edited" in str(e).lower():
             await db.execute("DELETE FROM messagelist WHERE chatID = ?", (chat_id,))
             try:
                 sent = await bot.send_message(chat_id=chat_id, text=text)
@@ -1156,11 +1230,10 @@ async def handle_new_member(context: ContextTypes.DEFAULT_TYPE, message: Message
         stset = await context.bot.get_sticker_set(name=sticker_set_name)
         if stset.stickers:
             st = random.choice(stset.stickers)
-            await context.bot.send_sticker(
-                chat_id=message.chat_id,
-                sticker=st.file_id,
-                message_thread_id=message.message_thread_id,
-            )
+            kwargs: Dict[str, Any] = {"chat_id": message.chat_id, "sticker": st.file_id}
+            if message.message_thread_id is not None:
+                kwargs["message_thread_id"] = message.message_thread_id
+            await _call_with_thread_fallback(context.bot.send_sticker, **kwargs)
     except Exception as e:
         logger.info("handle_new_member failed: %s", e)
 
@@ -1229,7 +1302,7 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await handle_new_member(context, message)
         return
 
-    # 2. Terpet check (legacy text check)
+    # 2. Terpet check
     txt_lower = (message.text or "").lower()
     if message.chat_id == -1001390115843 and "терпеть" in txt_lower:
         db = context.application.bot_data["db"]
@@ -1242,7 +1315,7 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if message.chat_id == target_chat_id and norm_key(txt_for_keyword) == norm_key(keyword):
         ok = await check_and_update_last_keyword(target_chat_id, keyword)
         if not ok:
-            return  # Cooldown active
+            return
 
     # 4. Mention Memes
     if await maybe_send_mention_memes(context, message):
@@ -1254,38 +1327,39 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     db: Database = context.application.bot_data["db"]
     received_key = norm_key(message.text or message.caption or "")
+    if not received_key:
+        return
 
-    if received_key:
-        # Check Local then Global
+    # Standard triggers: Local then Global
+    row = await db.fetchone(
+        """SELECT id, search_phrase, response, file_type, file_id, file_name, entities
+           FROM triggers
+           WHERE chat_id = ? AND is_global = ? AND search_phrase = ?
+           LIMIT 1""",
+        (message.chat_id, False, received_key),
+    )
+    if not row:
         row = await db.fetchone(
             """SELECT id, search_phrase, response, file_type, file_id, file_name, entities
                FROM triggers
-               WHERE chat_id = ? AND is_global = ? AND search_phrase = ?
+               WHERE is_global = ? AND search_phrase = ?
                LIMIT 1""",
-            (message.chat_id, False, received_key),
+            (True, received_key),
         )
-        if not row:
-            row = await db.fetchone(
-                """SELECT id, search_phrase, response, file_type, file_id, file_name, entities
-                   FROM triggers
-                   WHERE is_global = ? AND search_phrase = ?
-                   LIMIT 1""",
-                (True, received_key),
-            )
 
-        if row:
-            resp = MyResponse(
-                id=safe_int(row["id"]),
-                search_phrase=row["search_phrase"] or "",
-                response=row["response"] or "",
-                file_type=FileType(row["file_type"] or ""),
-                file_id=row["file_id"] or "",
-                file_name=row["file_name"] or "",
-                entities=entities_from_json(row["entities"] or ""),
-            )
-            await send_trigger_response(context, message, resp, reply_to=True)
+    if row:
+        resp = MyResponse(
+            id=safe_int(row["id"]),
+            search_phrase=row["search_phrase"] or "",
+            response=row["response"] or "",
+            file_type=FileType(row["file_type"] or ""),
+            file_id=row["file_id"] or "",
+            file_name=row["file_name"] or "",
+            entities=entities_from_json(row["entities"] or ""),
+        )
+        await send_trigger_response(context, message, resp, reply_to=True)
 
-    # Cascade Triggers (FIXED: use guaranteed rowid + safe_int to avoid int(None))
+    # Cascade triggers (FIXED earlier: rowid + safe_int)
     rows = await db.fetchall(
         """
         SELECT
@@ -1311,7 +1385,7 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 # -----------------------------
-# PTB Error Handler (FIXED: no more "No error handlers are registered")
+# PTB Error Handler
 # -----------------------------
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.exception("Unhandled exception while processing an update", exc_info=context.error)
@@ -1361,12 +1435,9 @@ def main() -> None:
     # -- SECURITY: Apply Redaction Filter --
     root_logger = logging.getLogger()
     redacter = TokenRedactionFilter(token)
-
-    # Apply to all existing handlers (e.g. console)
     for handler in root_logger.handlers:
         handler.addFilter(redacter)
 
-    # Silence httpx/httpcore to prevent URL logging in debug mode
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     # --------------------------------------
@@ -1379,7 +1450,6 @@ def main() -> None:
         .build()
     )
 
-    # Error handler (FIX)
     app.add_error_handler(error_handler)
 
     # Commands
@@ -1422,7 +1492,7 @@ def main() -> None:
         )
     )
 
-    # Private chat logic fallback
+    # Private chat fallback
     async def private_echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         m = update.effective_message
         if not m:
