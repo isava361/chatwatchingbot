@@ -1293,7 +1293,7 @@ async def maybe_send_mention_memes(context: ContextTypes.DEFAULT_TYPE, message: 
 # Main Message Handler (Trigger Logic)
 # -----------------------------
 async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    message = update.message
+    message = update.effective_message
     if not message or not message.from_user:
         return
 
@@ -1487,7 +1487,7 @@ def main() -> None:
     # Fallback for triggers and other logic (excluding commands)
     app.add_handler(
         MessageHandler(
-            fulters.Updatetype.MESSAGE & (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
+            (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
             handle_text_logic,
         )
     )
