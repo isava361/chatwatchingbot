@@ -1487,7 +1487,7 @@ def main() -> None:
     # Fallback for triggers and other logic (excluding commands)
     app.add_handler(
         MessageHandler(
-            (filters.TEXT | filters.CAPTION) & ~filters.COMMAND & filters.ChatType.GROUPS,
+            (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
             handle_text_logic,
         )
     )
