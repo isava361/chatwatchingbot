@@ -9,6 +9,7 @@ import os
 import random
 import re
 import time
+import sys
 import unicodedata
 import uuid
 from dataclasses import dataclass, field
@@ -141,11 +142,17 @@ async def check_and_update_last_keyword(chat_id: int, keyword: str) -> bool:
 # Utilities
 # -----------------------------
 def read_bot_token(path: str) -> str:
+    env_token = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN")
+    if env_token:
+        return env_token.strip()
     with open(path, "r", encoding="utf-8") as f:
         return f.readline().strip()
 
 
 def read_app_secret(path: str) -> str:
+    env_secret = os.getenv("JITSI_APP_SECRET")
+    if env_secret:
+        return env_secret.strip()
     with open(path, "r", encoding="utf-8") as f:
         return f.read().strip()
 
@@ -1595,7 +1602,20 @@ async def on_shutdown(app: Application) -> None:
 # Entrypoint
 # -----------------------------
 def main() -> None:
-    token = read_bot_token(BOT_TOKEN_PATH)
+    try:
+        token = read_bot_token(BOT_TOKEN_PATH)
+    except FileNotFoundError:
+        logger.error(
+            "Bot token not found. Set BOT_TOKEN/TELEGRAM_BOT_TOKEN or create %s.",
+            BOT_TOKEN_PATH,
+        )
+        sys.exit(1)
+    if not token:
+        logger.error(
+            "Bot token is empty. Set BOT_TOKEN/TELEGRAM_BOT_TOKEN or update %s.",
+            BOT_TOKEN_PATH,
+        )
+        sys.exit(1)
 
     # -- SECURITY: Apply Redaction Filter --
     root_logger = logging.getLogger()
