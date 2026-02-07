@@ -5,9 +5,12 @@ import asyncio
 import json
 import logging
 import math
+import os
 import random
 import re
+import time
 import unicodedata
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from functools import partial
@@ -16,6 +19,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from zoneinfo import ZoneInfo
 
 import aiosqlite
+import jwt
 import qrcode
 from barcode import Code128
 from barcode.writer import ImageWriter
@@ -96,7 +100,14 @@ class MyResponse:
 
 
 BOT_TOKEN_PATH = "./config/token.txt"
+APP_SECRET_PATH = "./config/appsecret.txt"
+ALLOWED_USERS_PATH = "./config/allowed_users.json"
 DB_PATH = "./mydb.db"
+
+JITSI_APP_ID = "longspear"
+JITSI_DOMAIN = "call.ivansavelyev.ru"
+JITSI_BASE_URL = "https://call.ivansavelyev.ru"
+JITSI_TOKEN_TTL_SECONDS = 60 * 60 * 24
 
 ADMIN_ID = 193117018
 BLOCKED_COMMAND_USER_ID = 89886125
@@ -108,6 +119,7 @@ FILENAME_SANITIZER = re.compile(r"[^a-zA-Z0-9.\-]")
 # -----------------------------
 _last_keyword_timestamps: Dict[str, datetime] = {}
 _last_keyword_lock = asyncio.Lock()
+_allowed_users_lock = asyncio.Lock()
 
 
 def _cooldown_key(chat_id: int, keyword: str) -> str:
@@ -133,6 +145,11 @@ def read_bot_token(path: str) -> str:
         return f.readline().strip()
 
 
+def read_app_secret(path: str) -> str:
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read().strip()
+
+
 def nfc_casefold(s: str) -> str:
     return unicodedata.normalize("NFC", s).casefold()
 
@@ -152,6 +169,82 @@ def safe_int(v: Any, default: int = 0) -> int:
         return int(v)
     except (TypeError, ValueError):
         return default
+
+
+def _ensure_parent_dir(path: str) -> None:
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+
+def _load_allowed_users_sync(path: str) -> Dict[str, Any]:
+    if not os.path.exists(path):
+        return {"allowed_users": {}}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to read allowed users file (%s): %s", path, exc)
+        return {"allowed_users": {}}
+    if not isinstance(data, dict):
+        return {"allowed_users": {}}
+    allowed = data.get("allowed_users")
+    if not isinstance(allowed, dict):
+        data["allowed_users"] = {}
+    return data
+
+
+def _save_allowed_users_sync(path: str, data: Dict[str, Any]) -> None:
+    _ensure_parent_dir(path)
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=True)
+    os.replace(tmp_path, path)
+
+
+async def load_allowed_users(path: str) -> Dict[str, Any]:
+    return await asyncio.to_thread(_load_allowed_users_sync, path)
+
+
+async def save_allowed_users(path: str, data: Dict[str, Any]) -> None:
+    await asyncio.to_thread(_save_allowed_users_sync, path, data)
+
+
+def _get_allowed_users(data: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
+    allowed = data.get("allowed_users")
+    if not isinstance(allowed, dict):
+        return {}
+    return allowed
+
+
+def _is_admin(user_id: int) -> bool:
+    return user_id == ADMIN_ID
+
+
+def _is_allowed_user(user_id: int, data: Dict[str, Any]) -> bool:
+    return str(user_id) in _get_allowed_users(data)
+
+
+def generate_jitsi_link(user_name: str, user_id: str, app_secret: str) -> str:
+    room_name = uuid.uuid4().hex[:12]
+    now = int(time.time())
+    payload = {
+        "aud": "jitsi",
+        "iss": JITSI_APP_ID,
+        "sub": JITSI_DOMAIN,
+        "room": room_name,
+        "exp": now + JITSI_TOKEN_TTL_SECONDS,
+        "nbf": now,
+        "iat": now,
+        "context": {
+            "user": {
+                "name": user_name,
+                "id": str(user_id),
+            }
+        },
+    }
+    token = jwt.encode(payload, app_secret, algorithm="HS256")
+    return f"{JITSI_BASE_URL}/{room_name}?jwt={token}"
 
 
 def _is_topic_error(e: Exception) -> bool:
@@ -738,6 +831,72 @@ async def handle_samplesize(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     out = f"For {risk} risk and population of {population}, sample size is {ss}\n"
     out += "Random numbers for random selection:\n" + "\n".join(map(str, selection))
     await message.reply_text(out)
+
+
+# -----------------------------
+# Jitsi Meet Rooms
+# -----------------------------
+async def handle_allow_create(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if not message or not message.from_user:
+        return
+    if not _is_admin(message.from_user.id):
+        await message.reply_text("You are not authorized.")
+        return
+    if not message.reply_to_message or not message.reply_to_message.from_user:
+        await message.reply_text("Ответь на сообщение пользователя")
+        return
+    target = message.reply_to_message.from_user
+    added_at = datetime.now(timezone.utc).date().isoformat()
+    async with _allowed_users_lock:
+        data = context.application.bot_data.setdefault("allowed_users", {"allowed_users": {}})
+        allowed = data.setdefault("allowed_users", {})
+        allowed[str(target.id)] = {"name": target.full_name or "", "added_at": added_at}
+        await save_allowed_users(ALLOWED_USERS_PATH, data)
+    await message.reply_text(f"✅ {target.full_name} теперь может создавать комнаты")
+
+
+async def handle_ban_create(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if not message or not message.from_user:
+        return
+    if not _is_admin(message.from_user.id):
+        await message.reply_text("You are not authorized.")
+        return
+    if not message.reply_to_message or not message.reply_to_message.from_user:
+        await message.reply_text("Ответь на сообщение пользователя")
+        return
+    target = message.reply_to_message.from_user
+    async with _allowed_users_lock:
+        data = context.application.bot_data.setdefault("allowed_users", {"allowed_users": {}})
+        allowed = data.setdefault("allowed_users", {})
+        if str(target.id) in allowed:
+            allowed.pop(str(target.id))
+            await save_allowed_users(ALLOWED_USERS_PATH, data)
+    await message.reply_text(f"🚫 {target.full_name} больше не может создавать комнаты")
+
+
+async def handle_create_call(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if not message or not message.from_user:
+        return
+    user_id = message.from_user.id
+    async with _allowed_users_lock:
+        data = context.application.bot_data.get("allowed_users", {"allowed_users": {}})
+        allowed = _is_allowed_user(user_id, data)
+    if not _is_admin(user_id) and not allowed:
+        await message.reply_text("У тебя нет доступа к созданию комнат")
+        return
+    app_secret = context.application.bot_data.get("jitsi_app_secret", "")
+    if not app_secret:
+        await message.reply_text("Секрет не настроен. Добавь ./config/appsecret.txt")
+        return
+    link = generate_jitsi_link(
+        user_name=message.from_user.full_name or "User",
+        user_id=str(user_id),
+        app_secret=app_secret,
+    )
+    await message.reply_text(f"🔗 Комната создана:\n{link}")
 
 
 # -----------------------------
@@ -1399,6 +1558,12 @@ async def on_startup(app: Application) -> None:
     await db.connect()
     await db.init_schema()
     app.bot_data["db"] = db
+    app.bot_data["allowed_users"] = await load_allowed_users(ALLOWED_USERS_PATH)
+    try:
+        app.bot_data["jitsi_app_secret"] = read_app_secret(APP_SECRET_PATH)
+    except FileNotFoundError:
+        app.bot_data["jitsi_app_secret"] = ""
+        logger.warning("Jitsi app secret not found at %s", APP_SECRET_PATH)
 
     chat_ids = await db.get_all_active_chat_ids()
 
@@ -1460,6 +1625,9 @@ def main() -> None:
     app.add_handler(CommandHandler("samplesize", handle_samplesize))
     app.add_handler(CommandHandler("terpet", handle_terpet_command))
     app.add_handler(CommandHandler("topterpil", handle_topterpil))
+    app.add_handler(CommandHandler("allow_create", handle_allow_create))
+    app.add_handler(CommandHandler("ban_create", handle_ban_create))
+    app.add_handler(CommandHandler("create_call", handle_create_call))
 
     # Triggers / Timezone commands
     app.add_handler(CommandHandler("triggers", handle_triggers_list))
