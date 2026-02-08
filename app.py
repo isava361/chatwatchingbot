@@ -239,7 +239,7 @@ def generate_jitsi_link(user_name: str, user_id: str, app_secret: str) -> str:
         "aud": "jitsi",
         "iss": JITSI_APP_ID,
         "sub": JITSI_DOMAIN,
-        "room": room_name,
+        "room": "*",
         "exp": now + JITSI_TOKEN_TTL_SECONDS,
         "nbf": now,
         "iat": now,
@@ -903,7 +903,11 @@ async def handle_create_call(update: Update, context: ContextTypes.DEFAULT_TYPE)
         user_id=str(user_id),
         app_secret=app_secret,
     )
-    await message.reply_text(f"🔗 Комната создана:\n{link}")
+    await message.reply_text(
+        f"🔗 Комната создана:\n<a href=\"{link}\">Перейти в комнату</a>",
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True,
+    )
 
 
 # -----------------------------
