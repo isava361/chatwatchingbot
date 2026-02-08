@@ -108,7 +108,7 @@ DB_PATH = "./mydb.db"
 JITSI_APP_ID = "longspear"
 JITSI_DOMAIN = "call.ivansavelyev.ru"
 JITSI_BASE_URL = "https://call.ivansavelyev.ru"
-JITSI_TOKEN_TTL_SECONDS = 60 * 60 * 24
+JITSI_TOKEN_TTL_SECONDS = 60 * 60 * 5
 
 ADMIN_ID = 193117018
 BLOCKED_COMMAND_USER_ID = 89886125
