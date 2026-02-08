@@ -233,7 +233,7 @@ def _is_allowed_user(user_id: int, data: Dict[str, Any]) -> bool:
 
 
 def generate_jitsi_link(user_name: str, user_id: str, app_secret: str) -> str:
-    room_name = "*"
+    room_name = str(uuid.uuid4())
     now = int(time.time())
     payload = {
         "aud": "jitsi",
