@@ -1408,6 +1408,13 @@ async def handle_new_member(context: ContextTypes.DEFAULT_TYPE, message: Message
         logger.info("handle_new_member failed: %s", e)
 
 
+async def handle_new_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if not message or not message.new_chat_members:
+        return
+    await handle_new_member(context, message)
+
+
 async def maybe_send_mention_memes(context: ContextTypes.DEFAULT_TYPE, message: Message) -> bool:
     text = message.text or ""
     if not text:
@@ -1467,18 +1474,13 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not message or not message.from_user:
         return
 
-    # 1. New Member
-    if message.new_chat_members:
-        await handle_new_member(context, message)
-        return
-
-    # 2. Terpet check
+    # 1. Terpet check
     txt_lower = (message.text or "").lower()
     if message.chat_id == -1001390115843 and "терпеть" in txt_lower:
         db = context.application.bot_data["db"]
         await increment_terpet(db, context, message)
 
-    # 3. Keyword Cooldown Check
+    # 2. Keyword Cooldown Check
     target_chat_id = -1002245157577
     keyword = "рейдодроч"
     txt_for_keyword = message.text or message.caption or ""
@@ -1487,11 +1489,11 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         if not ok:
             return
 
-    # 4. Mention Memes
+    # 3. Mention Memes
     if await maybe_send_mention_memes(context, message):
         return
 
-    # 5. DB Triggers
+    # 4. DB Triggers
     if not (message.text or message.caption):
         return
 
@@ -1677,6 +1679,8 @@ def main() -> None:
     app.add_handler(CommandHandler("roll4", partial(handle_roll, sides=4)))
 
     # Fallback for triggers and other logic (excluding commands)
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, handle_new_member_update))
+
     app.add_handler(
         MessageHandler(
             (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
@@ -1689,11 +1693,34 @@ def main() -> None:
         m = update.effective_message
         if not m:
             return
-        if m.forward_from:
-            await m.reply_html(f"<b>Message forwarded from User ID: </b> <code>{m.forward_from.id}</code>")
-        elif m.forward_sender_name:
+        forward_from_id: Optional[int] = None
+        forward_sender_hidden = False
+
+        # PTB 20+: forward_from/forward_sender_name may be absent for many forwarded messages.
+        # Prefer forward_origin if available, keep legacy fields for backward compatibility.
+        origin = getattr(m, "forward_origin", None)
+        if origin is not None:
+            sender_user = getattr(origin, "sender_user", None)
+            sender_user_id = getattr(sender_user, "id", None)
+            if sender_user_id:
+                forward_from_id = sender_user_id
+            elif getattr(origin, "sender_user_name", None):
+                forward_sender_hidden = True
+            elif getattr(origin, "type", "") == "hidden_user":
+                forward_sender_hidden = True
+
+        legacy_forward_from = getattr(m, "forward_from", None)
+        if legacy_forward_from and getattr(legacy_forward_from, "id", None):
+            forward_from_id = legacy_forward_from.id
+
+        if getattr(m, "forward_sender_name", None):
+            forward_sender_hidden = True
+
+        if forward_from_id is not None:
+            await m.reply_html(f"<b>Message forwarded from User ID: </b> <code>{forward_from_id}</code>")
+        elif forward_sender_hidden:
             await m.reply_html("<b>Sorry, this user's ID is hidden</b>")
-        else:
+        elif m.from_user:
             await m.reply_html(f"<b>Your User ID:</b> <code>{m.from_user.id}</code>")
 
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_echo))
