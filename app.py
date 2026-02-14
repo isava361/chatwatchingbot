@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import math
 import os
 import random
 import re
@@ -756,89 +755,6 @@ async def handle_generate_barcode(update: Update, context: ContextTypes.DEFAULT_
     loop = asyncio.get_running_loop()
     bio = await loop.run_in_executor(None, _generate_bar_sync, args)
     await message.reply_photo(photo=bio)
-
-
-# -----------------------------
-# Sample Size Logic
-# -----------------------------
-@dataclass
-class SampleSize:
-    low: int
-    medium: int
-    high: int
-
-
-def get_risk_size(sizes: SampleSize, risk: str) -> int:
-    return getattr(sizes, risk, 0)
-
-
-def interpolate(x0: float, y0: float, x: float, x1: float, y1: float) -> float:
-    if x1 == x0:
-        return y0
-    return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
-
-
-def get_sample_size(population: int, risk: str) -> int:
-    rows = [
-        (0, 1, SampleSize(1, 1, 1)),
-        (2, 4, SampleSize(2, 2, 2)),
-        (5, 12, SampleSize(2, 3, 5)),
-        (13, 52, SampleSize(5, 10, 15)),
-        (53, 250, SampleSize(20, 30, 40)),
-        (251, 2**31 - 1, SampleSize(25, 45, 60)),
-    ]
-    if population > 250:
-        return get_risk_size(rows[-1][2], risk)
-
-    for i, (_, maxp, sizes) in enumerate(rows):
-        if population <= maxp:
-            if i == 0 or population == maxp:
-                return get_risk_size(sizes, risk)
-            prev = rows[i - 1]
-            y0 = float(get_risk_size(prev[2], risk))
-            y1 = float(get_risk_size(sizes, risk))
-            val = interpolate(float(prev[1]), y0, float(population), float(maxp), y1)
-            return int(math.ceil(val))
-    raise ValueError("population out of range")
-
-
-def generate_random_selection(sample_size: int, population: int) -> List[int]:
-    if sample_size > population:
-        return []
-    s = set()
-    while len(s) < sample_size:
-        s.add(random.randint(1, population))
-    return sorted(s)
-
-
-async def handle_samplesize(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    message = update.effective_message
-    if not message:
-        return
-    if not context.args or len(context.args) < 2:
-        await message.reply_text("Usage: /samplesize <low|medium|high> <population>")
-        return
-
-    risk = context.args[0].casefold()
-    try:
-        population = int(context.args[1])
-    except ValueError:
-        await message.reply_text(f"Invalid population number: {context.args[1]}")
-        return
-
-    try:
-        ss = get_sample_size(population, risk)
-        if ss <= 0:
-            raise ValueError("Risk must be one of: low, medium, high")
-    except Exception as e:
-        await message.reply_text(str(e))
-        return
-
-    selection = generate_random_selection(ss, population)
-    out = f"For {risk} risk and population of {population}, sample size is {ss}\n"
-    out += "Random numbers for random selection:\n" + "\n".join(map(str, selection))
-    await message.reply_text(out)
-
 
 # -----------------------------
 # Jitsi Meet Rooms
@@ -1648,7 +1564,6 @@ def main() -> None:
     app.add_handler(CommandHandler("getlink", handle_getlink))
     app.add_handler(CommandHandler("generateqr", handle_generate_qr))
     app.add_handler(CommandHandler("generatebar", handle_generate_barcode))
-    app.add_handler(CommandHandler("samplesize", handle_samplesize))
     app.add_handler(CommandHandler("terpet", handle_terpet_command))
     app.add_handler(CommandHandler("topterpil", handle_topterpil))
     app.add_handler(CommandHandler("allow_create", handle_allow_create))
