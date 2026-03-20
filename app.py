@@ -34,7 +34,6 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
-from telegram.request import HTTPXRequest
 
 # -----------------------------
 # Logging Configuration
@@ -414,25 +413,8 @@ class Database:
             await self.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_triggers_unique ON triggers(chat_id, is_global, search_phrase)"
             )
-        except Exception:
-            # Duplicates exist — remove them keeping the latest row, then retry.
-            logger.info("Deduplicating triggers table before creating UNIQUE index...")
-            await self.execute(
-                """
-                DELETE FROM triggers
-                WHERE id NOT IN (
-                    SELECT MAX(id) FROM triggers
-                    GROUP BY chat_id, is_global, search_phrase
-                )
-                """
-            )
-            try:
-                await self.execute(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_triggers_unique ON triggers(chat_id, is_global, search_phrase)"
-                )
-                logger.info("UNIQUE index on triggers created after dedup.")
-            except Exception as e2:
-                logger.warning("Failed to create triggers UNIQUE index after dedup: %s", e2)
+        except Exception as e:
+            logger.warning("Failed to create triggers UNIQUE index: %s", e)
 
     async def get_all_active_chat_ids(self) -> List[int]:
         rows = await self.fetchall("SELECT DISTINCT chatID FROM timezones")
@@ -1019,15 +1001,19 @@ async def handle_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         (message.chat_id, False, phrase),
     )
 
-    await db.execute(
-        """INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, entities, is_global)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(chat_id, is_global, search_phrase)
-           DO UPDATE SET response=excluded.response, file_type=excluded.file_type,
-                         file_id=excluded.file_id, file_name=excluded.file_name, entities=excluded.entities""",
-        (message.chat_id, phrase, mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, False),
-    )
-    await message.reply_text("Response updated!" if exists else "New response added!")
+    if exists:
+        await db.execute(
+            "UPDATE triggers SET response=?, file_type=?, file_id=?, file_name=?, entities=? WHERE id=?",
+            (mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, safe_int(exists["id"])),
+        )
+        await message.reply_text("Response updated!")
+    else:
+        await db.execute(
+            """INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, entities, is_global)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (message.chat_id, phrase, mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, False),
+        )
+        await message.reply_text("New response added!")
 
 
 async def handle_addglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1064,16 +1050,19 @@ async def handle_addglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     ent_json = entities_to_json(mr.entities)
-    await db.execute(
-        """INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, entities, is_global)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(chat_id, is_global, search_phrase)
-           DO UPDATE SET response=excluded.response, file_type=excluded.file_type,
-                         file_id=excluded.file_id, file_name=excluded.file_name,
-                         entities=excluded.entities, chat_id=excluded.chat_id""",
-        (0, phrase, mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, True),
-    )
-    await message.reply_text("Global response updated!" if existing_id else "New global response added!")
+    if existing_id:
+        await db.execute(
+            "UPDATE triggers SET response=?, file_type=?, file_id=?, file_name=?, entities=?, chat_id=? WHERE id=?",
+            (mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, 0, existing_id),
+        )
+        await message.reply_text("Global response updated!")
+    else:
+        await db.execute(
+            """INSERT INTO triggers (chat_id, search_phrase, response, file_type, file_id, file_name, entities, is_global)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (0, phrase, mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, True),
+        )
+        await message.reply_text("New global response added!")
 
 
 # -----------------------------
@@ -1560,17 +1549,9 @@ def main() -> None:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     # --------------------------------------
 
-    request = HTTPXRequest(
-        connect_timeout=20.0,
-        read_timeout=30.0,
-        write_timeout=30.0,
-        pool_timeout=10.0,
-        connection_pool_size=8,
-    )
     app = (
         Application.builder()
         .token(token)
-        .request(request)
         .post_init(on_startup)
         .post_shutdown(on_shutdown)
         .build()
@@ -1659,14 +1640,11 @@ def main() -> None:
 
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & ~filters.UpdateType.EDITED_MESSAGE, private_echo))
 
-    app.run_polling(
-        allowed_updates=[
-            Update.MESSAGE,
-            Update.CHAT_MEMBER,
-            Update.MY_CHAT_MEMBER,
-        ],
-        drop_pending_updates=True,
-    )
+    app.run_polling(allowed_updates=[
+        Update.MESSAGE,
+        Update.CHAT_MEMBER,
+        Update.MY_CHAT_MEMBER,
+    ])
 
 
 if __name__ == "__main__":
