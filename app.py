@@ -268,13 +268,9 @@ async def _call_with_thread_fallback(fn, **kwargs):
     """
     Try request; if Telegram says message_thread_id is invalid -> retry without it.
     If topic is closed -> silently skip.
-    TimedOut/Forbidden are logged and silently skipped.
     """
     try:
         return await fn(**kwargs)
-    except (Forbidden, TimedOut) as e:
-        logger.info("Telegram API error skipped: %s", e)
-        return None
     except BadRequest as e:
         if _is_topic_error(e):
             logger.info("Skip send: topic closed (%s)", e)
@@ -286,9 +282,6 @@ async def _call_with_thread_fallback(fn, **kwargs):
             kwargs2.pop("message_thread_id", None)
             try:
                 return await fn(**kwargs2)
-            except (Forbidden, TimedOut) as e2:
-                logger.info("Telegram API error skipped (retry): %s", e2)
-                return None
             except BadRequest as e2:
                 if _is_topic_error(e2):
                     logger.info("Skip send: topic closed (retry) (%s)", e2)
@@ -297,11 +290,7 @@ async def _call_with_thread_fallback(fn, **kwargs):
                 if _is_thread_not_found(e2):
                     kwargs3 = dict(kwargs2)
                     kwargs3.pop("reply_to_message_id", None)
-                    try:
-                        return await fn(**kwargs3)
-                    except (Forbidden, TimedOut) as e3:
-                        logger.info("Telegram API error skipped (retry2): %s", e3)
-                        return None
+                    return await fn(**kwargs3)
                 raise
 
         raise
@@ -329,22 +318,19 @@ class Database:
             self.conn = None
 
     async def execute(self, sql: str, params: Sequence[Any] = ()) -> Tuple[int, int]:
-        if self.conn is None:
-            raise RuntimeError("Database not connected")
+        assert self.conn is not None
         async with self.lock:
             async with self.conn.execute(sql, params) as cur:
                 await self.conn.commit()
                 return cur.rowcount, cur.lastrowid
 
     async def fetchone(self, sql: str, params: Sequence[Any] = ()) -> Optional[aiosqlite.Row]:
-        if self.conn is None:
-            raise RuntimeError("Database not connected")
+        assert self.conn is not None
         async with self.conn.execute(sql, params) as cur:
             return await cur.fetchone()
 
     async def fetchall(self, sql: str, params: Sequence[Any] = ()) -> List[aiosqlite.Row]:
-        if self.conn is None:
-            raise RuntimeError("Database not connected")
+        assert self.conn is not None
         async with self.conn.execute(sql, params) as cur:
             return await cur.fetchall()
 
@@ -898,16 +884,12 @@ async def handle_terpet_command(update: Update, context: ContextTypes.DEFAULT_TY
         return
     if message.chat_id != -1001390115843:
         return
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     await increment_terpet(db, context, message)
 
 
 async def handle_topterpil(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     rows = await db.fetchall(
         """
         SELECT COALESCE(NULLIF(username, ''), first_name) AS name, count
@@ -927,9 +909,7 @@ async def handle_topterpil(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 # Triggers Management
 # -----------------------------
 async def handle_triggers_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     message = update.effective_message
     if not message:
         return
@@ -970,9 +950,7 @@ async def handle_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await message.reply_text("Usage: /remove <phrase>")
         return
 
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     deleted, _ = await db.execute(
         "DELETE FROM triggers WHERE chat_id = ? AND search_phrase = ? AND is_global = ?",
         (message.chat_id, phrase, False),
@@ -993,9 +971,7 @@ async def handle_removeglobal(update: Update, context: ContextTypes.DEFAULT_TYPE
         await message.reply_text("Usage: /removeglobal <phrase>")
         return
 
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     deleted, _ = await db.execute(
         "DELETE FROM triggers WHERE search_phrase = ? AND is_global = ?",
         (phrase, True),
@@ -1019,9 +995,7 @@ async def handle_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await message.reply_text("Please provide a trigger phrase.")
         return
 
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     _, cascade_exists = await check_trigger_existence(db, message.chat_id, phrase)
     if cascade_exists:
         await message.reply_text("A cascade trigger with this phrase exists.")
@@ -1072,9 +1046,7 @@ async def handle_addglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await message.reply_text("Provide a phrase.")
         return
 
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     existing_row = await db.fetchone(
         "SELECT id FROM triggers WHERE is_global = ? AND search_phrase = ? LIMIT 1",
         (True, phrase),
@@ -1098,7 +1070,7 @@ async def handle_addglobal(update: Update, context: ContextTypes.DEFAULT_TYPE) -
            ON CONFLICT(chat_id, is_global, search_phrase)
            DO UPDATE SET response=excluded.response, file_type=excluded.file_type,
                          file_id=excluded.file_id, file_name=excluded.file_name,
-                         entities=excluded.entities""",
+                         entities=excluded.entities, chat_id=excluded.chat_id""",
         (0, phrase, mr.response, str(mr.file_type), mr.file_id, mr.file_name, ent_json, True),
     )
     await message.reply_text("Global response updated!" if existing_id else "New global response added!")
@@ -1120,9 +1092,7 @@ async def handle_addc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await message.reply_text("Provide a phrase.")
         return
 
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     local_exists, _ = await check_trigger_existence(db, message.chat_id, phrase)
     if local_exists:
         await message.reply_text("A normal trigger exists for this phrase.")
@@ -1167,12 +1137,10 @@ async def handle_removec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await message.reply_text("Provide a phrase.")
         return
 
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     r = message.reply_to_message
 
-    response_text = (r.text or r.caption or "").strip()
+    response_text = ((r.text or "") or (r.caption or "")).strip()
     file_id = ""
     for attr in ["photo", "animation", "voice", "sticker", "video", "document", "audio", "video_note"]:
         val = getattr(r, attr, None)
@@ -1235,9 +1203,7 @@ async def time_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await message.reply_text("Location unavailable.")
         return
 
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     try:
         await db.execute("INSERT INTO timezones (chatID, location) VALUES (?, ?)", (message.chat_id, location))
     except aiosqlite.Error:
@@ -1258,9 +1224,7 @@ async def time_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await message.reply_text("Usage: /removelocation <Location>")
         return
 
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     deleted, _ = await db.execute("DELETE FROM timezones WHERE chatID = ? AND location = ?", (message.chat_id, location))
     await message.reply_text(f"Removed '{location}'" if deleted else "Location not found.")
 
@@ -1277,9 +1241,7 @@ async def add_or_update_alias(update: Update, context: ContextTypes.DEFAULT_TYPE
     location = parts[0].strip()
     alias = parts[1].strip()
 
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     row = await db.fetchone(
         "SELECT 1 AS x FROM alias WHERE chatID = ? AND location = ? LIMIT 1",
         (message.chat_id, location),
@@ -1292,11 +1254,7 @@ async def add_or_update_alias(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def reset_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not update.effective_chat:
-        return
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     chat_id = update.effective_chat.id
     await db.execute("DELETE FROM messagelist WHERE chatID = ?", (chat_id,))
     await update_time_message_for_chat(db, context, chat_id)
@@ -1354,9 +1312,7 @@ async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAU
 
 
 async def update_time_job(context: ContextTypes.DEFAULT_TYPE) -> None:
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     chat_ids = await db.get_all_active_chat_ids()
     for cid in chat_ids:
         await update_time_message_for_chat(db, context, cid)
@@ -1448,9 +1404,8 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # 1. Terpet check
     txt_lower = (message.text or "").lower()
     if message.chat_id == -1001390115843 and "терпеть" in txt_lower:
-        db = context.application.bot_data.get("db")
-        if db is not None:
-            await increment_terpet(db, context, message)
+        db = context.application.bot_data["db"]
+        await increment_terpet(db, context, message)
 
     # 2. Keyword Cooldown Check
     target_chat_id = -1002245157577
@@ -1469,9 +1424,7 @@ async def handle_text_logic(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not (message.text or message.caption):
         return
 
-    db: Database = context.application.bot_data.get("db")
-    if db is None:
-        return
+    db: Database = context.application.bot_data["db"]
     received_key = norm_key(message.text or message.caption or "")
     if not received_key:
         return
