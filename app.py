@@ -1504,7 +1504,10 @@ async def on_startup(app: Application) -> None:
     tmp_ctx = _TmpCtx(app)
 
     for cid in chat_ids:
-        await update_time_message_for_chat(db, tmp_ctx, cid)  # type: ignore
+        try:
+            await update_time_message_for_chat(db, tmp_ctx, cid)  # type: ignore
+        except Exception as e:
+            logger.warning("Failed to update time message for chat %s on startup: %s", cid, e)
 
     if app.job_queue:
         app.job_queue.run_repeating(update_time_job, interval=30, first=30)
