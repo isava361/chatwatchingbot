@@ -1598,7 +1598,7 @@ def main() -> None:
 
     app.add_handler(
         MessageHandler(
-            (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS & ~filters.UpdateType.EDITED_MESSAGE,
+            (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
             handle_text_logic,
         )
     )
@@ -1638,13 +1638,9 @@ def main() -> None:
         elif m.from_user:
             await m.reply_html(f"<b>Your User ID:</b> <code>{m.from_user.id}</code>")
 
-    app.add_handler(MessageHandler(filters.ChatType.PRIVATE & ~filters.UpdateType.EDITED_MESSAGE, private_echo))
+    app.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_echo))
 
-    app.run_polling(allowed_updates=[
-        Update.MESSAGE,
-        Update.CHAT_MEMBER,
-        Update.MY_CHAT_MEMBER,
-    ])
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
