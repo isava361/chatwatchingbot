@@ -26,7 +26,7 @@ from barcode.writer import ImageWriter
 
 from telegram import Message, MessageEntity, Update
 from telegram.constants import ParseMode
-from telegram.error import BadRequest, Forbidden
+from telegram.error import BadRequest, Forbidden, TimedOut
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -1292,7 +1292,7 @@ async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAU
         try:
             sent = await bot.send_message(chat_id=chat_id, text=text)
             await db.execute("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", (chat_id, sent.message_id))
-        except Forbidden:
+        except (Forbidden, TimedOut):
             pass
         return
 
@@ -1305,9 +1305,9 @@ async def update_time_message_for_chat(db: Database, context: ContextTypes.DEFAU
             try:
                 sent = await bot.send_message(chat_id=chat_id, text=text)
                 await db.execute("INSERT INTO messagelist (chatID, messageID) VALUES (?, ?)", (chat_id, sent.message_id))
-            except Forbidden:
+            except (Forbidden, TimedOut):
                 pass
-    except Forbidden:
+    except (Forbidden, TimedOut):
         pass
 
 
