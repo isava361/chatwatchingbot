@@ -1664,7 +1664,7 @@ def main() -> None:
 
     app.add_handler(
         MessageHandler(
-            (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS,
+            (filters.TEXT | filters.CAPTION) & filters.ChatType.GROUPS & ~filters.UpdateType.EDITED_MESSAGE,
             handle_text_logic,
         )
     )
@@ -1704,23 +1704,6 @@ def main() -> None:
         elif m.from_user:
             await m.reply_html(f"<b>Your User ID:</b> <code>{m.from_user.id}</code>")
 
-    app.add_handler(MessageHandler(filters.ChatType.PRIVATE, private_echo))
-
-<<<<<<< HEAD
-        legacy_forward_from = getattr(m, "forward_from", None)
-        if legacy_forward_from and getattr(legacy_forward_from, "id", None):
-            forward_from_id = legacy_forward_from.id
-
-        if getattr(m, "forward_sender_name", None):
-            forward_sender_hidden = True
-
-        if forward_from_id is not None:
-            await m.reply_html(f"<b>Message forwarded from User ID: </b> <code>{forward_from_id}</code>")
-        elif forward_sender_hidden:
-            await m.reply_html("<b>Sorry, this user's ID is hidden</b>")
-        elif m.from_user:
-            await m.reply_html(f"<b>Your User ID:</b> <code>{m.from_user.id}</code>")
-
     app.add_handler(MessageHandler(filters.ChatType.PRIVATE & ~filters.UpdateType.EDITED_MESSAGE, private_echo))
 
     app.run_polling(
@@ -1731,9 +1714,6 @@ def main() -> None:
         ],
         drop_pending_updates=True,
     )
-=======
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
->>>>>>> parent of 9d8b1d6 (Merge pull request #11 from isava361/claude/ignore-edits-reactions-NPH8D)
 
 
 if __name__ == "__main__":
