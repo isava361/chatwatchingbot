@@ -1174,6 +1174,30 @@ async def handle_removec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await message.reply_text("Cascade trigger deleted as it is now empty.")
 
 
+async def handle_deletec(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.effective_message
+    if not message:
+        return
+
+    phrase = norm_key(" ".join(context.args))
+    if not phrase:
+        await message.reply_text("Provide a phrase: /deletec <phrase>")
+        return
+
+    db: Database = context.application.bot_data["db"]
+    row = await db.fetchone(
+        "SELECT id FROM cascade_triggers2 WHERE chat_id = ? AND search_phrase = ?",
+        (message.chat_id, phrase),
+    )
+    if not row:
+        await message.reply_text("Cascade trigger not found.")
+        return
+
+    trigger_id = safe_int(row["id"])
+    await db.execute("DELETE FROM cascade_triggers2 WHERE id = ?", (trigger_id,))
+    await message.reply_text("Cascade trigger deleted.")
+
+
 # -----------------------------
 # Timezone Commands
 # -----------------------------
@@ -1581,6 +1605,7 @@ def main() -> None:
     app.add_handler(CommandHandler("removeglobal", handle_removeglobal))
     app.add_handler(CommandHandler("addc", handle_addc))
     app.add_handler(CommandHandler("removec", handle_removec))
+    app.add_handler(CommandHandler("deletec", handle_deletec))
 
     app.add_handler(CommandHandler("addlocation", time_add))
     app.add_handler(CommandHandler("removelocation", time_remove))
